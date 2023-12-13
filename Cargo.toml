@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "boot",
     "hypervisor",
+    "xtask",
 ]
 
 [profile.release]
