@@ -3,6 +3,48 @@
 //! ```shell
 //! cargo xtask
 //! ```
+
+#![warn(
+    // groups: https://doc.rust-lang.org/rustc/lints/groups.html
+    future_incompatible,
+    let_underscore,
+    nonstandard_style,
+    rust_2018_compatibility,
+    rust_2018_idioms,
+    rust_2021_compatibility,
+    unused,
+
+    // warnings that are not enabled by default or covered by groups
+    // https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html
+    macro_use_extern_crate,
+    meta_variable_misuse,
+    missing_abi,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    non_ascii_idents,
+    noop_method_call,
+    single_use_lifetimes,
+    trivial_numeric_casts,
+    unreachable_pub,
+    unsafe_op_in_unsafe_fn,
+    unused_crate_dependencies,
+    unused_import_braces,
+    unused_lifetimes,
+    unused_qualifications,
+  //unused_results,
+
+    // https://github.com/rust-lang/rust-clippy/blob/master/README.md
+    clippy::pedantic,
+    clippy::cargo,
+
+    // https://doc.rust-lang.org/rustdoc/lints.html
+    rustdoc::missing_crate_level_docs,
+    rustdoc::private_doc_tests,
+    rustdoc::invalid_html_tags,
+)]
+#![allow(clippy::multiple_crate_versions)]
+
 use bochs::{Bochs, Cpu};
 use clap::{Parser, Subcommand};
 use std::{
@@ -12,6 +54,8 @@ use std::{
 };
 use vmware::Vmware;
 
+mod bochs;
+mod vmware;
 
 type DynError = Box<dyn std::error::Error>;
 
@@ -62,13 +106,13 @@ fn start_vm<T: TestVm>(vm: &T, release: bool) -> Result<(), DynError> {
 }
 
 fn build_hypervisor(release: bool) -> Result<(), DynError> {
-    // Building vt-rp only is important because we are running xtask, which cannot
+    // Building rhv only is important because we are running xtask, which cannot
     // be overwritten while running.
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let mut command = Command::new(cargo);
-    let _ = command.args(["build", "--package", "vt-rp"]);
+    command.args(["build", "--package", "illusion"]);
     if release {
-        let _ = command.arg("--release");
+        command.arg("--release");
     }
     let ok = command.current_dir(project_root_dir()).status()?.success();
     if !ok {
@@ -78,7 +122,7 @@ fn build_hypervisor(release: bool) -> Result<(), DynError> {
 }
 
 fn project_root_dir() -> PathBuf {
-    // Get the path to the xtask directory and resolve its parent directory.
+    // Get the path to rhv/xtask directory and resolve its parent directory.
     let root_dir = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(1)
@@ -108,9 +152,9 @@ fn copy_artifacts_to(image: &str, release: bool) -> Result<(), DynError> {
         fs::canonicalize(&out_dir).unwrap()
     }
 
-    let vtrp_efi = unix_path(&output_dir(release)) + "/vt-rp.efi";
+    let rhv_efi = unix_path(&output_dir(release)) + "/rhv.efi";
     let startup_nsh = unix_path(&project_root_dir()) + "/tests/startup.nsh";
-    let files = [vtrp_efi, startup_nsh];
+    let files = [rhv_efi, startup_nsh];
     for file in &files {
         let output = UnixCommand::new("mcopy")
             .args(["-o", "-i", image, file, "::/"])
