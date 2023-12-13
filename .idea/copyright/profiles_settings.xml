@@ -1,0 +1,10 @@
+<component name="CopyrightManager">
+  <settings>
+    <LanguageOptions name="Rust">
+      <option name="addBlankAfter" value="false" />
+    </LanguageOptions>
+    <LanguageOptions name="__TEMPLATE__">
+      <option name="addBlankAfter" value="false" />
+    </LanguageOptions>
+  </settings>
+</component>
