@@ -5,10 +5,6 @@
 #![feature(offset_of)]
 
 use {
-    crate::{
-        boot::globals::{DRIVER_IMAGE_SIZE, DRIVER_PHYSICAL_MEMORY},
-        mapper::get_nt_headers,
-    },
     uefi::{
         prelude::*,
         table::boot::{AllocateType, MemoryType},
@@ -43,7 +39,7 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 */
 
 #[no_mangle]
-fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
+extern "efiapi" fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     /* Setup a simple memory allocator, initialize logger, and provide panic handler. (Removed as it conflicts with com_logger) */
     //uefi_services::init(&mut system_table).unwrap();
 
@@ -62,6 +58,16 @@ fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     log::info!("UEFI Hypervisor (Illusion) in Rust");
 
+    // Capture the register values to be used as an initial state of the VM.
+    let mut regs = GuestRegisters::default();
+    unsafe { capture_registers(&mut regs) };
+
+
+    if virtualize().is_none() {
+        log::error!("Failed to virtualize processors");
+        return STATUS_UNSUCCESSFUL;
+    }
+
     /* Make the system pause for 10 seconds */
     log::info!("[+] Stalling the processor for 10 seconds");
     system_table.boot_services().stall(10_000_000);
@@ -73,4 +79,40 @@ fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
         .expect("[-] Failed to start Windows EFI Boot Manager");
 
     Status::SUCCESS
+}
+
+/// The main hypervisor object.
+///
+/// This static mutable option holds the global instance of the hypervisor used by this driver.
+static mut HYPERVISOR: Option<Hypervisor> = None;
+
+/// Attempts to virtualize the system.
+///
+/// This function initializes a new hypervisor and then attempts to virtualize all
+/// processors on the system.
+///
+/// # Returns
+///
+/// * `Some(())` if the system was successfully virtualized.
+/// * `None` if there was an error during virtualization.
+fn virtualize() -> Option<()> {
+    let mut hypervisor = match Hypervisor::new() {
+        Ok(hypervisor) => hypervisor,
+        Err(err) => {
+            log::info!("Failed to initialize hypervisor: {}", err);
+            return None;
+        }
+    };
+
+    match hypervisor.virtualize_system() {
+        Ok(_) => log::info!("Successfully virtualized system!"),
+        Err(err) => {
+            log::info!("Failed to virtualize system: {}", err);
+            return None;
+        }
+    }
+
+    unsafe { HYPERVISOR = Some(hypervisor) };
+
+    Some(())
 }
