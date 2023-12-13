@@ -2,18 +2,8 @@
 name = "xtask"
 version = "0.1.0"
 edition = "2021"
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
-readme.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lints]
-workspace = true
 
 [dependencies]
 cfg-if = "1.0"
