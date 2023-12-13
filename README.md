@@ -1,4 +1,4 @@
-# Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix)
+# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: Illusion)
 
 ![Build Status](https://github.com/memN0ps/hypervisor-rs/actions/workflows/github-actions.yml/badge.svg)
 ![License](https://img.shields.io/github/license/memN0ps/hypervisor-rs)
@@ -12,14 +12,12 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-2 research hyperv
 
 - Efficient VM exit handling: `CPUID`, `RDMSR` & `WRMSR`, `INVD`, `RDTSC`, `XSETBV`.
 - Custom GDT and IDT setup, partially complete with ongoing development for new Page Tables. [Learn more](https://www.unknowncheats.me/forum/2779560-post4.html).
-- Uses `ntoskrnl.exe` CR3 (Directory Base Table) for the host CR3 configuration.
 - Integrated Extended Page Tables (EPT) with Memory Type Range Registers (MTRR), ensuring optimal memory mapping and type management.
 
 ## Planned Enhancements
 
 - Enhanced VM Exit Instruction Handling, including `EptViolation`, `EptMisconfiguration`, `GETSEC`, and VMX instructions like `INVEPT`, `INVVPID`, `VMCALL`, `VMCLEAR`, `VMLAUNCH`, `VMPTRLD`, `VMPTRST`, `VMRESUME`, `VMXOFF`, `VMXON`.
 - Development of EPT hooks for advanced memory control and monitoring in guest VMs.
-- Resolve a critical issue where the hypervisor causes a `CRITICAL_PROCESS_DIED (ef)` BSOD after running for a minute, aiming to enhance system stability and reliability.
 
 ## Installation
 
