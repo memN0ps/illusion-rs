@@ -30,19 +30,19 @@ impl Vmx {
     /// Enables VMX operation by setting appropriate bits and executing the VMXON instruction.
     fn setup_vmxon(&mut self) -> Result<(), HypervisorError> {
         log::trace!("Enabling Virtual Machine Extensions (VMX)");
-        Self::enable_vmx_operation();
+        Vmxon::enable_vmx_operation();
         log::trace!("VMX enabled");
 
         log::trace!("Adjusting IA32_FEATURE_CONTROL MSR");
-        Self::adjust_feature_control_msr()?;
+        Vmxon::adjust_feature_control_msr()?;
         log::trace!("IA32_FEATURE_CONTROL MSR adjusted");
 
         log::trace!("Setting CR0 bits");
-        Self::set_cr0_bits();
+        Vmxon::set_cr0_bits();
         log::trace!("CR0 bits set");
 
         log::trace!("Setting CR4 bits");
-        Self::set_cr4_bits();
+        Vmxon::set_cr4_bits();
         log::trace!("CR4 bits set");
 
         self.vmxon_region.revision_id.set_bit(31, false);

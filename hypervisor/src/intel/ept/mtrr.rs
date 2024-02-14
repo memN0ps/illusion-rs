@@ -43,10 +43,10 @@ impl Mtrr {
 
             // Skip Write Back type as it's the default memory type.
             if item.is_enabled && item.mem_type != MemoryType::WriteBack {
-                let end_address = Self::calculate_end_address(item.base.pa(), item.mask);
+                let end_address = Self::calculate_end_address(item.base, item.mask);
 
                 let descriptor = MtrrRangeDescriptor {
-                    base_address: item.base.pa(),
+                    base_address: item.base,
                     end_address,
                     memory_type: item.mem_type,
                 };

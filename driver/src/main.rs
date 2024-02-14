@@ -6,8 +6,8 @@ extern crate alloc;
 use {
     log::*,
     uefi::prelude::*,
-    hypervisor::vmm::is_hypervisor_present,
-    crate::{virtualize::virtualize_system, capture::{capture_registers, GuestRegisters}},
+    hypervisor::{vmm::is_hypervisor_present, intel::capture::{capture_registers, GuestRegisters}},
+    crate::virtualize::virtualize_system,
 };
 
 pub mod virtualize;

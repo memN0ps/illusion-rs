@@ -1,6 +1,7 @@
 pub mod capture;
 pub mod controls;
 pub mod descriptor;
+pub mod page;
 pub mod ept;
 //pub mod events;
 //pub mod invept;

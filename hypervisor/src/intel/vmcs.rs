@@ -61,7 +61,7 @@ impl Vmcs {
         unsafe { vmwrite(vmcs::guest::CR3, controlregs::cr3()) };
         vmwrite(vmcs::guest::CR4, Cr4::read_raw());
 
-        vmwrite(vmcs::guest::DR7, unsafe { dr7().0.bits() });
+        vmwrite(vmcs::guest::DR7, unsafe { dr7().0 as u64 });
 
         vmwrite(vmcs::guest::RSP, guest_registers.rsp);
         vmwrite(vmcs::guest::RIP, guest_registers.rip);

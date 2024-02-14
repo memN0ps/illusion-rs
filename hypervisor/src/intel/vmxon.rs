@@ -33,7 +33,7 @@ impl Default for Vmxon {
 
 impl Vmxon {
     /// Enables VMX operation by setting appropriate bits and executing the VMXON instruction.
-    fn enable_vmx_operation() {
+    pub fn enable_vmx_operation() {
         const CR4_VMX_ENABLE_BIT: usize = 13;
         let mut cr4 = Cr4::read_raw();
         cr4.set_bit(CR4_VMX_ENABLE_BIT, true);
@@ -41,7 +41,7 @@ impl Vmxon {
     }
 
     /// Sets the lock bit in IA32_FEATURE_CONTROL if necessary.
-    fn adjust_feature_control_msr() -> Result<(), HypervisorError> {
+    pub fn adjust_feature_control_msr() -> Result<(), HypervisorError> {
         const VMX_LOCK_BIT: u64 = 1 << 0;
         const VMXON_OUTSIDE_SMX: u64 = 1 << 2;
 
@@ -62,7 +62,7 @@ impl Vmxon {
     }
 
     /// Modifies CR0 to set and clear mandatory bits.
-    fn set_cr0_bits() {
+    pub fn set_cr0_bits() {
         let ia32_vmx_cr0_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED0) };
         let ia32_vmx_cr0_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED1) };
 
@@ -75,7 +75,7 @@ impl Vmxon {
     }
 
     /// Modifies CR4 to set and clear mandatory bits.
-    fn set_cr4_bits() {
+    pub fn set_cr4_bits() {
         let ia32_vmx_cr4_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED0) };
         let ia32_vmx_cr4_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED1) };
 

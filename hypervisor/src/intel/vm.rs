@@ -33,7 +33,9 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> Self {
-        let mut vmcs = Box::<Vmcs>::default();
+        let vmcs = Box::<Vmcs>::default();
+        let guest_descriptor_table = unsafe { Box::<DescriptorTables>::new_zeroed().assume_init() };
+        let host_descriptor_table = unsafe { Box::<DescriptorTables>::new_zeroed().assume_init() };
         let mut host_paging = unsafe { Box::<PageTables>::new_zeroed().assume_init() };
 
         host_paging.build_identity();
@@ -41,6 +43,8 @@ impl Vm {
         Self {
             vmcs_region: vmcs,
             host_paging,
+            host_descriptor_table,
+            guest_descriptor_table,
             guest_registers: guest_registers.clone(),
             shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
         }
@@ -63,7 +67,7 @@ impl Vm {
     }
 
     pub fn setup_vmcs(&mut self) -> Result<(), HypervisorError> {
-        Vmcs::setup_guest_registers_state(&self.guest_descriptor_table, &mut self.guest_registers)?;
+        Vmcs::setup_guest_registers_state(&self.guest_descriptor_table, &mut self.guest_registers);
         Vmcs::setup_host_registers_state(&self.host_descriptor_table, &self.host_paging)?;
         Vmcs::setup_vmcs_control_fields(&mut self.shared_data)?;
 
