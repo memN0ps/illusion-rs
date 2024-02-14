@@ -8,7 +8,6 @@ use {
     x86_64::registers::control::Cr4,
     x86::controlregs,
 };
-use crate::intel::vmcs::Vmcs;
 
 /// A representation of the VMXON region in memory.
 ///
@@ -22,7 +21,6 @@ pub struct Vmxon {
     pub revision_id: u32,
     pub data: [u8; BASE_PAGE_SIZE - 4],
 }
-const _: () = assert_eq!(core::mem::size_of::<Vmxon>(), BASE_PAGE_SIZE);
 
 impl Default for Vmxon {
     fn default() -> Self {
@@ -34,29 +32,6 @@ impl Default for Vmxon {
 }
 
 impl Vmxon {
-    /// Enables VMX operation by setting appropriate bits and executing the VMXON instruction.
-    pub fn setup_vmxon(&mut self) -> Result<(), HypervisorError> {
-        log::trace!("Enabling Virtual Machine Extensions (VMX)");
-        Self::enable_vmx_operation();
-        log::trace!("VMX enabled");
-
-        log::trace!("Adjusting IA32_FEATURE_CONTROL MSR");
-        Self::adjust_feature_control_msr()?;
-        log::trace!("IA32_FEATURE_CONTROL MSR adjusted");
-
-        log::trace!("Setting CR0 bits");
-        Self::set_cr0_bits();
-        log::trace!("CR0 bits set");
-
-        log::trace!("Setting CR4 bits");
-        Self::set_cr4_bits();
-        log::trace!("CR4 bits set");
-
-        self.revision_id.set_bit(31, false);
-
-        Ok(())
-    }
-
     /// Enables VMX operation by setting appropriate bits and executing the VMXON instruction.
     fn enable_vmx_operation() {
         const CR4_VMX_ENABLE_BIT: usize = 13;
