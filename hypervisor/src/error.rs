@@ -154,4 +154,10 @@ pub enum HypervisorError {
 
     #[error("Failed to parse hexadecimal string")]
     HexParseError,
+
+    #[error("VM instruction failed due to carry flag being set")]
+    VMFailToLaunch,
+
+    #[error("VM instruction failed due to zero flag being set")]
+    VmInstructionError,
 }

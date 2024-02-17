@@ -1,5 +1,3 @@
-use crate::intel::vmerror::VmxBasicExitReason;
-use x86::vmx::vmcs::ro;
 use {
     crate::{
         error::HypervisorError,
@@ -11,14 +9,11 @@ use {
             shared_data::SharedData,
             support::{vmclear, vmptrld, vmread},
             vmcs::Vmcs,
+            vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
         },
     },
-    alloc::{
-        boxed::Box,
-        format,
-        string::{String, ToString},
-    },
+    alloc::boxed::Box,
     bit_field::BitField,
     core::ptr::NonNull,
     x86::{bits64::rflags::RFlags, vmx::vmcs},
@@ -113,7 +108,7 @@ impl Vm {
     pub fn run(&mut self) -> Result<VmxBasicExitReason, HypervisorError> {
         // Run the VM until the VM-exit occurs.
         let flags = unsafe { launch_vm(&mut self.guest_registers, u64::from(self.has_launched)) };
-        Self::vm_succeed(RFlags::from_raw(flags)).unwrap();
+        Self::vm_succeed(RFlags::from_raw(flags))?;
         self.has_launched = true;
 
         // VM-exit occurred. Copy the guest register values from VMCS so that
@@ -122,7 +117,7 @@ impl Vm {
         self.guest_registers.rsp = vmread(vmcs::guest::RSP);
         self.guest_registers.rflags = vmread(vmcs::guest::RFLAGS);
 
-        let exit_reason = vmread(ro::EXIT_REASON) as u32;
+        let exit_reason = vmread(vmcs::ro::EXIT_REASON) as u32;
 
         let Some(basic_exit_reason) = VmxBasicExitReason::from_u32(exit_reason) else {
             log::error!("Unknown exit reason: {:#x}", exit_reason);
@@ -132,20 +127,36 @@ impl Vm {
         return Ok(basic_exit_reason);
     }
 
-    /// Checks that the latest VMX instruction succeeded.
+    /// Verifies that the `launch_vm` function executed successfully.
     ///
-    /// See: 31.2 CONVENTIONS
-    fn vm_succeed(flags: RFlags) -> Result<(), String> {
+    /// This method checks the RFlags for indications of failure from the `launch_vm` function.
+    /// If a failure is detected, it will panic with a detailed error message.
+    ///
+    /// # Arguments
+    ///
+    /// * `flags`: The RFlags value post-execution of the `launch_vm` function.
+    ///
+    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual:
+    /// - 31.2 CONVENTIONS
+    /// - 31.4 VM INSTRUCTION ERROR NUMBERS
+    fn vm_succeed(flags: RFlags) -> Result<(), HypervisorError> {
         if flags.contains(RFlags::FLAGS_ZF) {
-            // See: 31.4 VM INSTRUCTION ERROR NUMBERS
-            Err(format!(
-                "VmFailValid with {}",
-                vmread(vmcs::ro::VM_INSTRUCTION_ERROR)
-            ))
+            let instruction_error = vmread(vmcs::ro::VM_INSTRUCTION_ERROR) as u32;
+            return match VmInstructionError::from_u32(instruction_error) {
+                Some(error) => {
+                    log::error!("VM instruction error: {:?}", error);
+                    Err(HypervisorError::VmInstructionError)
+                }
+                None => {
+                    log::error!("Unknown VM instruction error: {:#x}", instruction_error);
+                    Err(HypervisorError::UnknownVMInstructionError)
+                }
+            };
         } else if flags.contains(RFlags::FLAGS_CF) {
-            Err("VmFailInvalid".to_string())
-        } else {
-            Ok(())
+            log::error!("VM instruction failed due to carry flag being set");
+            return Err(HypervisorError::VMFailToLaunch);
         }
+
+        Ok(())
     }
 }

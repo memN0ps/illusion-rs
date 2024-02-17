@@ -20,9 +20,7 @@ use {
         vmx::Vmx,
     },
     log::*,
-    x86::{
-        vmx::vmcs::{guest, ro},
-    },
+    x86::vmx::vmcs::{guest, ro},
 };
 
 // pass shared data to the hypervisor soon too
