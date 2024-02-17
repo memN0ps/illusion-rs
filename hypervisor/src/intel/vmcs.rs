@@ -4,18 +4,17 @@ use {
         fmt,
         ptr::NonNull,
     },
-    bit_field::BitField,
     x86::{
         bits64::{
             paging::BASE_PAGE_SIZE,
             rflags,
         },
-        controlregs, dtables, msr, task,
+        controlregs, dtables, msr,
         segmentation::{cs, ds, es, fs, gs, SegmentSelector, ss},
         vmx::vmcs,
         debugregs::dr7,
     },
-    x86_64::registers::control::{Cr0, Cr3, Cr4},
+    x86_64::registers::control::Cr4,
     crate::{
         error::HypervisorError,
         intel::{
@@ -25,10 +24,7 @@ use {
             paging::PageTables,
             segmentation::SegmentDescriptor,
             shared_data::SharedData,
-            support::{rdmsr, sidt, vmclear, vmptrld, vmread, vmwrite},
-            vm::Vm,
-            vmx::Vmx,
-            vmxon::Vmxon,
+            support::{rdmsr, sidt, vmread, vmwrite},
             invvpid::{invvpid_single_context, VPID_TAG},
             invept::invept_single_context,
             page::Page,

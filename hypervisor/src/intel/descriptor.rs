@@ -146,5 +146,5 @@ impl Default for TaskStateSegment {
 }
 
 /// See: Figure 8-11. 64-Bit TSS Format
-
+#[allow(dead_code)]
 struct TaskStateSegmentRaw([u8; 104]);

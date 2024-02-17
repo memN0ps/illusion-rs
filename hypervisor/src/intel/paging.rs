@@ -112,7 +112,7 @@ impl PageTables {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 4.5 Paging
 #[derive(Debug, Clone, Copy)]
-struct Pml4(Table);
+pub struct Pml4(Table);
 
 /// Represents a Page-Directory-Pointer-Table Entry (PDPTE) that references a Page Directory.
 ///
@@ -120,7 +120,7 @@ struct Pml4(Table);
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 4.5 Paging
 #[derive(Debug, Clone, Copy)]
-struct Pdpt(Table);
+pub struct Pdpt(Table);
 
 /// Represents a Page-Directory Entry (PDE) that references a Page Table.
 ///
@@ -130,6 +130,7 @@ struct Pdpt(Table);
 #[derive(Debug, Clone, Copy)]
 struct Pd(Table);
 
+/*
 /// Represents a Page-Table Entry (PTE) that maps a 4-KByte Page.
 ///
 /// PTEs are the lowest level in the standard x86-64 paging hierarchy and are used to map individual
@@ -137,7 +138,8 @@ struct Pd(Table);
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 4.5 Paging
 #[derive(Debug, Clone, Copy)]
-struct Pt(Table);
+pub struct Pt(Table);
+*/
 
 /// General struct to represent a table in the standard paging structure.
 ///
@@ -145,7 +147,7 @@ struct Pt(Table);
 /// where each entry can represent different levels of the paging hierarchy.
 #[repr(C, align(4096))]
 #[derive(Debug, Clone, Copy)]
-struct Table {
+pub struct Table {
     entries: [Entry; 512],
 }
 

@@ -1,5 +1,4 @@
 use {
-    alloc::boxed::Box,
     bit_field::BitField,
     crate::{
         error::HypervisorError,
@@ -8,16 +7,17 @@ use {
             vmxon::Vmxon,
         },
     },
+    alloc::boxed::Box,
 };
 
 pub struct Vmx {
-    pub vmxon_region: Vmxon,
+    pub vmxon_region: Box<Vmxon>,
 }
 
 impl Vmx {
     pub fn new() -> Self {
         Self {
-            vmxon_region: Vmxon::default(),
+            vmxon_region: Box::new(Vmxon::default()),
         }
     }
 
@@ -27,7 +27,7 @@ impl Vmx {
         log::trace!("VMXON region setup successfully!");
 
         log::trace!("Executing VMXON instruction");
-        vmxon(&mut self.vmxon_region as *mut _ as _);
+        vmxon(self.vmxon_region.as_ref() as *const _ as _);
         log::trace!("VMXON executed successfully!");
 
         Ok(())

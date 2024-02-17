@@ -20,7 +20,7 @@ use {
 
 pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
-    pub vmcs_region: Vmcs,
+    pub vmcs_region: Box<Vmcs>,
 
     /// The guest's descriptor tables.
     pub guest_descriptor: Descriptors,
@@ -45,7 +45,7 @@ impl Vm {
     pub fn new(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> Self {
         log::debug!("Creating VM");
 
-        let vmcs = Vmcs::default();
+        let vmcs_region = Box::new(Vmcs::default());
         let guest_descriptor_table = Descriptors::new_from_current();
         let host_descriptor_table =  Descriptors::new_for_host();
         let mut host_paging = unsafe { Box::<PageTables>::new_zeroed().assume_init() };
@@ -57,7 +57,7 @@ impl Vm {
         log::debug!("VM created");
 
         Self {
-            vmcs_region: vmcs,
+            vmcs_region,
             host_paging,
             host_descriptor: host_descriptor_table,
             guest_descriptor: guest_descriptor_table,
@@ -72,11 +72,11 @@ impl Vm {
         self.vmcs_region.revision_id.set_bit(31, false);
 
         // Clear the VMCS region.
-        vmclear(&mut self.vmcs_region as *mut _ as _);
+        vmclear(self.vmcs_region.as_ref() as *const _ as _);
         log::trace!("VMCLEAR successful!");
 
         // Load current VMCS pointer.
-        vmptrld(&mut self.vmcs_region as *mut _ as _);
+        vmptrld(self.vmcs_region.as_ref() as *const _ as _);
         log::trace!("VMPTRLD successful!");
 
         self.setup_vmcs()?;

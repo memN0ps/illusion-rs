@@ -4,18 +4,15 @@ use {
     hypervisor::{
         intel::{
             capture::GuestRegisters, page::Page,
-            ept::paging::{Ept, AccessType},
             shared_data::SharedData,
         },
         vmm::start_hypervisor,
-        error::HypervisorError,
     },
     log::debug,
     uefi::{
         proto::loaded_image::LoadedImage,
         table::{Boot, SystemTable},
     },
-    alloc::boxed::Box,
 };
 
 pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut SharedData, system_table: &SystemTable<Boot>) {
