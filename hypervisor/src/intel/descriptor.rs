@@ -1,110 +1,115 @@
-//! This module defines and manages the descriptor tables (GDT and IDT) for both the host and guest.
-//! It provides utilities to capture, initialize, and manage these tables.
-
 use {
-    crate::{
-        error::HypervisorError,
+    x86::{
+        dtables::DescriptorTablePointer,
+        segmentation::{
+            cs, BuildDescriptor, CodeSegmentType, Descriptor, DescriptorBuilder, GateDescriptorBuilder,
+            SegmentDescriptorBuilder, SegmentSelector,
+        },
     },
     alloc::{boxed::Box, vec::Vec},
-    x86::dtables::DescriptorTablePointer,
+    crate::intel::support::sgdt,
 };
-use crate::intel::support::{sgdt, sidt};
 
-/// Represents the descriptor tables (GDT and IDT) for the host.
-/// Contains the GDT and IDT along with their respective register pointers.
-#[repr(C, align(4096))]
-pub struct DescriptorTables {
-    /// Global Descriptor Table (GDT) for the host.
-    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.5.1 Segment Descriptor Tables
-    pub global_descriptor_table: Vec<u64>,
-
-    /// GDTR holds the address and size of the GDT.
-    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 2.4.1 Global Descriptor Table Register (GDTR)
+// UEFI does not set TSS in the GDT. This is incompatible to be both as VM and
+// hypervisor states. This struct supports creating a new GDT that does contain
+// the TSS.
+//
+// See: 27.2.3 Checks on Host Segment and Descriptor-Table Registers
+// See: 27.3.1.2 Checks on Guest Segment Registers
+pub struct Descriptors {
+    gdt: Vec<u64>,
     pub gdtr: DescriptorTablePointer<u64>,
-
-    /// Interrupt Descriptor Table (IDT) for the host.
-    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 6.10 INTERRUPT DESCRIPTOR TABLE (IDT)
-    pub interrupt_descriptor_table: Vec<u64>,
-
-    /// IDTR holds the address and size of the IDT.
-    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 2.4.3 IDTR Interrupt Descriptor Table Register
-    pub idtr: DescriptorTablePointer<u64>,
+    pub cs: SegmentSelector,
+    pub tr: SegmentSelector,
+    pub tss: TaskStateSegment,
 }
-
-impl DescriptorTables {
-    /// Captures the currently loaded GDT and IDT for the guest.
-    pub fn initialize_for_guest(
-        descriptor_tables: &mut Box<DescriptorTables>,
-    ) -> Result<(), HypervisorError> {
-        log::trace!("Capturing current Global Descriptor Table (GDT) and Interrupt Descriptor Table (IDT) for guest");
-
-        // Capture the current GDT and IDT.
-        descriptor_tables.gdtr = sgdt();
-        descriptor_tables.idtr = sidt();
-
-        // Note: We don't need to create new tables for the guest;
-        // we just capture the current ones.
-
-        log::trace!("Captured GDT and IDT for guest successfully!");
-
-        Ok(())
+impl Default for Descriptors {
+    fn default() -> Self {
+        Self {
+            gdt: Vec::new(),
+            gdtr: DescriptorTablePointer::<u64>::default(),
+            cs: SegmentSelector::from_raw(0),
+            tr: SegmentSelector::from_raw(0),
+            tss: TaskStateSegment::default(),
+        }
     }
+}
+impl Descriptors {
+    /// Creates a new GDT with TSS based on the current GDT.
+    pub fn new_from_current() -> Self {
+        log::debug!("Creating a new GDT with TSS for guest");
 
-    /// Initializes and returns the descriptor tables (GDT and IDT) for the host.
-    pub fn initialize_for_host(
-        descriptor_tables: &mut Box<DescriptorTables>,
-    ) -> Result<(), HypervisorError> {
-        log::trace!("Initializing descriptor tables for host");
-
-        descriptor_tables.copy_current_gdt();
-        descriptor_tables.copy_current_idt();
-
-        log::trace!("Initialized descriptor tables for host");
-        Ok(())
-    }
-
-    /// Copies the current GDT.
-    fn copy_current_gdt(&mut self) {
-        log::trace!("Copying current GDT");
-
-        // Get the current GDTR
+        // Get the current GDT.
         let current_gdtr = sgdt();
+        let current_gdt = unsafe {
+            core::slice::from_raw_parts(
+                current_gdtr.base.cast::<u64>(),
+                usize::from(current_gdtr.limit + 1) / 8,
+            )
+        };
 
-        // Create a slice from the current GDT entries.
-        let current_gdt = Self::from_pointer(&current_gdtr);
+        // Copy the current GDT.
+        let mut descriptors = Self {
+            gdt: current_gdt.to_vec(),
+            ..Default::default()
+        };
 
-        // Create a new GDT from the slice.
-        let new_gdt = current_gdt.to_vec();
+        // Append the TSS descriptor. Push extra 0 as it is 16 bytes.
+        // See: 3.5.2 Segment Descriptor Tables in IA-32e Mode
+        let tr_index = descriptors.gdt.len() as u16;
+        descriptors
+            .gdt
+            .push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
+        descriptors.gdt.push(0);
 
-        // Create a new GDTR from the new GDT.
-        let new_gdtr = DescriptorTablePointer::new_from_slice(new_gdt.as_slice());
+        descriptors.gdtr = DescriptorTablePointer::new_from_slice(&descriptors.gdt);
+        descriptors.cs = cs();
+        descriptors.tr = SegmentSelector::new(tr_index, x86::Ring::Ring0);
 
-        // Store the new GDT in the DescriptorTables structure
-        self.global_descriptor_table = new_gdt;
-        self.gdtr = new_gdtr;
-        log::trace!("Copied current GDT");
+        log::debug!("New GDT with TSS created for guest successfully!");
+
+        descriptors
     }
 
-    /// Copies the current IDT.
-    fn copy_current_idt(&mut self) {
-        log::trace!("Copying current IDT");
+    /// Creates a new GDT with TSS from scratch for the host.
+    pub fn new_for_host() -> Self {
+        log::debug!("Creating a new GDT with TSS for host");
 
-        // Get the current IDTR
-        let current_idtr = sidt();
+        let mut descriptors = Self::default();
 
-        // Create a slice from the current IDT entries.
-        let current_idt = Self::from_pointer(&current_idtr);
+        descriptors.gdt.push(0);
+        descriptors
+            .gdt
+            .push(Self::code_segment_descriptor().as_u64());
+        descriptors
+            .gdt
+            .push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
+        descriptors.gdt.push(0);
 
-        // Create a new IDT from the slice.
-        let new_idt = current_idt.to_vec();
+        descriptors.gdtr = DescriptorTablePointer::new_from_slice(&descriptors.gdt);
+        descriptors.cs = SegmentSelector::new(1, x86::Ring::Ring0);
+        descriptors.tr = SegmentSelector::new(2, x86::Ring::Ring0);
 
-        // Create a new IDTR from the new IDT.
-        let new_idtr = DescriptorTablePointer::new_from_slice(new_idt.as_slice());
+        log::debug!("New GDT with TSS created for host successfully!");
 
-        // Store the new IDT in the DescriptorTables structure
-        self.interrupt_descriptor_table = new_idt;
-        self.idtr = new_idtr; // Use the same IDTR as it points to the correct base and limit
-        log::trace!("Copied current IDT");
+        descriptors
+    }
+
+    /// Builds a segment descriptor from the task state segment.
+    fn task_segment_descriptor(tss: &TaskStateSegment) -> Descriptor {
+        <DescriptorBuilder as GateDescriptorBuilder<u32>>::tss_descriptor(tss.base, tss.limit, true)
+            .present()
+            .dpl(x86::Ring::Ring0)
+            .finish()
+    }
+
+    fn code_segment_descriptor() -> Descriptor {
+        DescriptorBuilder::code_descriptor(0, u32::MAX, CodeSegmentType::ExecuteAccessed)
+            .present()
+            .dpl(x86::Ring::Ring0)
+            .limit_granularity_4kb()
+            .l()
+            .finish()
     }
 
     /// Gets the table as a slice from the pointer.
@@ -117,3 +122,29 @@ impl DescriptorTables {
         }
     }
 }
+
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
+pub struct TaskStateSegment {
+    pub base: u64,
+    pub limit: u64,
+    pub ar: u32,
+    #[allow(dead_code)]
+    #[derivative(Debug = "ignore")]
+    segment: Box<TaskStateSegmentRaw>,
+}
+impl Default for TaskStateSegment {
+    fn default() -> Self {
+        let segment = Box::new(TaskStateSegmentRaw([0; 104]));
+        Self {
+            base: segment.as_ref() as *const _ as u64,
+            limit: core::mem::size_of_val(segment.as_ref()) as u64 - 1,
+            ar: 0x8b00,
+            segment,
+        }
+    }
+}
+
+/// See: Figure 8-11. 64-Bit TSS Format
+
+struct TaskStateSegmentRaw([u8; 104]);

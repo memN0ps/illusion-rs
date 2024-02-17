@@ -1,17 +1,23 @@
-use alloc::boxed::Box;
-use bit_field::BitField;
-use crate::error::HypervisorError;
-use crate::intel::support::vmxon;
-use crate::intel::vmxon::Vmxon;
+use {
+    alloc::boxed::Box,
+    bit_field::BitField,
+    crate::{
+        error::HypervisorError,
+        intel::{
+            support::vmxon,
+            vmxon::Vmxon,
+        },
+    },
+};
 
 pub struct Vmx {
-    pub vmxon_region: Box<Vmxon>,
+    pub vmxon_region: Vmxon,
 }
 
 impl Vmx {
     pub fn new() -> Self {
         Self {
-            vmxon_region: Box::<Vmxon>::default(),
+            vmxon_region: Vmxon::default(),
         }
     }
 

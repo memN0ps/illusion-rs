@@ -6,7 +6,7 @@
 //! https://github.com/rcore-os/RVM1.5/blob/main/src/arch/x86_64/segmentation.rs
 
 use {
-    crate::intel::descriptor::DescriptorTables,
+    crate::intel::descriptor::Descriptors,
     bit_field::BitField,
     bitflags::bitflags,
     x86::{dtables::DescriptorTablePointer, segmentation::SegmentSelector},
@@ -130,7 +130,7 @@ impl SegmentDescriptor {
     pub fn from_selector(selector: SegmentSelector, gdtr: &DescriptorTablePointer<u64>) -> Self {
         // Index into the GDT using the selector's index value.
         let index = selector.index() as usize;
-        let table = DescriptorTables::from_pointer(gdtr);
+        let table = Descriptors::from_pointer(gdtr);
 
         // Fetch the descriptor entry from the GDT.
         let entry_value = table[index];

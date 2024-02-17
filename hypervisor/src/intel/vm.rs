@@ -1,25 +1,32 @@
-use alloc::boxed::Box;
-use core::fmt;
-use core::ptr::NonNull;
-use bit_field::BitField;
-use x86::vmx::vmcs;
-use crate::error::HypervisorError;
-use crate::intel::capture::GuestRegisters;
-use crate::intel::descriptor::DescriptorTables;
-use crate::intel::paging::PageTables;
-use crate::intel::shared_data::SharedData;
-use crate::intel::support::{vmclear, vmptrld, vmread};
-use crate::intel::vmcs::Vmcs;
+use {
+    alloc::boxed::Box,
+    core::{
+        ptr::NonNull,
+    },
+    bit_field::BitField,
+    crate::{
+        error::HypervisorError,
+        intel::{
+            capture::GuestRegisters,
+            descriptor::Descriptors,
+            paging::PageTables,
+            shared_data::SharedData,
+            support::{vmclear, vmptrld},
+            vmcs::Vmcs,
+            page::Page,
+        },
+    },
+};
 
 pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
-    pub vmcs_region: Box<Vmcs>,
+    pub vmcs_region: Vmcs,
 
     /// The guest's descriptor tables.
-    pub guest_descriptor_table: Box<DescriptorTables>,
+    pub guest_descriptor: Descriptors,
 
     /// The host's descriptor tables.
-    pub host_descriptor_table: Box<DescriptorTables>,
+    pub host_descriptor: Descriptors,
 
     /// The host's paging tables.
     pub host_paging: Box<PageTables>,
@@ -29,28 +36,39 @@ pub struct Vm {
 
     /// The shared data between processors.
     pub shared_data: NonNull<SharedData>,
+
+    /// The MSR bitmaps.
+    pub msr_bitmap: Box<Page>,
 }
 
 impl Vm {
     pub fn new(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> Self {
-        let vmcs = Box::<Vmcs>::default();
-        let guest_descriptor_table = unsafe { Box::<DescriptorTables>::new_zeroed().assume_init() };
-        let host_descriptor_table = unsafe { Box::<DescriptorTables>::new_zeroed().assume_init() };
+        log::debug!("Creating VM");
+
+        let vmcs = Vmcs::default();
+        let guest_descriptor_table = Descriptors::new_from_current();
+        let host_descriptor_table =  Descriptors::new_for_host();
         let mut host_paging = unsafe { Box::<PageTables>::new_zeroed().assume_init() };
 
         host_paging.build_identity();
 
+        let msr_bitmaps = unsafe { Box::<Page>::new_zeroed().assume_init() };
+
+        log::debug!("VM created");
+
         Self {
             vmcs_region: vmcs,
             host_paging,
-            host_descriptor_table,
-            guest_descriptor_table,
+            host_descriptor: host_descriptor_table,
+            guest_descriptor: guest_descriptor_table,
             guest_registers: guest_registers.clone(),
             shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
+            msr_bitmap: msr_bitmaps,
         }
     }
 
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
+        log::debug!("Activating VMCS");
         self.vmcs_region.revision_id.set_bit(31, false);
 
         // Clear the VMCS region.
@@ -63,13 +81,19 @@ impl Vm {
 
         self.setup_vmcs()?;
 
+        log::debug!("VMCS activated successfully!");
+
         Ok(())
     }
 
     pub fn setup_vmcs(&mut self) -> Result<(), HypervisorError> {
-        Vmcs::setup_guest_registers_state(&self.guest_descriptor_table, &mut self.guest_registers);
-        Vmcs::setup_host_registers_state(&self.host_descriptor_table, &self.host_paging)?;
-        Vmcs::setup_vmcs_control_fields(&mut self.shared_data)?;
+        log::debug!("Setting up VMCS");
+
+        Vmcs::setup_guest_registers_state(&self.guest_descriptor, &mut self.guest_registers);
+        Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
+        Vmcs::setup_vmcs_control_fields(&mut self.shared_data, &self.msr_bitmap)?;
+
+        log::debug!("VMCS setup successfully!");
 
         Ok(())
     }

@@ -1,5 +1,7 @@
-use alloc::ffi::NulError;
-use thiserror_no_std::Error;
+use {
+    alloc::ffi::NulError,
+    thiserror_no_std::Error,
+};
 
 #[derive(Error, Debug)]
 pub enum HypervisorError {

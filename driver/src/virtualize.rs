@@ -3,18 +3,22 @@ use {
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
         intel::{
-            capture::GuestRegisters, page::Page
+            capture::GuestRegisters, page::Page,
+            ept::paging::{Ept, AccessType},
+            shared_data::SharedData,
         },
-        vmm::start_hypervisor
+        vmm::start_hypervisor,
+        error::HypervisorError,
     },
     log::debug,
     uefi::{
         proto::loaded_image::LoadedImage,
         table::{Boot, SystemTable},
     },
+    alloc::boxed::Box,
 };
 
-pub fn virtualize_system(regs: &GuestRegisters, system_table: &SystemTable<Boot>) {
+pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut SharedData, system_table: &SystemTable<Boot>) {
     let boot_service = system_table.boot_services();
 
     // Open the loaded image protocol to get the current image base and image size.
@@ -55,12 +59,12 @@ pub fn virtualize_system(regs: &GuestRegisters, system_table: &SystemTable<Boot>
     let stack_base = stack as u64 + layout.size() as u64 - 0x10;
     debug!("Stack range: {:#x?}", stack_base..stack as u64);
 
-    unsafe { switch_stack(regs, start_hypervisor as usize, stack_base) };
+    unsafe { switch_stack(guest_registers, shared_data, start_hypervisor as usize, stack_base) };
 }
 
 extern "efiapi" {
     /// Jumps to the landing code with the new stack pointer.
-    fn switch_stack(regs: &GuestRegisters, landing_code: usize, stack_base: u64) -> !;
+    fn switch_stack(guest_registers: &GuestRegisters, shared_data: &mut SharedData, landing_code: usize, stack_base: u64) -> !;
 }
 
 global_asm!(r#"
@@ -68,10 +72,10 @@ global_asm!(r#"
 
 // Jumps to the landing code with the new stack pointer.
 //
-// fn switch_stack(regs: &GuestRegisters, landing_code: usize, stack_base: u64) -> !
+// fn switch_stack(guest_registers: &GuestRegisters, shared_data: &mut SharedData, landing_code: usize, stack_base: u64) -> !
 .global switch_stack
 switch_stack:
     xchg    bx, bx
-    mov     rsp, r8
-    jmp     rdx
+    mov     rsp, r9
+    jmp     r8
 "#);

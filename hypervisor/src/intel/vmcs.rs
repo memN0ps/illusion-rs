@@ -1,23 +1,40 @@
-use alloc::boxed::Box;
-use core::fmt;
-use core::ptr::NonNull;
-use bit_field::BitField;
-use x86::bits64::paging::BASE_PAGE_SIZE;
-use x86::{controlregs, dtables, msr, task};
-use x86::bits64::rflags;
-use x86::debugregs::dr7;
-use x86::segmentation::{cs, ds, es, fs, gs, SegmentSelector, ss};
-use x86::vmx::vmcs;
-use x86_64::registers::control::Cr4;
-use crate::error::HypervisorError;
-use crate::intel::capture::GuestRegisters;
-use crate::intel::controls::{adjust_vmx_controls, VmxControl};
-use crate::intel::descriptor::DescriptorTables;
-use crate::intel::paging::PageTables;
-use crate::intel::segmentation::SegmentDescriptor;
-use crate::intel::shared_data::SharedData;
-use crate::intel::support::{rdmsr, vmclear, vmptrld, vmread, vmwrite};
-use crate::intel::vmxon::Vmxon;
+use {
+    alloc::boxed::Box,
+    core::{
+        fmt,
+        ptr::NonNull,
+    },
+    bit_field::BitField,
+    x86::{
+        bits64::{
+            paging::BASE_PAGE_SIZE,
+            rflags,
+        },
+        controlregs, dtables, msr, task,
+        segmentation::{cs, ds, es, fs, gs, SegmentSelector, ss},
+        vmx::vmcs,
+        debugregs::dr7,
+    },
+    x86_64::registers::control::{Cr0, Cr3, Cr4},
+    crate::{
+        error::HypervisorError,
+        intel::{
+            capture::GuestRegisters,
+            controls::{adjust_vmx_controls, VmxControl},
+            descriptor::Descriptors,
+            paging::PageTables,
+            segmentation::SegmentDescriptor,
+            shared_data::SharedData,
+            support::{rdmsr, sidt, vmclear, vmptrld, vmread, vmwrite},
+            vm::Vm,
+            vmx::Vmx,
+            vmxon::Vmxon,
+            invvpid::{invvpid_single_context, VPID_TAG},
+            invept::invept_single_context,
+            page::Page,
+        },
+    },
+};
 
 /// Represents the VMCS region in memory.
 ///
@@ -50,12 +67,13 @@ impl Vmcs {
     /// Intel® 64 and IA-32 Architectures Software Developer's Manual 25.4 GUEST-STATE AREA.
     ///
     /// # Arguments
-    /// * `context` - Context containing the guest's register states.
-    /// * `guest_descriptor_table` - Descriptor tables for the guest.
+    /// * `guest_descriptor` - Descriptor tables for the guest.
     /// * `guest_registers` - Guest registers for the guest.
     #[rustfmt::skip]
-    pub fn setup_guest_registers_state(guest_descriptor_table: &Box<DescriptorTables>, guest_registers: &mut GuestRegisters) {
+    pub fn setup_guest_registers_state(guest_descriptor: &Descriptors, guest_registers: &mut GuestRegisters) {
         log::debug!("Setting up Guest Registers State");
+
+        let idtr = sidt();
 
         unsafe { vmwrite(vmcs::guest::CR0, controlregs::cr0().bits() as u64) };
         unsafe { vmwrite(vmcs::guest::CR3, controlregs::cr3()) };
@@ -73,41 +91,41 @@ impl Vmcs {
         vmwrite(vmcs::guest::ES_SELECTOR, es().bits());
         vmwrite(vmcs::guest::FS_SELECTOR, fs().bits());
         vmwrite(vmcs::guest::GS_SELECTOR, gs().bits());
-        unsafe { vmwrite(vmcs::guest::LDTR_SELECTOR, dtables::ldtr().bits() as u64) };
-        unsafe { vmwrite(vmcs::guest::TR_SELECTOR, task::tr().bits() as u64) };
 
-        vmwrite(vmcs::guest::CS_BASE, SegmentDescriptor::from_selector(cs(), &guest_descriptor_table.gdtr).base_address);
-        vmwrite(vmcs::guest::SS_BASE, SegmentDescriptor::from_selector(ss(), &guest_descriptor_table.gdtr).base_address);
-        vmwrite(vmcs::guest::DS_BASE, SegmentDescriptor::from_selector(ds(), &guest_descriptor_table.gdtr).base_address);
-        vmwrite(vmcs::guest::ES_BASE, SegmentDescriptor::from_selector(es(), &guest_descriptor_table.gdtr).base_address);
+        vmwrite(vmcs::guest::LDTR_SELECTOR, 0u16); // this is not 0 in Hypervisor-101-in-Rust but is in Hello-VT-rp
+        vmwrite(vmcs::guest::TR_SELECTOR, guest_descriptor.tr.bits());
+
         unsafe { vmwrite(vmcs::guest::FS_BASE, msr::rdmsr(msr::IA32_FS_BASE)) };
         unsafe { vmwrite(vmcs::guest::GS_BASE, msr::rdmsr(msr::IA32_GS_BASE)) };
-        unsafe { vmwrite(vmcs::guest::LDTR_BASE, SegmentDescriptor::from_selector(SegmentSelector::from_raw(dtables::ldtr().bits()), &guest_descriptor_table.gdtr).base_address) };
-        unsafe { vmwrite(vmcs::guest::TR_BASE, SegmentDescriptor::from_selector(SegmentSelector::from_raw(task::tr().bits()), &guest_descriptor_table.gdtr).base_address) };
+        unsafe { vmwrite(vmcs::guest::LDTR_BASE, SegmentDescriptor::from_selector(SegmentSelector::from_raw(dtables::ldtr().bits()), &guest_descriptor.gdtr).base_address) };
+        vmwrite(vmcs::guest::TR_BASE, guest_descriptor.tss.base);
 
-        vmwrite(vmcs::guest::CS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        vmwrite(vmcs::guest::SS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        vmwrite(vmcs::guest::DS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        vmwrite(vmcs::guest::ES_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        vmwrite(vmcs::guest::FS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        vmwrite(vmcs::guest::GS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor_table.gdtr).segment_limit);
-        unsafe { vmwrite(vmcs::guest::LDTR_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(dtables::ldtr().bits()), &guest_descriptor_table.gdtr).segment_limit) };
-        unsafe { vmwrite(vmcs::guest::TR_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(task::tr().bits()), &guest_descriptor_table.gdtr).segment_limit) };
+        vmwrite(vmcs::guest::CS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).segment_limit);
+        vmwrite(vmcs::guest::SS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).segment_limit);
+        vmwrite(vmcs::guest::DS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor.gdtr).segment_limit);
+        vmwrite(vmcs::guest::ES_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor.gdtr).segment_limit);
+        vmwrite(vmcs::guest::FS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor.gdtr).segment_limit);
+        vmwrite(vmcs::guest::GS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor.gdtr).segment_limit);
 
-        vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(cs().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor_table.gdtr).access_rights.bits());
-        unsafe { vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(dtables::ldtr().bits()), &guest_descriptor_table.gdtr).access_rights.bits()) };
-        unsafe { vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(task::tr().bits()), &guest_descriptor_table.gdtr).access_rights.bits()) };
+        vmwrite(vmcs::guest::LDTR_LIMIT, 0u32); // this is not 0 in Hypervisor-101-in-Rust but is in Hello-VT-rp
+        vmwrite(vmcs::guest::TR_LIMIT, guest_descriptor.tr.bits());
 
-        vmwrite(vmcs::guest::GDTR_BASE, guest_descriptor_table.gdtr.base as u64);
-        vmwrite(vmcs::guest::IDTR_BASE, guest_descriptor_table.idtr.base as u64);
+        vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(cs().bits()), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor.gdtr).access_rights.bits());
 
-        vmwrite(vmcs::guest::GDTR_LIMIT, guest_descriptor_table.gdtr.limit as u64);
-        vmwrite(vmcs::guest::IDTR_LIMIT, guest_descriptor_table.idtr.limit as u64);
+        // https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/vm.rs#L93-L97
+        vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(0), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(guest_descriptor.tss.ar as u16), &guest_descriptor.gdtr).access_rights.bits());
+
+        vmwrite(vmcs::guest::GDTR_BASE, guest_descriptor.gdtr.base as u64);
+        vmwrite(vmcs::guest::IDTR_BASE, idtr.base as u64);
+
+        vmwrite(vmcs::guest::GDTR_LIMIT, guest_descriptor.gdtr.limit as u64);
+        vmwrite(vmcs::guest::IDTR_LIMIT, idtr.limit as u64);
 
         unsafe {
             vmwrite(vmcs::guest::IA32_DEBUGCTL_FULL, msr::rdmsr(msr::IA32_DEBUGCTL));
@@ -116,8 +134,6 @@ impl Vmcs {
             vmwrite(vmcs::guest::IA32_SYSENTER_EIP, msr::rdmsr(msr::IA32_SYSENTER_EIP));
             vmwrite(vmcs::guest::LINK_PTR_FULL, u64::MAX);
         }
-
-        //let xmm_context = unsafe { context.Anonymous.Anonymous };
 
         // Note: VMCS does not manage all registers; some require manual intervention for saving and loading.
         // This includes general-purpose registers and xmm registers, which must be explicitly preserved and restored by the software.
@@ -165,42 +181,24 @@ impl Vmcs {
     /// Intel® 64 and IA-32 Architectures Software Developer's Manual 25.5 HOST-STATE AREA.
     ///
     /// # Arguments
-    /// * `context` - Context containing the host's register states.
-    /// * `host_descriptor_table` - Descriptor tables for the host.
+    /// * `host_descriptor` - Descriptor tables for the host.
+    /// * `host_paging` - Paging tables for the host.
     #[rustfmt::skip]
-    pub fn setup_host_registers_state(host_descriptor_table: &Box<DescriptorTables>, host_paging: &Box<PageTables>) -> Result<(), HypervisorError> {
+    pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &Box<PageTables>) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
 
-        unsafe { vmwrite(vmcs::host::CR0, controlregs::cr0().bits() as u64) };
-
         let pml4_pa = host_paging.get_pml4_pa()?;
+
+        unsafe { vmwrite(vmcs::host::CR0, controlregs::cr0().bits() as u64) };
         vmwrite(vmcs::host::CR3, pml4_pa);
+        unsafe { vmwrite(vmcs::host::CR4, controlregs::cr4().bits() as u64) };
 
-        vmwrite(vmcs::host::CR4, Cr4::read_raw());
+        vmwrite(vmcs::host::CS_SELECTOR, host_descriptor.cs.bits());
+        vmwrite(vmcs::host::TR_SELECTOR, host_descriptor.tr.bits());
 
-        // The RIP/RSP registers are set within `launch_vm`.
-
-        const SELECTOR_MASK: u16 = 0xF8;
-        vmwrite(vmcs::host::CS_SELECTOR, cs().bits() & SELECTOR_MASK);
-        vmwrite(vmcs::host::SS_SELECTOR, ss().bits() & SELECTOR_MASK);
-        vmwrite(vmcs::host::DS_SELECTOR, ds().bits() & SELECTOR_MASK);
-        vmwrite(vmcs::host::ES_SELECTOR, es().bits() & SELECTOR_MASK);
-        vmwrite(vmcs::host::FS_SELECTOR, fs().bits() & SELECTOR_MASK);
-        vmwrite(vmcs::host::GS_SELECTOR, gs().bits() & SELECTOR_MASK);
-        unsafe { vmwrite(vmcs::host::TR_SELECTOR, task::tr().bits() & SELECTOR_MASK) };
-
-        unsafe { vmwrite(vmcs::host::FS_BASE, msr::rdmsr(msr::IA32_FS_BASE)) };
-        unsafe { vmwrite(vmcs::host::GS_BASE, msr::rdmsr(msr::IA32_GS_BASE)) };
-        unsafe { vmwrite(vmcs::host::TR_BASE, SegmentDescriptor::from_selector(SegmentSelector::from_raw(task::tr().bits()), &host_descriptor_table.gdtr).base_address) };
-
-        vmwrite(vmcs::host::GDTR_BASE, host_descriptor_table.gdtr.base as u64);
-        vmwrite(vmcs::host::IDTR_BASE, host_descriptor_table.idtr.base as u64);
-
-        unsafe {
-            vmwrite(vmcs::host::IA32_SYSENTER_CS, msr::rdmsr(msr::IA32_SYSENTER_CS));
-            vmwrite(vmcs::host::IA32_SYSENTER_ESP, msr::rdmsr(msr::IA32_SYSENTER_ESP));
-            vmwrite(vmcs::host::IA32_SYSENTER_EIP, msr::rdmsr(msr::IA32_SYSENTER_EIP));
-        }
+        vmwrite(vmcs::host::TR_BASE, host_descriptor.tss.base);
+        vmwrite(vmcs::host::GDTR_BASE, host_descriptor.gdtr.base as u64);
+        vmwrite(vmcs::host::IDTR_BASE, u64::MAX); // Bogus. No proper exception handling.
 
         log::debug!("Host Registers State setup successfully!");
 
@@ -218,7 +216,7 @@ impl Vmcs {
     /// # Arguments
     /// * `shared_data` - Shared data between processors.
     #[rustfmt::skip]
-    pub fn setup_vmcs_control_fields(shared_data: &mut NonNull<SharedData>) -> Result<(), HypervisorError> {
+    pub fn setup_vmcs_control_fields(shared_data: &mut NonNull<SharedData>, msr_bitmap: &Box<Page>) -> Result<(), HypervisorError> {
         log::debug!("Setting up VMCS Control Fields");
 
         const PRIMARY_CTL: u64 = (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits() | vmcs::control::PrimaryControls::USE_MSR_BITMAPS.bits()) as u64;
@@ -239,17 +237,17 @@ impl Vmcs {
 
         unsafe {
             vmwrite(vmcs::control::CR0_READ_SHADOW, controlregs::cr0().bits() as u64);
-            vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw());
+            vmwrite(vmcs::control::CR4_READ_SHADOW, controlregs::cr4().bits() as u64);
         };
 
-        //vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, unsafe { shared_data.msr_bitmap.as_ref() as *const _ as _ });
+        vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, msr_bitmap.as_ref() as *const _ as u64);
         //vmwrite(vmcs::control::EXCEPTION_BITMAP, 1u64 << (ExceptionInterrupt::Breakpoint as u32));
 
         vmwrite(vmcs::control::EPTP_FULL, unsafe { shared_data.as_mut().primary_eptp });
-        //vmwrite(vmcs::control::VPID, VPID_TAG);
+        vmwrite(vmcs::control::VPID, VPID_TAG);
 
-        //invept_single_context(unsafe { shared_data.as_mut().primary_eptp });
-        //invvpid_single_context(VPID_TAG);
+        invept_single_context(unsafe { shared_data.as_mut().primary_eptp });
+        invvpid_single_context(VPID_TAG);
 
         log::debug!("VMCS Control Fields setup successfully!");
 

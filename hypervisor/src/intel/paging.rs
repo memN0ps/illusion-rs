@@ -42,6 +42,8 @@ impl PageTables {
     /// This setup ensures that each virtual address directly maps to the same physical address,
     /// a common setup for the initial stages of an operating system or hypervisor.
     pub fn build_identity(&mut self) {
+        log::debug!("Building identity map for page tables");
+
         // Configure the first entry in the PML4 table.
         // Set it to present and writable, pointing to the base of the PDPT.
         self.pml4.0.entries[0].set_present(true);
@@ -74,6 +76,8 @@ impl PageTables {
                 pa += LARGE_PAGE_SIZE as u64;
             }
         }
+
+        log::debug!("Identity map built successfully");
     }
 
     /// Gets the physical address of the PML4 table, ensuring it is 4KB aligned.
