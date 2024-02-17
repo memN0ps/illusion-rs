@@ -1,4 +1,4 @@
-# UEFI Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix)
+# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: illusion)
 
 ![Build Status](https://github.com/memN0ps/hypervisor-rs/actions/workflows/github-actions.yml/badge.svg)
 ![License](https://img.shields.io/github/license/memN0ps/hypervisor-rs)
