@@ -50,7 +50,7 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     info!("The hypervisor has been installed successfully!");
     
-    //system_table.boot_services().stall(10_000_000);
+    system_table.boot_services().stall(20_000_000);
 
     Status::SUCCESS
 }

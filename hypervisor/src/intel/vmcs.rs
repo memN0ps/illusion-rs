@@ -9,8 +9,8 @@ use {
             paging::BASE_PAGE_SIZE,
             rflags,
         },
-        controlregs, dtables, msr,
-        segmentation::{cs, ds, es, fs, gs, SegmentSelector, ss},
+        msr,
+        segmentation::{cs, ds, es, fs, gs, ss},
         vmx::vmcs,
         debugregs::dr7,
     },
@@ -22,12 +22,12 @@ use {
             controls::{adjust_vmx_controls, VmxControl},
             descriptor::Descriptors,
             paging::PageTables,
-            segmentation::SegmentDescriptor,
             shared_data::SharedData,
-            support::{rdmsr, sidt, vmread, vmwrite},
+            support::{rdmsr, sidt, vmread, vmwrite, cr0, cr3},
             invvpid::{invvpid_single_context, VPID_TAG},
             invept::invept_single_context,
             page::Page,
+            segmentation::{access_rights_from_native, lar, lsl},
         },
     },
 };
@@ -71,8 +71,8 @@ impl Vmcs {
 
         let idtr = sidt();
 
-        unsafe { vmwrite(vmcs::guest::CR0, controlregs::cr0().bits() as u64) };
-        unsafe { vmwrite(vmcs::guest::CR3, controlregs::cr3()) };
+        vmwrite(vmcs::guest::CR0, cr0().bits() as u64);
+        vmwrite(vmcs::guest::CR3, cr3());
         vmwrite(vmcs::guest::CR4, Cr4::read_raw());
 
         vmwrite(vmcs::guest::DR7, unsafe { dr7().0 as u64 });
@@ -88,34 +88,29 @@ impl Vmcs {
         vmwrite(vmcs::guest::FS_SELECTOR, fs().bits());
         vmwrite(vmcs::guest::GS_SELECTOR, gs().bits());
 
-        vmwrite(vmcs::guest::LDTR_SELECTOR, 0u16); // this is not 0 in Hypervisor-101-in-Rust but is in Hello-VT-rp
+        vmwrite(vmcs::guest::LDTR_SELECTOR, 0u16);
         vmwrite(vmcs::guest::TR_SELECTOR, guest_descriptor.tr.bits());
 
-        unsafe { vmwrite(vmcs::guest::FS_BASE, msr::rdmsr(msr::IA32_FS_BASE)) };
-        unsafe { vmwrite(vmcs::guest::GS_BASE, msr::rdmsr(msr::IA32_GS_BASE)) };
-        unsafe { vmwrite(vmcs::guest::LDTR_BASE, SegmentDescriptor::from_selector(SegmentSelector::from_raw(dtables::ldtr().bits()), &guest_descriptor.gdtr).base_address) };
+        // All segment base registers are assumed to be zero, except that of TR.
         vmwrite(vmcs::guest::TR_BASE, guest_descriptor.tss.base);
 
-        vmwrite(vmcs::guest::CS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).segment_limit);
-        vmwrite(vmcs::guest::SS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).segment_limit);
-        vmwrite(vmcs::guest::DS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor.gdtr).segment_limit);
-        vmwrite(vmcs::guest::ES_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor.gdtr).segment_limit);
-        vmwrite(vmcs::guest::FS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor.gdtr).segment_limit);
-        vmwrite(vmcs::guest::GS_LIMIT, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor.gdtr).segment_limit);
-
-        vmwrite(vmcs::guest::LDTR_LIMIT, 0u32); // this is not 0 in Hypervisor-101-in-Rust but is in Hello-VT-rp
+        vmwrite(vmcs::guest::CS_LIMIT, lsl(ss()));
+        vmwrite(vmcs::guest::SS_LIMIT, lsl(ss()));
+        vmwrite(vmcs::guest::DS_LIMIT, lsl(ds()));
+        vmwrite(vmcs::guest::ES_LIMIT, lsl(es()));
+        vmwrite(vmcs::guest::FS_LIMIT, lsl(fs()));
+        vmwrite(vmcs::guest::GS_LIMIT, lsl(gs()));
+        vmwrite(vmcs::guest::LDTR_LIMIT, 0u32);
         vmwrite(vmcs::guest::TR_LIMIT, guest_descriptor.tr.bits());
 
-        vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(cs().bits()), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ss().bits()), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(ds().bits()), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(es().bits()), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(fs().bits()), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(gs().bits()), &guest_descriptor.gdtr).access_rights.bits());
-
-        // https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/vm.rs#L93-L97
-        vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(0), &guest_descriptor.gdtr).access_rights.bits());
-        vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, SegmentDescriptor::from_selector(SegmentSelector::from_raw(guest_descriptor.tss.ar as u16), &guest_descriptor.gdtr).access_rights.bits());
+        vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, access_rights_from_native(lar(cs())) as u64);
+        vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, access_rights_from_native(lar(ss())) as u64);
+        vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, access_rights_from_native(lar(ds())) as u64);
+        vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, access_rights_from_native(lar(es())) as u64);
+        vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, access_rights_from_native(lar(fs())) as u64);
+        vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, access_rights_from_native(lar(gs())) as u64);
+        vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, access_rights_from_native(0u32));
+        vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, access_rights_from_native(guest_descriptor.tss.ar));
 
         vmwrite(vmcs::guest::GDTR_BASE, guest_descriptor.gdtr.base as u64);
         vmwrite(vmcs::guest::IDTR_BASE, idtr.base as u64);
@@ -123,13 +118,8 @@ impl Vmcs {
         vmwrite(vmcs::guest::GDTR_LIMIT, guest_descriptor.gdtr.limit as u64);
         vmwrite(vmcs::guest::IDTR_LIMIT, idtr.limit as u64);
 
-        unsafe {
-            vmwrite(vmcs::guest::IA32_DEBUGCTL_FULL, msr::rdmsr(msr::IA32_DEBUGCTL));
-            vmwrite(vmcs::guest::IA32_SYSENTER_CS, msr::rdmsr(msr::IA32_SYSENTER_CS));
-            vmwrite(vmcs::guest::IA32_SYSENTER_ESP, msr::rdmsr(msr::IA32_SYSENTER_ESP));
-            vmwrite(vmcs::guest::IA32_SYSENTER_EIP, msr::rdmsr(msr::IA32_SYSENTER_EIP));
-            vmwrite(vmcs::guest::LINK_PTR_FULL, u64::MAX);
-        }
+        vmwrite(vmcs::guest::LINK_PTR_FULL, u64::MAX);
+
 
         // Note: VMCS does not manage all registers; some require manual intervention for saving and loading.
         // This includes general-purpose registers and xmm registers, which must be explicitly preserved and restored by the software.
@@ -185,9 +175,9 @@ impl Vmcs {
 
         let pml4_pa = host_paging.get_pml4_pa()?;
 
-        unsafe { vmwrite(vmcs::host::CR0, controlregs::cr0().bits() as u64) };
+        vmwrite(vmcs::host::CR0, cr0().bits() as u64);
         vmwrite(vmcs::host::CR3, pml4_pa);
-        unsafe { vmwrite(vmcs::host::CR4, controlregs::cr4().bits() as u64) };
+        vmwrite(vmcs::host::CR4, Cr4::read_raw());
 
         vmwrite(vmcs::host::CS_SELECTOR, host_descriptor.cs.bits());
         vmwrite(vmcs::host::TR_SELECTOR, host_descriptor.tr.bits());
@@ -231,10 +221,8 @@ impl Vmcs {
         vmwrite(vmcs::control::VMEXIT_CONTROLS, adjust_vmx_controls(VmxControl::VmExit, EXIT_CTL));
         vmwrite(vmcs::control::PINBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL));
 
-        unsafe {
-            vmwrite(vmcs::control::CR0_READ_SHADOW, controlregs::cr0().bits() as u64);
-            vmwrite(vmcs::control::CR4_READ_SHADOW, controlregs::cr4().bits() as u64);
-        };
+        vmwrite(vmcs::control::CR0_READ_SHADOW, cr0().bits() as u64);
+        vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw());
 
         vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, msr_bitmap.as_ref() as *const _ as u64);
         //vmwrite(vmcs::control::EXCEPTION_BITMAP, 1u64 << (ExceptionInterrupt::Breakpoint as u32));
