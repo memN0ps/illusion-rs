@@ -45,10 +45,12 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
 
+    info!("Launching the VM until a vmexit occurs...");
+
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
             let exit_type = match basic_exit_reason {
-                //VmxBasicExitReason::ExceptionOrNmi => handle_exception(vmx),
+                VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
 
                 // Grouping multiple exit reasons that are handled by the same function
