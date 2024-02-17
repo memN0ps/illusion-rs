@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+use crate::processor::MpManager;
 use {
     crate::virtualize::virtualize_system,
     alloc::boxed::Box,
@@ -14,12 +15,12 @@ use {
             ept::paging::{AccessType, Ept},
             shared_data::SharedData,
         },
-        vmm::is_hypervisor_present,
     },
     log::*,
     uefi::prelude::*,
 };
 
+pub mod processor;
 pub mod virtualize;
 
 #[entry]
@@ -34,6 +35,17 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     info!("The Matrix is an illusion");
 
+    let mp_manager =
+        MpManager::new(system_table.boot_services()).expect("Failed to create MpManager");
+
+    // Get the processor count
+    if let Ok(processor_count) = mp_manager.processor_count() {
+        let total = processor_count.total;
+        let enabled = processor_count.enabled;
+        info!("Total processors: {}", total);
+        info!("Enabled processors: {}", enabled);
+    }
+
     let mut shared_data = match setup_ept() {
         Ok(shared_data) => shared_data,
         Err(e) => panic!("Failed to setup EPT: {:?}", e),
@@ -46,8 +58,9 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Since we captured RIP just above, the VM will start running from here.
     // Check if our hypervisor is already loaded. If so, done, otherwise, continue
     // installing the hypervisor.
-    if !is_hypervisor_present() {
+    if !mp_manager.is_virtualized() {
         debug!("Virtualizing the system");
+        mp_manager.set_virtualized();
         virtualize_system(&regs, &mut shared_data, &system_table);
     }
 

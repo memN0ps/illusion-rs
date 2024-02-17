@@ -26,15 +26,6 @@ use {
     },
 };
 
-pub const CPUID_VENDOR_AND_MAX_FUNCTIONS: u32 = 0x4000_0000;
-pub const VENDOR_NAME: u32 = 0x5441_4c48; // "HLAT"
-
-/// Checks if this hypervisor is already installed.
-pub fn is_hypervisor_present() -> bool {
-    let regs = cpuid!(CPUID_VENDOR_AND_MAX_FUNCTIONS);
-    (regs.ebx == regs.ecx) && (regs.ecx == regs.edx) && (regs.edx == VENDOR_NAME)
-}
-
 // pass shared data to the hypervisor soon too
 pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
     debug!("Starting hypervisor");
@@ -57,7 +48,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
             let exit_type = match basic_exit_reason {
-                //VmxBasicExitReason::ExceptionOrNmi => handle_exception(guest_registers, vmx),
+                //VmxBasicExitReason::ExceptionOrNmi => handle_exception(vmx),
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
 
                 // Grouping multiple exit reasons that are handled by the same function
