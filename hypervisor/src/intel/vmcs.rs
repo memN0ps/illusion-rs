@@ -66,7 +66,7 @@ impl Vmcs {
     /// * `guest_descriptor` - Descriptor tables for the guest.
     /// * `guest_registers` - Guest registers for the guest.
     #[rustfmt::skip]
-    pub fn setup_guest_registers_state(guest_descriptor: &Descriptors, guest_registers: &mut GuestRegisters) {
+    pub fn setup_guest_registers_state(guest_descriptor: &Descriptors, guest_registers: &GuestRegisters) {
         log::debug!("Setting up Guest Registers State");
 
         let idtr = sidt();
@@ -119,44 +119,6 @@ impl Vmcs {
         vmwrite(vmcs::guest::IDTR_LIMIT, idtr.limit as u64);
 
         vmwrite(vmcs::guest::LINK_PTR_FULL, u64::MAX);
-
-
-        // Note: VMCS does not manage all registers; some require manual intervention for saving and loading.
-        // This includes general-purpose registers and xmm registers, which must be explicitly preserved and restored by the software.
-        /*
-            guest_registers.xmm0 = xmm_context.Xmm0;
-            guest_registers.xmm1 = xmm_context.Xmm1;
-            guest_registers.xmm2 = xmm_context.Xmm2;
-            guest_registers.xmm3 = xmm_context.Xmm3;
-            guest_registers.xmm4 = xmm_context.Xmm4;
-            guest_registers.xmm5 = xmm_context.Xmm5;
-            guest_registers.xmm6 = xmm_context.Xmm6;
-            guest_registers.xmm7 = xmm_context.Xmm7;
-            guest_registers.xmm8 = xmm_context.Xmm8;
-            guest_registers.xmm9 = xmm_context.Xmm9;
-            guest_registers.xmm10 = xmm_context.Xmm10;
-            guest_registers.xmm11 = xmm_context.Xmm11;
-            guest_registers.xmm12 = xmm_context.Xmm12;
-            guest_registers.xmm13 = xmm_context.Xmm13;
-            guest_registers.xmm14 = xmm_context.Xmm14;
-            guest_registers.xmm15 = xmm_context.Xmm15;
-        */
-
-        guest_registers.rax = guest_registers.rax;
-        guest_registers.rbx = guest_registers.rbx;
-        guest_registers.rcx = guest_registers.rcx;
-        guest_registers.rdx = guest_registers.rdx;
-        guest_registers.rdi = guest_registers.rdi;
-        guest_registers.rsi = guest_registers.rsi;
-        guest_registers.rbp = guest_registers.rbp;
-        guest_registers.r8 = guest_registers.r8;
-        guest_registers.r9 = guest_registers.r9;
-        guest_registers.r10 = guest_registers.r10;
-        guest_registers.r11 = guest_registers.r11;
-        guest_registers.r12 = guest_registers.r12;
-        guest_registers.r13 = guest_registers.r13;
-        guest_registers.r14 = guest_registers.r14;
-        guest_registers.r15 = guest_registers.r15;
 
         log::debug!("Guest Registers State setup successfully!");
     }
