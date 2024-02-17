@@ -21,7 +21,6 @@ use {
     },
     log::*,
     x86::{
-        cpuid::cpuid,
         vmx::vmcs::{guest, ro},
     },
 };
