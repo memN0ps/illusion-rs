@@ -5,19 +5,19 @@
 extern crate alloc;
 
 use {
-    log::*,
-    uefi::prelude::*,
+    crate::virtualize::virtualize_system,
+    alloc::boxed::Box,
     hypervisor::{
-        vmm::is_hypervisor_present,
+        error::HypervisorError,
         intel::{
             capture::{capture_registers, GuestRegisters},
             ept::paging::{AccessType, Ept},
             shared_data::SharedData,
         },
-        error::HypervisorError
+        vmm::is_hypervisor_present,
     },
-    crate::virtualize::virtualize_system,
-    alloc::boxed::Box,
+    log::*,
+    uefi::prelude::*,
 };
 
 pub mod virtualize;
@@ -25,10 +25,13 @@ pub mod virtualize;
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Initialize the COM2 port logger with level filter set to Info.
-    com_logger::builder().base(0x2f8).filter(LevelFilter::Trace).setup();
+    com_logger::builder()
+        .base(0x2f8)
+        .filter(LevelFilter::Trace)
+        .setup();
 
     uefi_services::init(&mut system_table).unwrap();
-    
+
     info!("The Matrix is an illusion");
 
     let mut shared_data = match setup_ept() {
@@ -49,7 +52,7 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     }
 
     info!("The hypervisor has been installed successfully!");
-    
+
     system_table.boot_services().stall(20_000_000);
 
     Status::SUCCESS

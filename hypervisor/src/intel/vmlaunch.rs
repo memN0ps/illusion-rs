@@ -1,11 +1,12 @@
-use core::arch::global_asm;
 use crate::intel::capture::GuestRegisters;
+use core::arch::global_asm;
 
 extern "efiapi" {
     pub fn launch_vm(registers: &mut GuestRegisters, launched: u64) -> u64;
 }
 
-global_asm!(r#"
+global_asm!(
+    r#"
 // The module containing the `launch_vm` function.
 
 // Offsets to each field in the GuestRegisters struct.
@@ -169,4 +170,5 @@ launch_vm:
     pushfq
     pop     rax
     ret
-"#);
+"#
+);

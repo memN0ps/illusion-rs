@@ -1,10 +1,7 @@
 use {
-    crate::{
-        intel::{
-            invept::invept_all_contexts, support::vmread, support::vmwrite,
-            vmerror::EptViolationExitQualification, vmexit::ExitType,
-            vm::Vm,
-        },
+    crate::intel::{
+        invept::invept_all_contexts, support::vmread, support::vmwrite, vm::Vm,
+        vmerror::EptViolationExitQualification, vmexit::ExitType,
     },
     x86::vmx::vmcs,
 };

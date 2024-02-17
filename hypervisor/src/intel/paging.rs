@@ -59,9 +59,7 @@ impl PageTables {
             // pointing to the corresponding page directory (PD).
             pdpte.set_present(true);
             pdpte.set_writable(true);
-            pdpte.set_pfn(
-                addr_of!(self.pd[i]) as u64 >> BASE_PAGE_SHIFT,
-            );
+            pdpte.set_pfn(addr_of!(self.pd[i]) as u64 >> BASE_PAGE_SHIFT);
 
             // Configure each entry in the PD to map a large page (e.g., 2MB).
             for pde in &mut self.pd[i].0.entries {

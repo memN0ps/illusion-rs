@@ -1,12 +1,9 @@
 use {
-    crate::{
-        error::HypervisorError,
-        intel::support::rdmsr,
-    },
+    crate::{error::HypervisorError, intel::support::rdmsr},
     bitfield::BitMut,
-    x86::{msr, current::paging::BASE_PAGE_SIZE},
-    x86_64::registers::control::Cr4,
     x86::controlregs,
+    x86::{current::paging::BASE_PAGE_SIZE, msr},
+    x86_64::registers::control::Cr4,
 };
 
 /// A representation of the VMXON region in memory.

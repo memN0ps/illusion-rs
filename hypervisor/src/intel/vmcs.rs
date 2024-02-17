@@ -1,35 +1,29 @@
 use {
-    alloc::boxed::Box,
-    core::{
-        fmt,
-        ptr::NonNull,
-    },
-    x86::{
-        bits64::{
-            paging::BASE_PAGE_SIZE,
-            rflags,
-        },
-        msr,
-        segmentation::{cs, ds, es, fs, gs, ss},
-        vmx::vmcs,
-        debugregs::dr7,
-    },
-    x86_64::registers::control::Cr4,
     crate::{
         error::HypervisorError,
         intel::{
             capture::GuestRegisters,
             controls::{adjust_vmx_controls, VmxControl},
             descriptor::Descriptors,
-            paging::PageTables,
-            shared_data::SharedData,
-            support::{rdmsr, sidt, vmread, vmwrite, cr0, cr3},
-            invvpid::{invvpid_single_context, VPID_TAG},
             invept::invept_single_context,
+            invvpid::{invvpid_single_context, VPID_TAG},
             page::Page,
+            paging::PageTables,
             segmentation::{access_rights_from_native, lar, lsl},
+            shared_data::SharedData,
+            support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
         },
     },
+    alloc::boxed::Box,
+    core::{fmt, ptr::NonNull},
+    x86::{
+        bits64::{paging::BASE_PAGE_SIZE, rflags},
+        debugregs::dr7,
+        msr,
+        segmentation::{cs, ds, es, fs, gs, ss},
+        vmx::vmcs,
+    },
+    x86_64::registers::control::Cr4,
 };
 
 /// Represents the VMCS region in memory.

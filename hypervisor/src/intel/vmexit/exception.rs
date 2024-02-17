@@ -3,16 +3,14 @@
 //! general protection faults, breakpoints, and invalid opcodes.
 
 use {
-    crate::{
-        intel::{
-            events::EventInjection,
-            support::vmread,
-            vmerror::{
-                EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation,
-            },
-            vmexit::ExitType,
-            vm::Vm,
+    crate::intel::{
+        events::EventInjection,
+        support::vmread,
+        vm::Vm,
+        vmerror::{
+            EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation,
         },
+        vmexit::ExitType,
     },
     x86::vmx::vmcs,
 };

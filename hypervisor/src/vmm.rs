@@ -1,29 +1,28 @@
 use {
+    crate::intel::{
+        capture::GuestRegisters,
+        shared_data::SharedData,
+        support::{vmread, vmwrite},
+        vm::Vm,
+        vmerror::VmxBasicExitReason,
+        vmexit::{
+            cpuid::handle_cpuid,
+            ept::{handle_ept_misconfiguration, handle_ept_violation},
+            exception::{handle_exception, handle_undefined_opcode_exception},
+            invd::handle_invd,
+            invept::handle_invept,
+            invvpid::handle_invvpid,
+            msr::{handle_msr_access, MsrAccessType},
+            rdtsc::handle_rdtsc,
+            xsetbv::handle_xsetbv,
+            ExitType,
+        },
+        vmx::Vmx,
+    },
     log::*,
     x86::{
-        cpuid::cpuid, vmx::vmcs::{guest, ro}
-    },
-    crate::{
-        intel::{
-            capture::GuestRegisters,
-            shared_data::SharedData,
-            vm::Vm,
-            vmx::Vmx,
-            vmerror::VmxBasicExitReason,
-            support::{vmread, vmwrite},
-            vmexit::{
-                ExitType,
-                cpuid::handle_cpuid,
-                ept::{handle_ept_misconfiguration, handle_ept_violation},
-                exception::{handle_exception, handle_undefined_opcode_exception},
-                invd::handle_invd,
-                invept::handle_invept,
-                invvpid::handle_invvpid,
-                msr::{handle_msr_access, MsrAccessType},
-                rdtsc::handle_rdtsc,
-                xsetbv::handle_xsetbv,
-            }
-        },
+        cpuid::cpuid,
+        vmx::vmcs::{guest, ro},
     },
 };
 
@@ -56,7 +55,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
     }
 
     loop {
-        if let Ok(basic_exit_reason ) = vm.run() {
+        if let Ok(basic_exit_reason) = vm.run() {
             let exit_type = match basic_exit_reason {
                 //VmxBasicExitReason::ExceptionOrNmi => handle_exception(guest_registers, vmx),
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
@@ -72,8 +71,12 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
                 | VmxBasicExitReason::Vmxon
                 | VmxBasicExitReason::Vmxoff => handle_undefined_opcode_exception(),
 
-                VmxBasicExitReason::Rdmsr => handle_msr_access(&mut vm.guest_registers, MsrAccessType::Read),
-                VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm.guest_registers, MsrAccessType::Write),
+                VmxBasicExitReason::Rdmsr => {
+                    handle_msr_access(&mut vm.guest_registers, MsrAccessType::Read)
+                }
+                VmxBasicExitReason::Wrmsr => {
+                    handle_msr_access(&mut vm.guest_registers, MsrAccessType::Write)
+                }
                 VmxBasicExitReason::Invd => handle_invd(&mut vm.guest_registers),
                 VmxBasicExitReason::Rdtsc => handle_rdtsc(&mut vm.guest_registers),
                 VmxBasicExitReason::EptViolation => handle_ept_violation(&mut vm),
@@ -87,7 +90,6 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
             if exit_type == ExitType::IncrementRIP {
                 advance_guest_rip(&mut vm.guest_registers);
             }
-
         } else {
             panic!("Failed to run the VM");
         }

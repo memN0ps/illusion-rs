@@ -1,6 +1,6 @@
 //! Manages INVD VM exits to handle guest VM cache invalidation requests securely.
 
-use crate::{intel::{vmexit::ExitType, capture::GuestRegisters, support::wbinvd}};
+use crate::intel::{capture::GuestRegisters, support::wbinvd, vmexit::ExitType};
 
 /// Manages the INVD instruction VM exit by logging the event, performing a controlled
 /// cache invalidation, and advancing the guest's instruction pointer.

@@ -1,26 +1,28 @@
+use crate::intel::vmerror::VmxBasicExitReason;
 use x86::vmx::vmcs::ro;
 use {
-    alloc::{boxed::Box, string::{String, ToString}, format},
-    core::{
-        ptr::NonNull,
-    },
-    bit_field::BitField,
     crate::{
         error::HypervisorError,
         intel::{
             capture::GuestRegisters,
             descriptor::Descriptors,
+            page::Page,
             paging::PageTables,
             shared_data::SharedData,
             support::{vmclear, vmptrld, vmread},
             vmcs::Vmcs,
-            page::Page,
             vmlaunch::launch_vm,
         },
     },
-    x86::{vmx::vmcs, bits64::rflags::RFlags},
+    alloc::{
+        boxed::Box,
+        format,
+        string::{String, ToString},
+    },
+    bit_field::BitField,
+    core::ptr::NonNull,
+    x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
-use crate::intel::vmerror::VmxBasicExitReason;
 
 pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
@@ -54,7 +56,7 @@ impl Vm {
 
         let vmcs_region = Box::new(Vmcs::default());
         let guest_descriptor_table = Descriptors::new_from_current();
-        let host_descriptor_table =  Descriptors::new_for_host();
+        let host_descriptor_table = Descriptors::new_for_host();
         let mut host_paging = unsafe { Box::<PageTables>::new_zeroed().assume_init() };
 
         host_paging.build_identity();
@@ -136,7 +138,10 @@ impl Vm {
     fn vm_succeed(flags: RFlags) -> Result<(), String> {
         if flags.contains(RFlags::FLAGS_ZF) {
             // See: 31.4 VM INSTRUCTION ERROR NUMBERS
-            Err(format!("VmFailValid with {}", vmread(vmcs::ro::VM_INSTRUCTION_ERROR)))
+            Err(format!(
+                "VmFailValid with {}",
+                vmread(vmcs::ro::VM_INSTRUCTION_ERROR)
+            ))
         } else if flags.contains(RFlags::FLAGS_CF) {
             Err("VmFailInvalid".to_string())
         } else {

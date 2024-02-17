@@ -1,13 +1,10 @@
 use {
-    bit_field::BitField,
     crate::{
         error::HypervisorError,
-        intel::{
-            support::vmxon,
-            vmxon::Vmxon,
-        },
+        intel::{support::vmxon, vmxon::Vmxon},
     },
     alloc::boxed::Box,
+    bit_field::BitField,
 };
 
 pub struct Vmx {

@@ -29,7 +29,8 @@ pub struct GuestRegisters {
     pub rip: u64,
 }
 
-global_asm!(r#"
+global_asm!(
+    r#"
 // The module containing the `capture_registers` function.
 
 // Offsets to each field in the GuestRegisters struct.
@@ -87,4 +88,5 @@ capture_registers:
     mov     [rcx + registers_rip], rax
 
     ret
-"#);
+"#
+);

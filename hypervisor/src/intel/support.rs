@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
 use {
+    crate::error::HypervisorError,
     core::arch::asm,
     x86::{
         controlregs::{Cr0, Cr4, Xcr0},
         dtables::DescriptorTablePointer,
     },
-    crate::error::HypervisorError,
 };
 
 /// Enable VMX operation.
@@ -47,12 +47,11 @@ pub fn vmread(field: u32) -> u64 {
 
 /// Write to a specified field in a VMCS.
 pub fn vmwrite<T: Into<u64>>(field: u32, val: T)
-    where
-        u64: From<T>,
+where
+    u64: From<T>,
 {
     unsafe { x86::bits64::vmx::vmwrite(field, u64::from(val)) }.unwrap();
 }
-
 
 /// Write to Extended Control Register XCR0. Only supported if CR4_ENABLE_OS_XSAVE is set.
 pub fn xsetbv(val: Xcr0) {

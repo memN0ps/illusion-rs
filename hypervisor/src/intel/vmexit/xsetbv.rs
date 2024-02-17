@@ -2,8 +2,10 @@
 //! controlled manipulation of the XCR0 register by guest VMs.
 
 use {
-    crate::{
-        intel::{vmexit::ExitType, capture::GuestRegisters, support::{cr4, cr4_write, xsetbv}},
+    crate::intel::{
+        capture::GuestRegisters,
+        support::{cr4, cr4_write, xsetbv},
+        vmexit::ExitType,
     },
     x86::controlregs::{Cr4, Xcr0},
 };

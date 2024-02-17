@@ -5,9 +5,9 @@
 //! Credits to Neri https://github.com/neri/maystorm/blob/develop/system/src/arch/x64/cpu.rs
 
 use {
+    crate::intel::support::rdmsr,
     alloc::vec::Vec,
     x86::msr::{IA32_MTRRCAP, IA32_MTRR_PHYSBASE0, IA32_MTRR_PHYSMASK0},
-    crate::intel::support::rdmsr,
 };
 
 /// Represents the different types of memory as defined by MTRRs.

@@ -1,13 +1,13 @@
 use {
+    crate::intel::support::sgdt,
+    alloc::{boxed::Box, vec::Vec},
     x86::{
         dtables::DescriptorTablePointer,
         segmentation::{
-            cs, BuildDescriptor, CodeSegmentType, Descriptor, DescriptorBuilder, GateDescriptorBuilder,
-            SegmentDescriptorBuilder, SegmentSelector,
+            cs, BuildDescriptor, CodeSegmentType, Descriptor, DescriptorBuilder,
+            GateDescriptorBuilder, SegmentDescriptorBuilder, SegmentSelector,
         },
     },
-    alloc::{boxed::Box, vec::Vec},
-    crate::intel::support::sgdt,
 };
 
 // UEFI does not set TSS in the GDT. This is incompatible to be both as VM and

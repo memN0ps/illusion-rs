@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use {
-    crate::{intel::{vmexit::ExitType, capture::GuestRegisters}},
+    crate::intel::{capture::GuestRegisters, vmexit::ExitType},
     bitfield::BitMut,
     x86::cpuid::cpuid,
 };

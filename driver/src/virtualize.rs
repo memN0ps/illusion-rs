@@ -2,10 +2,7 @@ use {
     alloc::alloc::{alloc_zeroed, handle_alloc_error},
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
-        intel::{
-            capture::GuestRegisters, page::Page,
-            shared_data::SharedData,
-        },
+        intel::{capture::GuestRegisters, page::Page, shared_data::SharedData},
         vmm::start_hypervisor,
     },
     log::debug,
@@ -15,12 +12,16 @@ use {
     },
 };
 
-pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut SharedData, system_table: &SystemTable<Boot>) {
+pub fn virtualize_system(
+    guest_registers: &GuestRegisters,
+    shared_data: &mut SharedData,
+    system_table: &SystemTable<Boot>,
+) {
     let boot_service = system_table.boot_services();
 
     // Open the loaded image protocol to get the current image base and image size.
-    let loaded_image = boot_service.
-        open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())
+    let loaded_image = boot_service
+        .open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())
         .unwrap();
 
     // Get the current image base and image size.
@@ -56,15 +57,28 @@ pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut Sha
     let stack_base = stack as u64 + layout.size() as u64 - 0x10;
     debug!("Stack range: {:#x?}", stack_base..stack as u64);
 
-    unsafe { switch_stack(guest_registers, shared_data, start_hypervisor as usize, stack_base) };
+    unsafe {
+        switch_stack(
+            guest_registers,
+            shared_data,
+            start_hypervisor as usize,
+            stack_base,
+        )
+    };
 }
 
 extern "efiapi" {
     /// Jumps to the landing code with the new stack pointer.
-    fn switch_stack(guest_registers: &GuestRegisters, shared_data: &mut SharedData, landing_code: usize, stack_base: u64) -> !;
+    fn switch_stack(
+        guest_registers: &GuestRegisters,
+        shared_data: &mut SharedData,
+        landing_code: usize,
+        stack_base: u64,
+    ) -> !;
 }
 
-global_asm!(r#"
+global_asm!(
+    r#"
 // The module containing the `switch_stack` function.
 
 // Jumps to the landing code with the new stack pointer.
@@ -75,4 +89,5 @@ switch_stack:
     xchg    bx, bx
     mov     rsp, r9
     jmp     r8
-"#);
+"#
+);

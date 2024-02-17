@@ -3,12 +3,7 @@
 //! Includes support for primary and optional secondary EPTs.
 
 use {
-    crate::{
-        error::HypervisorError,
-        intel::{
-            ept::paging::Ept,
-        },
-    },
+    crate::{error::HypervisorError, intel::ept::paging::Ept},
     alloc::boxed::Box,
 };
 
@@ -43,7 +38,10 @@ impl SharedData {
     ///
     /// # Returns
     /// A result containing a boxed `SharedData` instance or an error of type `HypervisorError`.
-    pub fn new(primary_ept: Box<Ept>, secondary_ept: Box<Ept>) -> Result<Box<Self>, HypervisorError> {
+    pub fn new(
+        primary_ept: Box<Ept>,
+        secondary_ept: Box<Ept>,
+    ) -> Result<Box<Self>, HypervisorError> {
         log::trace!("Initializing shared data");
 
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
