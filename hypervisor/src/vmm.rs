@@ -1,23 +1,26 @@
 use {
-    crate::intel::{
-        capture::GuestRegisters,
-        shared_data::SharedData,
-        support::{vmread, vmwrite},
-        vm::Vm,
-        vmerror::VmxBasicExitReason,
-        vmexit::{
-            cpuid::handle_cpuid,
-            ept::{handle_ept_misconfiguration, handle_ept_violation},
-            exception::{handle_exception, handle_undefined_opcode_exception},
-            invd::handle_invd,
-            invept::handle_invept,
-            invvpid::handle_invvpid,
-            msr::{handle_msr_access, MsrAccessType},
-            rdtsc::handle_rdtsc,
-            xsetbv::handle_xsetbv,
-            ExitType,
+    crate::{
+        error::HypervisorError,
+        intel::{
+            capture::GuestRegisters,
+            shared_data::SharedData,
+            support::{vmread, vmwrite},
+            vm::Vm,
+            vmerror::VmxBasicExitReason,
+            vmexit::{
+                cpuid::handle_cpuid,
+                ept::{handle_ept_misconfiguration, handle_ept_violation},
+                exception::{handle_exception, handle_undefined_opcode_exception},
+                invd::handle_invd,
+                invept::handle_invept,
+                invvpid::handle_invvpid,
+                msr::{handle_msr_access, MsrAccessType},
+                rdtsc::handle_rdtsc,
+                xsetbv::handle_xsetbv,
+                ExitType,
+            },
+            vmx::Vmx,
         },
-        vmx::Vmx,
     },
     log::*,
     x86::vmx::vmcs::{guest, ro},
@@ -26,6 +29,11 @@ use {
 // pass shared data to the hypervisor soon too
 pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
     debug!("Starting hypervisor");
+
+    match check_supported_cpu() {
+        Ok(_) => debug!("CPU is supported"),
+        Err(e) => panic!("CPU is not supported: {:?}", e),
+    };
 
     let mut vmx = Vmx::new();
 
@@ -98,4 +106,68 @@ fn advance_guest_rip(guest_registers: &mut GuestRegisters) {
     guest_registers.rip += len;
     vmwrite(guest::RIP, guest_registers.rip);
     trace!("Guest RIP advanced to: {:#x}", vmread(guest::RIP));
+}
+
+/// Check if the CPU is supported.
+///
+/// # Returns
+///
+/// A `Result` which is `Ok` if the CPU is supported, or `Err` if it's not.
+fn check_supported_cpu() -> Result<(), HypervisorError> {
+    /* Intel® 64 and IA-32 Architectures Software Developer's Manual: 24.6 DISCOVERING SUPPORT FOR VMX */
+    has_intel_cpu()?;
+    info!("CPU is Intel");
+
+    has_vmx_support()?;
+    info!("Virtual Machine Extension (VMX) technology is supported");
+
+    has_mtrr()?;
+    info!("Memory Type Range Registers (MTRRs) are supported");
+
+    Ok(())
+}
+
+/// Check to see if CPU is Intel (“GenuineIntel”).
+///
+/// # Returns
+///
+/// A `Result` which is `Ok` if the CPU is Intel, or `Err` if it's not.
+fn has_intel_cpu() -> Result<(), HypervisorError> {
+    let cpuid = x86::cpuid::CpuId::new();
+    if let Some(vi) = cpuid.get_vendor_info() {
+        if vi.as_str() == "GenuineIntel" {
+            return Ok(());
+        }
+    }
+    Err(HypervisorError::CPUUnsupported)
+}
+
+/// Check processor support for Virtual Machine Extension (VMX) technology.
+///
+/// # Returns
+///
+/// A `Result` which is `Ok` if VMX technology is supported, or `Err` if it's not.
+fn has_vmx_support() -> Result<(), HypervisorError> {
+    let cpuid = x86::cpuid::CpuId::new();
+    if let Some(fi) = cpuid.get_feature_info() {
+        if fi.has_vmx() {
+            return Ok(());
+        }
+    }
+    Err(HypervisorError::VMXUnsupported)
+}
+
+/// Check processor support for Memory Type Range Registers (MTRRs).
+///
+/// # Returns
+///
+/// A `Result` which is `Ok` if MTRRs are supported, or `Err` if it's not.
+fn has_mtrr() -> Result<(), HypervisorError> {
+    let cpuid = x86::cpuid::CpuId::new();
+    if let Some(fi) = cpuid.get_feature_info() {
+        if fi.has_mtrr() {
+            return Ok(());
+        }
+    }
+    Err(HypervisorError::MTRRUnsupported)
 }
