@@ -1,5 +1,7 @@
 use {
     alloc::alloc::{alloc_zeroed, handle_alloc_error},
+    alloc::boxed::Box,
+    core::ffi::c_void,
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
         intel::{capture::GuestRegisters, page::Page, shared_data::SharedData},
@@ -12,59 +14,88 @@ use {
     },
 };
 
-pub fn virtualize_system(
-    guest_registers: &GuestRegisters,
-    shared_data: &mut SharedData,
-    system_table: &SystemTable<Boot>,
-) {
-    let boot_service = system_table.boot_services();
+#[derive(Default)]
+pub struct Virtualize {
+    guest_registers: GuestRegisters,
+    shared_data: Box<SharedData>,
+    landing_code: usize,
+    stack_base: u64,
+}
 
-    // Open the loaded image protocol to get the current image base and image size.
-    let loaded_image = boot_service
-        .open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())
-        .unwrap();
+impl Virtualize {
+    pub fn new(
+        guest_registers: GuestRegisters,
+        shared_data: Box<SharedData>,
+        system_table: &SystemTable<Boot>,
+    ) -> Self {
+        debug!("Zapping the Relocation Table and allocating separate stack space");
 
-    // Get the current image base and image size.
-    let (image_base, image_size) = loaded_image.info();
+        let boot_service = system_table.boot_services();
 
-    let image_base = image_base as usize;
+        // Open the loaded image protocol to get the current image base and image size.
+        let loaded_image = boot_service
+            .open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())
+            .unwrap();
 
-    let image_range = image_base..image_base + image_size as usize;
-    debug!("Image base: {:#x?}", image_range);
+        // Get the current image base and image size.
+        let (image_base, image_size) = loaded_image.info();
 
-    // Prevent relocation by zapping the Relocation Table in the PE header. UEFI
-    // keeps the list of runtime drivers and applies patches into their code and
-    // data according to relocation information, as address translation switches
-    // from physical-mode to virtual-mode when the OS starts. This causes a problem
-    // with us because the host part keeps running under physical-mode, as the
-    // host has its own page tables. Relocation ends up breaking the host code.
-    // The easiest way is prevented this from happening is to nullify the relocation
-    // table.
-    unsafe {
-        *((image_base + 0x128) as *mut u32) = 0;
-        *((image_base + 0x12c) as *mut u32) = 0;
-    }
+        let image_base = image_base as usize;
 
-    // Allocate separate stack space. This is never freed.
-    let layout = Layout::array::<Page>(0x10).unwrap();
+        let image_range = image_base..image_base + image_size as usize;
+        debug!("Image base: {:#x?}", image_range);
 
-    let stack = unsafe { alloc_zeroed(layout) };
+        // Prevent relocation by zapping the Relocation Table in the PE header. UEFI
+        // keeps the list of runtime drivers and applies patches into their code and
+        // data according to relocation information, as address translation switches
+        // from physical-mode to virtual-mode when the OS starts. This causes a problem
+        // with us because the host part keeps running under physical-mode, as the
+        // host has its own page tables. Relocation ends up breaking the host code.
+        // The easiest way is prevented this from happening is to nullify the relocation
+        // table.
+        unsafe {
+            *((image_base + 0x128) as *mut u32) = 0;
+            *((image_base + 0x12c) as *mut u32) = 0;
+        }
 
-    if stack.is_null() {
-        handle_alloc_error(layout);
-    }
+        // Allocate separate stack space. This is never freed.
+        let layout = Layout::array::<Page>(0x10).unwrap();
 
-    let stack_base = stack as u64 + layout.size() as u64 - 0x10;
-    debug!("Stack range: {:#x?}", stack_base..stack as u64);
+        let stack = unsafe { alloc_zeroed(layout) };
 
-    unsafe {
-        switch_stack(
+        if stack.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        let stack_base = stack as u64 + layout.size() as u64 - 0x10;
+        debug!("Stack range: {:#x?}", stack_base..stack as u64);
+
+        debug!("Relocation Table zapped and separate stack space allocated successfully!");
+
+        Self {
             guest_registers,
             shared_data,
-            start_hypervisor as usize,
+            landing_code: start_hypervisor as usize,
             stack_base,
-        )
-    };
+        }
+    }
+}
+
+pub extern "efiapi" fn switch_stack_and_virtualize_core(procedure_argument: *mut c_void) {
+    let virtualize: &mut Virtualize = unsafe { &mut *(procedure_argument as *mut Virtualize) };
+
+    debug!("Switching stack and virtualizing core");
+
+    // Call `switch_stack` with the context data.
+    // Assuming `switch_stack` never returns, similar to the original `virtualize_system` behavior.
+    unsafe {
+        switch_stack(
+            &virtualize.guest_registers,
+            &mut virtualize.shared_data,
+            virtualize.landing_code,
+            virtualize.stack_base,
+        );
+    }
 }
 
 extern "efiapi" {

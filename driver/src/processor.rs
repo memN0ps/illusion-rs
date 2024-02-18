@@ -1,9 +1,16 @@
 //! This module provides utility functions for processor-related operations in UEFI.
 
-use core::sync::atomic::{AtomicU64, Ordering};
-use uefi::prelude::*;
-use uefi::proto::pi::mp::{MpServices, ProcessorCount};
-use uefi::table::boot::ScopedProtocol;
+use {
+    core::{
+        ffi::c_void,
+        sync::atomic::{AtomicU64, Ordering},
+    },
+    uefi::{
+        prelude::*,
+        proto::pi::mp::{MpServices, Procedure, ProcessorCount},
+        table::boot::ScopedProtocol,
+    },
+};
 
 /// Atomic bitset used to track which processors have been virtualized.
 static VIRTUALIZED_BITSET: AtomicU64 = AtomicU64::new(0);
@@ -18,6 +25,22 @@ impl<'a> MpManager<'a> {
         let handle = bt.get_handle_for_protocol::<MpServices>()?;
         let mp_services = bt.open_protocol_exclusive::<MpServices>(handle)?;
         Ok(Self { mp_services })
+    }
+
+    pub fn start_virtualization_on_all_processors(
+        &self,
+        procedure: Procedure,
+        procedure_argument: *mut c_void,
+    ) -> uefi::Result<()> {
+        // The `procedure` is an `extern "efiapi" fn(_: *mut c_void)` compatible with `Procedure`
+        // and performs the necessary actions to initialize virtualization per-processor.
+        self.mp_services.startup_all_aps(
+            false, // Run on all processors simultaneously.
+            procedure,
+            procedure_argument,
+            None, // No associated event.
+            None, // No timeout.
+        )
     }
 
     /// Determines if the current processor is already virtualized.
