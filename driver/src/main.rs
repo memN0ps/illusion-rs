@@ -88,8 +88,10 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         mp_manager.set_virtualized();
 
         if processor_count.enabled == 1 {
+            info!("Found only one processor, virtualizing it");
             switch_stack_and_virtualize_core(&mut virtualize as *mut _ as *mut c_void);
         } else {
+            info!("Found multiple processors, virtualizing all of them");
             match mp_manager.start_virtualization_on_all_processors(
                 switch_stack_and_virtualize_core,
                 &mut virtualize as *mut _ as *mut c_void,
