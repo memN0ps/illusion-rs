@@ -1,4 +1,5 @@
 #![feature(new_uninit)]
+#![feature(panic_info_message)]
 #![no_main]
 #![no_std]
 
@@ -18,6 +19,7 @@ use {
             ept::paging::{AccessType, Ept},
             shared_data::SharedData,
         },
+        logger::init_uart_logger,
     },
     log::*,
     uefi::prelude::*,
@@ -26,14 +28,28 @@ use {
 pub mod processor;
 pub mod virtualize;
 
+// Change as you like
+#[cfg(not(test))]
+#[panic_handler]
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+    if let Some(location) = info.location() {
+        error!(
+            "[-] Panic in {} at ({}, {}):",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+        if let Some(message) = info.message() {
+            error!("[-] {}", message);
+        }
+    }
+
+    loop {}
+}
+
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    // Initialize the COM2 port logger with level filter set to Info.
-    com_logger::builder()
-        .base(0x2f8)
-        .filter(LevelFilter::Trace)
-        .setup();
-
+    init_uart_logger();
     uefi_services::init(&mut system_table).unwrap();
 
     info!("The Matrix is an illusion");
@@ -50,7 +66,7 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     info!("Total processors: {}", processor_count.total);
     info!("Enabled processors: {}", processor_count.enabled);
 
-    // Setup the EPT
+    // Setup EPT
     let shared_data = match setup_ept() {
         Ok(shared_data) => shared_data,
         Err(e) => panic!("Failed to setup EPT: {:?}", e),

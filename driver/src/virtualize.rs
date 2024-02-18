@@ -14,7 +14,6 @@ use {
     },
 };
 
-#[derive(Default)]
 pub struct Virtualize {
     guest_registers: GuestRegisters,
     shared_data: Box<SharedData>,
