@@ -13,8 +13,8 @@
 extern crate alloc;
 extern crate static_assertions;
 
-pub mod config;
 pub mod error;
+pub mod global;
 pub mod intel;
 pub mod logger;
 pub mod vmm;

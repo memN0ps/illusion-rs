@@ -10,12 +10,11 @@ use {
             page::Page,
             paging::PageTables,
             segmentation::{access_rights_from_native, lar, lsl},
-            shared_data::SharedData,
             support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
         },
     },
     alloc::boxed::Box,
-    core::{fmt, ptr::NonNull},
+    core::fmt,
     x86::{
         bits64::{paging::BASE_PAGE_SIZE, rflags},
         debugregs::dr7,
@@ -158,7 +157,7 @@ impl Vmcs {
     /// # Arguments
     /// * `shared_data` - Shared data between processors.
     #[rustfmt::skip]
-    pub fn setup_vmcs_control_fields(shared_data: &mut NonNull<SharedData>, msr_bitmap: &Box<Page>) -> Result<(), HypervisorError> {
+    pub fn setup_vmcs_control_fields(primary_eptp: u64, msr_bitmap: &Box<Page>) -> Result<(), HypervisorError> {
         log::debug!("Setting up VMCS Control Fields");
 
         const PRIMARY_CTL: u64 = (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits() | vmcs::control::PrimaryControls::USE_MSR_BITMAPS.bits()) as u64;
@@ -183,10 +182,10 @@ impl Vmcs {
         vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, msr_bitmap.as_ref() as *const _ as u64);
         //vmwrite(vmcs::control::EXCEPTION_BITMAP, 1u64 << (ExceptionInterrupt::Breakpoint as u32));
 
-        vmwrite(vmcs::control::EPTP_FULL, unsafe { shared_data.as_mut().primary_eptp });
+        vmwrite(vmcs::control::EPTP_FULL, primary_eptp);
         vmwrite(vmcs::control::VPID, VPID_TAG);
 
-        invept_single_context(unsafe { shared_data.as_mut().primary_eptp });
+        invept_single_context(primary_eptp);
         invvpid_single_context(VPID_TAG);
 
         log::debug!("VMCS Control Fields setup successfully!");

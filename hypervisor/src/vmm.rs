@@ -1,9 +1,9 @@
 use {
     crate::{
         error::HypervisorError,
+        global::GlobalState,
         intel::{
             capture::GuestRegisters,
-            shared_data::SharedData,
             support::{vmread, vmwrite},
             vm::Vm,
             vmerror::VmxBasicExitReason,
@@ -26,9 +26,14 @@ use {
     x86::vmx::vmcs::{guest, ro},
 };
 
-// pass shared data to the hypervisor soon too
-pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
+/// Starts the hypervisor.
+pub fn start_hypervisor(global_state: &mut GlobalState) -> ! {
     debug!("Starting hypervisor");
+
+    let guest_registers = global_state.guest_registers;
+
+    debug!("Guest registers: {:#x?}", guest_registers);
+    //debug!("Shared data: {:#p}", shared_data);
 
     match check_supported_cpu() {
         Ok(_) => debug!("CPU is supported"),
@@ -42,8 +47,10 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
         Err(e) => panic!("Failed to enable VMX: {:?}", e),
     };
 
-    // shared data and guest registers need to go here
-    let mut vm = Vm::new(guest_registers, shared_data);
+    let mut vm = match Vm::new(&guest_registers) {
+        Ok(vm) => vm,
+        Err(e) => panic!("Failed to create VM: {:?}", e),
+    };
 
     match vm.activate_vmcs() {
         Ok(_) => debug!("VMCS activated"),
@@ -54,6 +61,12 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
+            trace!("Handling VM exit reason: {:?}", basic_exit_reason);
+            debug!(
+                "Register state before handling VM exit: {:#x?}",
+                vm.guest_registers
+            );
+
             let exit_type = match basic_exit_reason {
                 VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
@@ -88,6 +101,11 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
             if exit_type == ExitType::IncrementRIP {
                 advance_guest_rip(&mut vm.guest_registers);
             }
+
+            debug!(
+                "Register state after handling VM exit: {:#x?}",
+                vm.guest_registers
+            );
         } else {
             panic!("Failed to run the VM");
         }
