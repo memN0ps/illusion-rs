@@ -5,12 +5,16 @@
 
 extern crate alloc;
 
+use core::ffi::c_void;
 use {
-    crate::{processor::MpManager, virtualize::virtualize_system},
+    crate::{
+        processor::MpManager,
+        virtualize::{switch_stack_and_virtualize_core, zap_relocations},
+    },
     hypervisor::{
         global::GlobalState,
         intel::capture::{capture_registers, GuestRegisters},
-        logger::init_uart_logger,
+        logger,
     },
     log::*,
     uefi::prelude::*,
@@ -41,12 +45,9 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Initialize the COM2 port logger with level filter set to Info.
-    // init_uart_logger();
+    logger::init(LevelFilter::Trace);
 
-    com_logger::builder()
-        .base(0x2f8)
-        .filter(LevelFilter::Trace)
-        .setup();
+    //com_logger::builder().base(0x2f8).filter(LevelFilter::Trace).setup();
 
     uefi_services::init(&mut system_table).unwrap();
 
@@ -67,6 +68,8 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     info!("Total processors: {}", processor_count.total);
     info!("Enabled processors: {}", processor_count.enabled);
 
+    zap_relocations(&system_table);
+
     // Capture the register values to be used as an initial state of the VM.
     let mut guest_registers = GuestRegisters::default();
     unsafe { capture_registers(&mut guest_registers) }
@@ -81,20 +84,17 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
         if processor_count.enabled == 1 {
             info!("Found only one processor, virtualizing it");
-            virtualize_system(&mut global_state, &system_table);
-        }
-        /*
-            else {
-                info!("Found multiple processors, virtualizing all of them");
-                match mp_manager.start_virtualization_on_all_processors(
-                    switch_stack_and_virtualize_core,
-                    &mut global_state as *mut _ as *mut c_void,
-                ) {
-                    Ok(_) => debug!("Virtualization started on all processors"),
-                    Err(e) => panic!("Failed to start virtualization on all processors: {:?}", e),
-                }
+            switch_stack_and_virtualize_core(&mut global_state as *mut _ as *mut c_void);
+        } else {
+            info!("Found multiple processors, virtualizing all of them");
+            match mp_manager.start_virtualization_on_all_processors(
+                switch_stack_and_virtualize_core,
+                &mut global_state as *mut _ as *mut c_void,
+            ) {
+                Ok(_) => debug!("Virtualization started on all processors"),
+                Err(e) => panic!("Failed to start virtualization on all processors: {:?}", e),
             }
-        */
+        }
     }
 
     info!("The hypervisor has been installed successfully!");

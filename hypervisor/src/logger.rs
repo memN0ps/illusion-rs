@@ -1,7 +1,4 @@
-//! The module containing the UART (serial port) logger implementation.
-// Inspired by:
-// https://github.com/iankronquist/rustyvisor/blob/83b53ac104d85073858ba83326a28a6e08d1af12/pcuart/src/lib.rs
-// Credits: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/logger.rs
+//! The module containing the serial port logger implementation.
 
 use {
     crate::intel::support::{inb, outb},
@@ -10,25 +7,27 @@ use {
 };
 
 /// Initializes the logger instance.
-pub fn init_uart_logger(level: log::LevelFilter) -> Result<(), log::SetLoggerError> {
-    log::set_logger(&UART_LOGGER).map(|()| log::set_max_level(level))
+pub fn init(level: log::LevelFilter) {
+    log::set_logger(&SERIAL_LOGGER)
+        .map(|()| log::set_max_level(level))
+        .unwrap();
 }
 
-struct UartLogger {
-    port: Mutex<Uart>,
+struct SerialLogger {
+    port: Mutex<Serial>,
 }
-impl UartLogger {
-    const fn new(port: UartComPort) -> Self {
+impl SerialLogger {
+    const fn new() -> Self {
         Self {
-            port: Mutex::new(Uart::new(port)),
+            port: Mutex::new(Serial {}),
         }
     }
 
-    fn lock(&self) -> spin::MutexGuard<'_, Uart> {
+    fn lock(&self) -> spin::MutexGuard<'_, Serial> {
         self.port.lock()
     }
 }
-impl log::Log for UartLogger {
+impl log::Log for SerialLogger {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
         metadata.level() <= log::Level::Trace
     }
@@ -42,38 +41,22 @@ impl log::Log for UartLogger {
     fn flush(&self) {}
 }
 
-#[derive(Default)]
-struct Uart {
-    io_port_base: u16,
-}
-impl Uart {
-    const fn new(port: UartComPort) -> Self {
-        Self {
-            io_port_base: port as u16,
-        }
-    }
-}
-impl Write for Uart {
+struct Serial;
+
+impl Write for Serial {
     // Writes bytes `string` to the serial port.
     fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
+        //const UART_COM1: u16 = 0x3f8;
+        const UART_COM2: u16 = 0x2f8;
         const UART_OFFSET_TRANSMITTER_HOLDING_BUFFER: u16 = 0;
         const UART_OFFSET_LINE_STATUS: u16 = 5;
 
         for byte in string.bytes() {
-            while (inb(self.io_port_base + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
-            outb(
-                self.io_port_base + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER,
-                byte,
-            );
+            while (inb(UART_COM2 + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
+            outb(UART_COM2 + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER, byte);
         }
         Ok(())
     }
 }
 
-#[derive(Clone, Copy)]
-#[repr(u16)]
-enum UartComPort {
-    Com1 = 0x3f8,
-}
-
-static UART_LOGGER: UartLogger = UartLogger::new(UartComPort::Com1);
+static SERIAL_LOGGER: SerialLogger = SerialLogger::new();

@@ -1,3 +1,4 @@
+use core::ffi::c_void;
 use {
     alloc::alloc::{alloc_zeroed, handle_alloc_error},
     core::{alloc::Layout, arch::global_asm},
@@ -9,7 +10,7 @@ use {
     },
 };
 
-pub fn virtualize_system(global_state: &mut GlobalState, system_table: &SystemTable<Boot>) -> ! {
+pub fn zap_relocations(system_table: &SystemTable<Boot>) {
     let boot_service = system_table.boot_services();
 
     // Open the loaded image protocol to get the current image base and image size.
@@ -37,7 +38,9 @@ pub fn virtualize_system(global_state: &mut GlobalState, system_table: &SystemTa
         *((image_base + 0x128) as *mut u32) = 0;
         *((image_base + 0x12c) as *mut u32) = 0;
     }
+}
 
+pub fn allocate_stack() -> u64 {
     // Allocate separate stack space. This is never freed.
     let layout = Layout::array::<Page>(0x10).unwrap();
 
@@ -49,6 +52,13 @@ pub fn virtualize_system(global_state: &mut GlobalState, system_table: &SystemTa
 
     let stack_base = stack as u64 + layout.size() as u64 - 0x10;
     debug!("Stack range: {:#x?}", stack_base..stack as u64);
+
+    stack_base
+}
+
+pub extern "efiapi" fn switch_stack_and_virtualize_core(procedure_argument: *mut c_void) {
+    let global_state = unsafe { &mut *(procedure_argument as *mut GlobalState) };
+    let stack_base = allocate_stack();
 
     unsafe { switch_stack(global_state, start_hypervisor as usize, stack_base) };
 }
