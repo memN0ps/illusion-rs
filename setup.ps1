@@ -1,10 +1,10 @@
 # Ensure the EFI\Boot directory structure exists on the USB drive D:\ and create if necessary
-$efiBootDir = "D:\EFI\Boot"
+$efiBootDir = "D:\illusion.efi"
 New-Item -ItemType Directory -Path $efiBootDir -Force
 
 # Copy the EFI application to the EFI\Boot directory, renaming it to bootx64.efi
 $efiFilePath = "C:\Users\memN0ps\Documents\GitHub\illusion-rs\target\x86_64-unknown-uefi\debug\illusion.efi"
-Copy-Item -Path "$efiFilePath" -Destination "$efiBootDir\bootx64.efi"
+Copy-Item -Path "$efiFilePath" -Destination "$efiBootDir"
 
 # Print the contents of the D:\ drive to verify the copy operation
 Get-ChildItem -Path D:\ -Recurse
