@@ -17,7 +17,7 @@ pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
         handle_alloc_error(layout);
     }
     let stack_base = stack as u64 + layout.size() as u64 - 0x10;
-    debug!("Stack range: {:#x?}", (stack as u64..stack_base));
+    debug!("Stack range: {:#x?}", stack as u64..stack_base);
 
     unsafe { switch_stack(guest_registers, start_hypervisor as usize, stack_base) };
 }

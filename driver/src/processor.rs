@@ -153,7 +153,7 @@ fn start_hypervisor(mp_manager: &MpManager) {
     // Unsafe block to capture the current CPU's register state.
     unsafe { capture_registers(&mut guest_registers) };
 
-    // After capturing RIP, Guest execution will begin here. We then check for an existing hypervisor:
+    // After `vmlaunch`, Guest execution will begin here. We then check for an existing hypervisor:
     // if absent, proceed with installation; otherwise, no further action is needed.
 
     // Proceed with virtualization only if the current processor is not yet virtualized.
