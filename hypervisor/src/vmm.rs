@@ -1,7 +1,6 @@
 use {
     crate::{
         error::HypervisorError,
-        global::GlobalState,
         intel::{
             capture::GuestRegisters,
             support::{vmread, vmwrite},
@@ -27,13 +26,8 @@ use {
 };
 
 /// Starts the hypervisor.
-pub fn start_hypervisor(global_state: &mut GlobalState) -> ! {
+pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
     debug!("Starting hypervisor");
-
-    let guest_registers = global_state.guest_registers;
-
-    debug!("Guest registers: {:#x?}", guest_registers);
-    //debug!("Shared data: {:#p}", shared_data);
 
     match check_supported_cpu() {
         Ok(_) => debug!("CPU is supported"),
