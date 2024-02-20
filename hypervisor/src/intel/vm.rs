@@ -7,14 +7,16 @@ use {
             ept::paging::{AccessType, Ept},
             page::Page,
             paging::PageTables,
-            support::{vmclear, vmptrld, vmread},
+            support::{rdmsr, vmclear, vmptrld, vmread},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
         },
     },
+    alloc::alloc::handle_alloc_error,
     alloc::boxed::Box,
     bit_field::BitField,
+    core::alloc::Layout,
     log::*,
     x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
@@ -57,16 +59,18 @@ pub struct Vm {
 impl Vm {
     pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
         debug!("Creating VM");
+        let mut vmcs_region = unsafe { box_zeroed::<Vmcs>() };
+        vmcs_region.revision_id = rdmsr(x86::msr::IA32_VMX_BASIC) as u32;
 
-        let vmcs_region = Box::new(Vmcs::default());
-        let guest_descriptor_table = Descriptors::new_from_current();
-        let host_descriptor_table = Descriptors::new_for_host();
-        let mut host_paging = unsafe { Box::<PageTables>::new_zeroed().assume_init() };
-        let msr_bitmaps = unsafe { Box::<Page>::new_zeroed().assume_init() };
-        let mut primary_ept: Box<Ept> = unsafe { Box::new_zeroed().assume_init() };
-        let mut secondary_ept: Box<Ept> = unsafe { Box::new_zeroed().assume_init() };
+        debug!("Allocating Memory for Host Paging");
+        let mut host_paging = unsafe { box_zeroed::<PageTables>() };
 
+        debug!("Building Identity Paging for Host");
         host_paging.build_identity();
+
+        debug!("Allocating Memory for Primary and Secondary EPTs");
+        let mut primary_ept = unsafe { box_zeroed::<Ept>() };
+        let mut secondary_ept = unsafe { box_zeroed::<Ept>() };
 
         debug!("Creating Primary EPT");
         primary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE)?;
@@ -77,22 +81,20 @@ impl Vm {
         secondary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE)?;
         let secondary_eptp = secondary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
-        let has_launched = false;
-
         debug!("VM created");
 
         Ok(Self {
             vmcs_region,
             host_paging,
-            host_descriptor: host_descriptor_table,
-            guest_descriptor: guest_descriptor_table,
+            host_descriptor: Descriptors::new_for_host(),
+            guest_descriptor: Descriptors::new_from_current(),
             guest_registers: guest_registers.clone(),
-            msr_bitmap: msr_bitmaps,
+            msr_bitmap: unsafe { box_zeroed::<Page>() },
             primary_ept,
             primary_eptp,
             secondary_ept,
             secondary_eptp,
-            has_launched,
+            has_launched: false,
         })
     }
 
@@ -183,4 +185,14 @@ impl Vm {
 
         Ok(())
     }
+}
+
+/// Allocates memory for a type and initializes it to zero.
+pub unsafe fn box_zeroed<T>() -> Box<T> {
+    let layout = Layout::new::<T>();
+    let ptr = unsafe { alloc::alloc::alloc_zeroed(layout) }.cast::<T>();
+    if ptr.is_null() {
+        handle_alloc_error(layout);
+    }
+    unsafe { Box::from_raw(ptr) }
 }

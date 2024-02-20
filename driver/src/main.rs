@@ -16,6 +16,7 @@ use {
     uefi::{prelude::*, proto::loaded_image::LoadedImage},
 };
 
+pub mod allocator;
 pub mod processor;
 pub mod virtualize;
 
@@ -59,16 +60,23 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// The status of the application execution. Returns `Status::SUCCESS` on successful execution,
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
-fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     // Initialize logging with the COM2 port and set the level filter to Trace.
     logger::init(LevelFilter::Trace);
 
     // Initialize UEFI services.
-    uefi_services::init(&mut system_table).unwrap();
+    //uefi_services::init(&mut system_table).unwrap();
+    allocator::init(&system_table);
 
     info!("The Matrix is an illusion");
 
-    zap_relocations(&system_table);
+    match zap_relocations(&system_table) {
+        Ok(_) => debug!("Relocations zapped successfully"),
+        Err(e) => {
+            error!("Failed to zap relocations: {:?}", e);
+            return Status::ABORTED;
+        }
+    }
 
     // Attempt to start the hypervisor on all processors.
     match start_hypervisor_on_all_processors(&system_table) {
@@ -92,13 +100,16 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 /// # Arguments
 ///
 /// * `system_table` - Reference to the UEFI System Table.
-pub fn zap_relocations(system_table: &SystemTable<Boot>) {
+///
+/// # Returns
+///
+/// The result of the operation. Returns `uefi::Result::SUCCESS` on success, or an error
+pub fn zap_relocations(system_table: &SystemTable<Boot>) -> uefi::Result<()> {
     let boot_service = system_table.boot_services();
 
     // Obtain the current loaded image protocol.
-    let loaded_image = boot_service
-        .open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())
-        .unwrap();
+    let loaded_image =
+        boot_service.open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())?;
 
     // Extract the image base address and size.
     let (image_base, image_size) = loaded_image.info();
@@ -115,4 +126,6 @@ pub fn zap_relocations(system_table: &SystemTable<Boot>) {
         *((image_base + 0x128) as *mut u32) = 0; // Zero out the relocation table offset.
         *((image_base + 0x12c) as *mut u32) = 0; // Zero out the relocation table size.
     }
+
+    Ok(())
 }
