@@ -40,10 +40,10 @@ bitflags! {
     }
 }
 
-pub const _512GB: u64 = 512 * 1024 * 1024 * 1024;
-pub const _1GB: u64 = 1024 * 1024 * 1024;
-pub const _2MB: usize = 2 * 1024 * 1024;
-pub const _4KB: usize = 4 * 1024;
+pub const _512GiB: u64 = 512 * 1024 * 1024 * 1024;
+pub const _1GiB: u64 = 1024 * 1024 * 1024;
+pub const _2MiB: usize = 2 * 1024 * 1024;
+pub const _4KiB: usize = 4 * 1024;
 
 /// Represents the entire Extended Page Table structure.
 ///
@@ -80,7 +80,7 @@ impl Ept {
 
         let mut mtrr = Mtrr::new();
 
-        for pa in (0.._512GB).step_by(_2MB) {
+        for pa in (0.._512GiB).step_by(_2MiB) {
             self.map_2mb(pa, pa, access_type, &mut mtrr)?;
         }
 
@@ -103,7 +103,7 @@ impl Ept {
 
         let mut mtrr = Mtrr::new();
 
-        for pa in (0.._512GB).step_by(BASE_PAGE_SIZE) {
+        for pa in (0.._512GiB).step_by(BASE_PAGE_SIZE) {
             self.map_4kb(pa, pa, access_type, &mut mtrr)?;
         }
 
