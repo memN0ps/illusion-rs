@@ -74,9 +74,9 @@ Setup: `bcdedit.exe /dbgsettings net hostip:w.x.y.z port:n`.
 Use Service Controller (`sc.exe`) to create and manage the hypervisor service:
 
 ```powershell
-sc.exe create matrix type= kernel binPath= C:\Windows\System32\drivers\matrix.sys
-sc.exe query matrix
-sc.exe start matrix
+sc.exe create illusion type= kernel binPath= C:\Windows\System32\drivers\illusion.sys
+sc.exe query illusion
+sc.exe start illusion
 ```
 
 ## Acknowledgments, References, and Motivation
