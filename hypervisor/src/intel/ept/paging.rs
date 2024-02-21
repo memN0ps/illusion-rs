@@ -5,6 +5,8 @@
 //!
 //! Credits to the work by Satoshi (https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/epts.rs) and Matthias (https://github.com/not-matthias/amd_hypervisor/blob/main/hypervisor/src/svm/nested_page_table.rs).
 
+#![allow(non_upper_case_globals)]
+
 use {
     crate::{
         error::HypervisorError,
