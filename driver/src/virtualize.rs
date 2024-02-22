@@ -9,6 +9,11 @@ use {
 };
 
 /// Installs the hypervisor on the current processor.
+///
+/// # Arguments
+///
+/// * `guest_registers` - The guest registers to use for the hypervisor.
+/// * `shared_data` - The shared data to use for the hypervisor.
 pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
     // Allocate separate stack space. This is never freed.
     let layout = Layout::array::<Page>(0x10).unwrap();
@@ -42,7 +47,6 @@ extern "efiapi" {
 global_asm!(
     r#"
 // The module containing the `switch_stack` function. Jumps to the landing code with the new stack pointer.
-// fn switch_stack(guest_registers: &GuestRegisters, landing_code: usize, stack_base: u64) -> !
 .global switch_stack
 switch_stack:
     xchg    bx, bx

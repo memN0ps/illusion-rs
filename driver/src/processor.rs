@@ -18,7 +18,9 @@ use {
 ///
 /// # Arguments
 ///
-/// * `system_table` - A reference to the UEFI System Table.
+/// * `boot_services` - A reference to the UEFI Boot Services.
+/// * `primary_ept` - The primary Extended Page Table (EPT) instance.
+/// * `secondary_ept` - The secondary Extended Page Table (EPT) instance.
 ///
 /// # Returns
 ///
@@ -44,15 +46,13 @@ pub fn start_hypervisor_on_all_processors(
         start_hypervisor(shared_data.as_mut());
     } else {
         info!("Found multiple processors, virtualizing all of them");
-        mp_services
-            .startup_all_aps(
-                true,
-                start_hypervisor_on_ap as _,
-                shared_data.as_mut() as *mut _ as *mut _,
-                None,
-                None,
-            )
-            .expect("Failed to start APs")
+        mp_services.startup_all_aps(
+            true,
+            start_hypervisor_on_ap as _,
+            shared_data.as_mut() as *mut _ as *mut _,
+            None,
+            None,
+        )?;
     }
 
     info!("The hypervisor has been installed successfully!");
@@ -78,20 +78,17 @@ extern "efiapi" fn start_hypervisor_on_ap(procedure_argument: *mut c_void) {
 fn start_hypervisor(shared_data: &mut SharedData) {
     let mut guest_registers = GuestRegisters::default();
     // Unsafe block to capture the current CPU's register state.
-    let mut is_virtualized = unsafe { capture_registers(&mut guest_registers) };
-
-    // The guest will return here and it will have it's value of rax set to 1, meaning the logical core is virtualized.
-    guest_registers.rax = 1;
+    let is_virtualized = unsafe { capture_registers(&mut guest_registers) };
 
     // After `vmlaunch`, Guest execution will begin here. We then check for an existing hypervisor:
     // if absent, proceed with installation; otherwise, no further action is needed.
+    // The guest will return here and it will have it's value of rax set to 1, meaning the logical core is virtualized.
+    guest_registers.rax = 1;
 
     // Proceed with virtualization only if the current processor is not yet virtualized.
     debug!("Is virtualized: {}", is_virtualized);
     if !is_virtualized {
         debug!("Virtualizing the system");
-        is_virtualized = true;
-        debug!("Is virtualized: {}", is_virtualized);
         virtualize_system(&guest_registers, shared_data);
     }
 }
