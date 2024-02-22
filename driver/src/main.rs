@@ -22,7 +22,7 @@ use {
     uefi::prelude::*,
 };
 
-pub mod allocator;
+//pub mod allocator;
 pub mod processor;
 pub mod relocation;
 pub mod virtualize;
@@ -67,13 +67,13 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// The status of the application execution. Returns `Status::SUCCESS` on successful execution,
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
-fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
+fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Initialize logging with the COM2 port and set the level filter to Trace.
     logger::init(LevelFilter::Trace);
 
     // Initialize UEFI services.
-    // uefi_services::init(&mut system_table).unwrap();
-    allocator::init(&system_table);
+    uefi_services::init(&mut system_table).unwrap();
+    // allocator::init(&system_table);
 
     info!("The Matrix is an illusion");
 
