@@ -4,9 +4,9 @@ use {
         intel::{
             capture::GuestRegisters,
             descriptor::Descriptors,
-            ept::paging::{AccessType, Ept},
             page::Page,
             paging::PageTables,
+            shared::SharedData,
             support::{rdmsr, vmclear, vmptrld, vmread},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
@@ -17,6 +17,7 @@ use {
     alloc::boxed::Box,
     bit_field::BitField,
     core::alloc::Layout,
+    core::ptr::NonNull,
     log::*,
     x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
@@ -40,24 +41,18 @@ pub struct Vm {
     /// The MSR bitmaps.
     pub msr_bitmap: Box<Page>,
 
-    /// The primary EPT (Extended Page Tables) for the VM.
-    pub primary_ept: Box<Ept>,
-
-    /// The secondary EPTP (Extended Page Tables Pointer) for the VM.
-    pub primary_eptp: u64,
-
-    /// The secondary EPT (Extended Page Tables) for the VM.
-    pub secondary_ept: Box<Ept>,
-
-    /// The secondary EPTP (Extended Page Tables Pointer) for the VM.
-    pub secondary_eptp: u64,
-
     /// Whether the VM has been launched.
     pub has_launched: bool,
+
+    /// The shared data between processors.
+    pub shared_data: NonNull<SharedData>,
 }
 
 impl Vm {
-    pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
+    pub fn new(
+        guest_registers: &GuestRegisters,
+        shared_data: &mut SharedData,
+    ) -> Result<Self, HypervisorError> {
         debug!("Creating VM");
         let mut vmcs_region = unsafe { box_zeroed::<Vmcs>() };
         vmcs_region.revision_id = rdmsr(x86::msr::IA32_VMX_BASIC) as u32;
@@ -68,19 +63,6 @@ impl Vm {
         debug!("Building Identity Paging for Host");
         host_paging.build_identity();
 
-        debug!("Allocating Memory for Primary and Secondary EPTs");
-        let mut primary_ept = unsafe { box_zeroed::<Ept>() };
-        let mut secondary_ept = unsafe { box_zeroed::<Ept>() };
-
-        debug!("Creating Primary EPT");
-        primary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE)?;
-        primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
-        let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
-
-        debug!("Creating Secondary EPT");
-        secondary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE)?;
-        let secondary_eptp = secondary_ept.create_eptp_with_wb_and_4lvl_walk()?;
-
         debug!("VM created");
 
         Ok(Self {
@@ -90,11 +72,8 @@ impl Vm {
             guest_descriptor: Descriptors::new_from_current(),
             guest_registers: guest_registers.clone(),
             msr_bitmap: unsafe { box_zeroed::<Page>() },
-            primary_ept,
-            primary_eptp,
-            secondary_ept,
-            secondary_eptp,
             has_launched: false,
+            shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
         })
     }
 
@@ -120,9 +99,11 @@ impl Vm {
     pub fn setup_vmcs(&mut self) -> Result<(), HypervisorError> {
         debug!("Setting up VMCS");
 
+        let primary_eptp = unsafe { self.shared_data.as_ref().primary_eptp };
+
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
         Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
-        Vmcs::setup_vmcs_control_fields(self.primary_eptp, &self.msr_bitmap)?;
+        Vmcs::setup_vmcs_control_fields(primary_eptp, &self.msr_bitmap)?;
 
         debug!("VMCS setup successfully!");
 

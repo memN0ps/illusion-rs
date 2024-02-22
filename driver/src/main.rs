@@ -11,7 +11,13 @@ extern crate alloc;
 
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
-    hypervisor::logger,
+    hypervisor::{
+        intel::{
+            ept::paging::{AccessType, Ept},
+            vm::box_zeroed,
+        },
+        logger,
+    },
     log::*,
     uefi::prelude::*,
 };
@@ -66,26 +72,41 @@ fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     logger::init(LevelFilter::Trace);
 
     // Initialize UEFI services.
-    //uefi_services::init(&mut system_table).unwrap();
+    // uefi_services::init(&mut system_table).unwrap();
     allocator::init(&system_table);
 
     info!("The Matrix is an illusion");
 
-    match zap_relocations(&system_table) {
-        Ok(_) => debug!("Relocations zapped successfully"),
-        Err(e) => {
-            error!("Failed to zap relocations: {:?}", e);
-            return Status::ABORTED;
-        }
+    let boot_services = system_table.boot_services();
+
+    // Attempt to zap relocations in the UEFI environment.
+    debug!("Zapping relocations");
+    if let Err(e) = zap_relocations(boot_services) {
+        error!("Failed to zap relocations: {:?}", e);
+        return Status::ABORTED;
+    }
+
+    debug!("Allocating primary and secondary EPTs");
+    let mut primary_ept = unsafe { box_zeroed::<Ept>() };
+    let mut secondary_ept = unsafe { box_zeroed::<Ept>() };
+
+    debug!("Identity mapping primary and secondary EPTs");
+
+    if let Err(e) = primary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE) {
+        error!("Failed to identity map primary EPT: {:?}", e);
+        return Status::ABORTED;
+    }
+
+    if let Err(e) = secondary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE) {
+        error!("Failed to identity map secondary EPT: {:?}", e);
+        return Status::ABORTED;
     }
 
     // Attempt to start the hypervisor on all processors.
-    match start_hypervisor_on_all_processors(&system_table) {
-        Ok(_) => debug!("Hypervisor installed successfully"),
-        Err(e) => {
-            error!("Failed to install hypervisor: {:?}", e);
-            return Status::ABORTED;
-        }
+    debug!("Starting hypervisor on all processors");
+    if let Err(e) = start_hypervisor_on_all_processors(boot_services, primary_ept, secondary_ept) {
+        error!("Failed to start hypervisor on all processors: {:?}", e);
+        return Status::ABORTED;
     }
 
     // Return success status to UEFI environment.

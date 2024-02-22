@@ -1,9 +1,6 @@
 use {
     log::debug,
-    uefi::{
-        prelude::{Boot, SystemTable},
-        proto::loaded_image::LoadedImage,
-    },
+    uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},
 };
 
 /// Nullifies the relocation table of the loaded UEFI image to prevent relocation.
@@ -19,9 +16,7 @@ use {
 /// # Returns
 ///
 /// The result of the operation. Returns `uefi::Result::SUCCESS` on success, or an error
-pub fn zap_relocations(system_table: &SystemTable<Boot>) -> uefi::Result<()> {
-    let boot_service = system_table.boot_services();
-
+pub fn zap_relocations(boot_service: &BootServices) -> uefi::Result<()> {
     // Obtain the current loaded image protocol.
     let loaded_image =
         boot_service.open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())?;

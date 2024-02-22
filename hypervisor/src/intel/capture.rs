@@ -2,7 +2,7 @@ use core::arch::global_asm;
 
 extern "efiapi" {
     /// Captures current general purpose registers, RFLAGS, RSP, and RIP.
-    pub fn capture_registers(registers: &mut GuestRegisters);
+    pub fn capture_registers(registers: &mut GuestRegisters) -> bool;
 }
 
 /// The collection of the guest general purpose register values.
@@ -86,6 +86,8 @@ capture_registers:
 
     mov     rax, [rsp]
     mov     [rcx + registers_rip], rax
+
+    xor rax, rax
 
     ret
 "#

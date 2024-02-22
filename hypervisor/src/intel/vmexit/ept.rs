@@ -32,7 +32,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
         // The hooked page that is Execute-Only will be executed from the secondary EPTP.
         // if Read or Write occurs on that page, then a vmexit will occur
         // and we can swap the page back to the primary EPTP, (original page) with RW permissions.
-        let secondary_eptp = vm.secondary_eptp;
+        let secondary_eptp = unsafe { vm.shared_data.as_ref().secondary_eptp };
         vmwrite(vmcs::control::EPTP_FULL, secondary_eptp);
         invept_all_contexts();
         //invept_single_context(secondary_eptp);
@@ -44,7 +44,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
         // The original page that is Read-Write-Only will be executed from the primary EPTP.
         // if Execute occurs on that page, then a vmexit will occur
         // and we can swap the page back to the secondary EPTP, (hooked page) with X permissions.
-        let primary_eptp = vm.primary_eptp;
+        let primary_eptp = unsafe { vm.shared_data.as_ref().primary_eptp };
         vmwrite(vmcs::control::EPTP_FULL, primary_eptp);
         invept_all_contexts();
         //invept_single_context(primary_eptp);

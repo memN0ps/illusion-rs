@@ -3,6 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             capture::GuestRegisters,
+            shared::SharedData,
             support::{vmread, vmwrite},
             vm::Vm,
             vmerror::VmxBasicExitReason,
@@ -26,7 +27,7 @@ use {
 };
 
 /// Starts the hypervisor.
-pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
+pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
     debug!("Starting hypervisor");
 
     match check_supported_cpu() {
@@ -41,7 +42,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("Failed to enable VMX: {:?}", e),
     };
 
-    let mut vm = match Vm::new(&guest_registers) {
+    let mut vm = match Vm::new(&guest_registers, shared_data) {
         Ok(vm) => vm,
         Err(e) => panic!("Failed to create VM: {:?}", e),
     };

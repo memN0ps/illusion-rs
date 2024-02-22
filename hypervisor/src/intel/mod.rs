@@ -9,6 +9,7 @@ pub mod invvpid;
 pub mod page;
 pub mod paging;
 pub mod segmentation;
+pub mod shared;
 pub mod support;
 pub mod vm;
 pub mod vmcs;
