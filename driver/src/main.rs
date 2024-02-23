@@ -22,7 +22,6 @@ use {
     uefi::prelude::*,
 };
 
-//pub mod allocator;
 pub mod processor;
 pub mod relocation;
 pub mod virtualize;
