@@ -111,6 +111,32 @@ pub fn cr2_write(val: u64) {
     unsafe { x86::controlregs::cr2_write(val) };
 }
 
+/// Writes a value to the DR0 register.
+pub fn dr0_write(val: u64) {
+    unsafe { x86::debugregs::dr0_write(val as _) };
+}
+
+/// Writes a value to the DR1 register.
+pub fn dr1_write(val: u64) {
+    unsafe { x86::debugregs::dr1_write(val as _) };
+}
+
+/// Writes a value to the DR2 register.
+pub fn dr2_write(val: u64) {
+    unsafe { x86::debugregs::dr2_write(val as _) };
+}
+
+/// Writes a value to the DR3 register.
+pub fn dr3_write(val: u64) {
+    unsafe { x86::debugregs::dr3_write(val as _) };
+}
+
+/// Writes a value to the DR6 register.
+pub fn dr6_write(val: u64) {
+    let dr6 = x86::debugregs::Dr6::from_bits_truncate(val as _);
+    unsafe { x86::debugregs::dr6_write(dr6) };
+}
+
 /// Disables maskable interrupts.
 pub fn cli() {
     unsafe { x86::irq::disable() };

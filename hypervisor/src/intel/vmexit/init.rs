@@ -2,11 +2,12 @@ use x86::bits64::rflags;
 use x86::controlregs::Cr0;
 use x86::cpuid::{cpuid, CpuId};
 use x86::msr::{IA32_VMX_CR0_FIXED0, IA32_VMX_CR0_FIXED1, IA32_VMX_CR4_FIXED0, IA32_VMX_CR4_FIXED1};
-use x86::segmentation::{CodeSegmentType, DataSegmentType};
+use x86::segmentation::{CodeSegmentType, DataSegmentType, SystemDescriptorTypes64};
 use x86::vmx::vmcs;
-use x86::vmx::vmcs::control::SecondaryControls;
+use x86::vmx::vmcs::control::{SecondaryControls, VPID};
 use crate::intel::capture::GuestRegisters;
-use crate::intel::support::{cr0, cr2_write, cr4, rdmsr, vmread, vmwrite};
+use crate::intel::invvpid::{invvpid_single_context, VPID_TAG};
+use crate::intel::support::{cr0, cr2_write, cr4, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread, vmwrite};
 
 pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
     //
@@ -96,8 +97,112 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
     vmwrite(vmcs::guest::RSP, 0u64);
 
     //
-    // Handle GDTR and IDTR and LDTR
+    // Handle GDTR and IDTR
     //
+    vmwrite(vmcs::guest::GDTR_BASE, 0u64);
+    vmwrite(vmcs::guest::GDTR_LIMIT, 0xffffu64);
+    vmwrite(vmcs::guest::IDTR_BASE, 0u64);
+    vmwrite(vmcs::guest::IDTR_LIMIT, 0xffffu64);
+
+    //
+    // Handle LDTR
+    //
+    vmwrite(vmcs::guest::LDTR_SELECTOR, 0u64);
+    vmwrite(vmcs::guest::LDTR_BASE, 0u64);
+    vmwrite(vmcs::guest::LDTR_LIMIT, 0xffffu64);
+    vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, SystemDescriptorTypes64::LDT as u64);
+
+    //
+    // Handle TR
+    //
+
+    vmwrite(vmcs::guest::TR_SELECTOR, 0u64);
+    vmwrite(vmcs::guest::TR_BASE, 0u64);
+    vmwrite(vmcs::guest::TR_LIMIT, 0xffffu64);
+    vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, SystemDescriptorTypes64::TssBusy as u64);
+
+    //
+    // DR0, DR1, DR2, DR3, DR6, DR7
+    //
+    dr0_write(0u64);
+    dr1_write(0u64);
+    dr2_write(0u64);
+    dr3_write(0u64);
+    dr6_write(0xffff0ff0u64);
+    vmwrite(vmcs::guest::DR7, 0x400u64);
+
+    //
+    // Set the guest registers r8-r15 to 0.
+    //
+    guest_registers.r8 = 0u64;
+    guest_registers.r9 = 0u64;
+    guest_registers.r10 = 0u64;
+    guest_registers.r11 = 0u64;
+    guest_registers.r12 = 0u64;
+    guest_registers.r13 = 0u64;
+    guest_registers.r14 = 0u64;
+    guest_registers.r15 = 0u64;
+
+    //
+    // Those registers are supposed to be cleared but that is not implemented here.
+    //  - IA32_XSS
+    //  - BNDCFGU
+    //  - BND0-BND3
+    //  - IA32_BNDCFGS
+    //
+
+    //
+    // Set Guest EFER, FS_BASE and GS_BASE to 0.
+    //
+
+    vmwrite(vmcs::guest::IA32_EFER_FULL, 0u64);
+    vmwrite(vmcs::guest::FS_BASE, 0u64);
+    vmwrite(vmcs::guest::GS_BASE, 0u64);
+
+    //
+    // Set IA32E_MODE_GUEST to 0.
+    //
+    vmwrite(vmcs::guest::IA32_EFER_HIGH, 0u64);
+
+    //
+    // Invalidate TLBs to be on the safe side. It is unclear whether TLBs are
+    // invalidated on INIT, as the Intel SDM contradicts itself. However, doing
+    // so is harmless, while failure to invalidate them when necessary can cause
+    // issues.
+    //
+    // "Asserting the INIT# pin on the processor invokes a similar response to a
+    //  hardware reset. ... the TLBs and BTB are invalidated as with a hardware
+    //  reset)."
+    //
+    // See: 9.1 INITIALIZATION OVERVIEW
+    //
+    // "
+    //  | Register                  | Power up | Reset   | INIT      |
+    //  +---------------------------+----------+---------+-----------+
+    //  | Data and Code Cache, TLBs | Invalid  | Invalid | Unchanged |
+    // ""
+    //
+    // See: Table 9-1. IA-32 and Intel 64 Processor States Following Power-up, Reset, or INIT
+    //
+    invvpid_single_context(VPID_TAG);
+
+    //
+    // "All the processors on the system bus (...) execute the multiple processor
+    //  (MP) initialization protocol. ... The application (non-BSP) processors
+    //  (APs) go into a Wait For Startup IPI (SIPI) state while the BSP is executing
+    //  initialization code."
+    // See: 10.1 INITIALIZATION OVERVIEW
+    //
+    // "Upon receiving an INIT ..., the processor responds by beginning the
+    //  initialization process of the processor core and the local APIC. The state
+    //  of the local APIC following an INIT reset is the same as it is after a
+    //  power-up or hardware reset ... . This state is also referred to at the
+    //  "wait-for-SIPI" state."
+    //
+    // See: 10.4.7.3 Local APIC State After an INIT Reset ("Wait-for-SIPI" State)
+    //
+    let vmx_wait_for_sipi = 0x3u64;
+    vmwrite(vmcs::guest::ACTIVITY_STATE, vmx_wait_for_sipi);
 }
 
 /// Further adjusts CR0 considering the UnrestrictedGuest feature.
