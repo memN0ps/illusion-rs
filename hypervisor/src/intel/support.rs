@@ -106,6 +106,11 @@ pub fn cr4_write(val: Cr4) {
     unsafe { x86::controlregs::cr4_write(val) };
 }
 
+/// Writes a value to the Cr2 register.
+pub fn cr2_write(val: u64) {
+    unsafe { x86::controlregs::cr2_write(val) };
+}
+
 /// Disables maskable interrupts.
 pub fn cli() {
     unsafe { x86::irq::disable() };
