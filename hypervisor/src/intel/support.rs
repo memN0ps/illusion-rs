@@ -1,12 +1,8 @@
 #![allow(dead_code)]
 
 use {
-    crate::error::HypervisorError,
+    crate::{error::HypervisorError, intel::vmcs::Vmcs},
     core::arch::asm,
-    x86::{
-        controlregs::{Cr0, Cr4, Xcr0},
-        dtables::DescriptorTablePointer,
-    },
 };
 
 /// Enable VMX operation.
@@ -32,13 +28,10 @@ pub fn vmptrld(vmcs_region: u64) {
     unsafe { x86::bits64::vmx::vmptrld(vmcs_region).unwrap() }
 }
 
-/*
 /// Return current VMCS pointer.
-#[allow(dead_code)]
 pub fn vmptrst() -> *const Vmcs {
     unsafe { x86::bits64::vmx::vmptrst().unwrap() as *const Vmcs }
 }
-*/
 
 /// Read a specified field from a VMCS.
 pub fn vmread(field: u32) -> u64 {
@@ -54,7 +47,7 @@ where
 }
 
 /// Write to Extended Control Register XCR0. Only supported if CR4_ENABLE_OS_XSAVE is set.
-pub fn xsetbv(val: Xcr0) {
+pub fn xsetbv(val: x86::controlregs::Xcr0) {
     unsafe { x86::controlregs::xcr0_write(val) };
 }
 
@@ -82,12 +75,12 @@ pub fn wrmsr(msr: u32, value: u64) {
 }
 
 /// Reads the CR0 register.
-pub fn cr0() -> Cr0 {
+pub fn cr0() -> x86::controlregs::Cr0 {
     unsafe { x86::controlregs::cr0() }
 }
 
 /// Writes a value to the CR0 register.
-pub fn cr0_write(val: Cr0) {
+pub fn cr0_write(val: x86::controlregs::Cr0) {
     unsafe { x86::controlregs::cr0_write(val) };
 }
 
@@ -97,12 +90,12 @@ pub fn cr3() -> u64 {
 }
 
 /// Reads the CR4 register.
-pub fn cr4() -> Cr4 {
+pub fn cr4() -> x86::controlregs::Cr4 {
     unsafe { x86::controlregs::cr4() }
 }
 
 /// Writes a value to the CR4 register.
-pub fn cr4_write(val: Cr4) {
+pub fn cr4_write(val: x86::controlregs::Cr4) {
     unsafe { x86::controlregs::cr4_write(val) };
 }
 
@@ -158,15 +151,22 @@ pub fn outb(port: u16, val: u8) {
 }
 
 /// Reads the IDTR register.
-pub fn sidt() -> DescriptorTablePointer<u64> {
-    let mut idtr = DescriptorTablePointer::<u64>::default();
+pub fn sidt() -> x86::dtables::DescriptorTablePointer<u64> {
+    let mut idtr = x86::dtables::DescriptorTablePointer::<u64>::default();
     unsafe { x86::dtables::sidt(&mut idtr) };
     idtr
 }
 
 /// Reads the GDTR.
-pub fn sgdt() -> DescriptorTablePointer<u64> {
-    let mut gdtr = DescriptorTablePointer::<u64>::default();
+pub fn sgdt() -> x86::dtables::DescriptorTablePointer<u64> {
+    let mut gdtr = x86::dtables::DescriptorTablePointer::<u64>::default();
     unsafe { x86::dtables::sgdt(&mut gdtr) };
     gdtr
+}
+
+/// Get the CPUID feature information.
+pub fn get_cpuid_feature_info() -> x86::cpuid::FeatureInfo {
+    let cpuid = x86::cpuid::CpuId::new();
+    let cpu_version_info = cpuid.get_feature_info().unwrap();
+    cpu_version_info
 }
