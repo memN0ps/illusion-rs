@@ -12,7 +12,7 @@ use {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// Enum representing the various CPUID leaves for feature and interface discovery.
 /// Reference: https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/feature-discovery
-enum CpuidLeaf {
+pub enum CpuidLeaf {
     /// CPUID function number to retrieve the processor's vendor identification string.
     VendorInfo = 0x0,
 

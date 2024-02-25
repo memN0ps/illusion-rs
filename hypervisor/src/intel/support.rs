@@ -163,10 +163,3 @@ pub fn sgdt() -> x86::dtables::DescriptorTablePointer<u64> {
     unsafe { x86::dtables::sgdt(&mut gdtr) };
     gdtr
 }
-
-/// Get the CPUID feature information.
-pub fn get_cpuid_feature_info() -> x86::cpuid::FeatureInfo {
-    let cpuid = x86::cpuid::CpuId::new();
-    let cpu_version_info = cpuid.get_feature_info().unwrap();
-    cpu_version_info
-}

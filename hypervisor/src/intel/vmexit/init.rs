@@ -3,14 +3,15 @@ use {
         capture::GuestRegisters,
         invvpid::{invvpid_single_context, VPID_TAG},
         support::{
-            cr0, cr2_write, cr4, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write,
-            get_cpuid_feature_info, rdmsr, vmread, vmwrite,
+            cr0, cr2_write, cr4, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
+            vmread, vmwrite,
         },
-        vmexit::ExitType,
+        vmexit::{cpuid::CpuidLeaf, ExitType},
     },
     x86::{
         bits64::rflags,
         controlregs::Cr0,
+        cpuid::cpuid,
         msr::{IA32_VMX_CR0_FIXED0, IA32_VMX_CR0_FIXED1, IA32_VMX_CR4_FIXED0, IA32_VMX_CR4_FIXED1},
         segmentation::{CodeSegmentType, DataSegmentType, SystemDescriptorTypes64},
         vmx::vmcs::{self, control::SecondaryControls},
@@ -110,8 +111,9 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Execute CPUID instruction on the host and retrieve the result
     //
-    let cpu_version_info = get_cpuid_feature_info();
-    let extended_model_id = cpu_version_info.extended_model_id();
+    let leaf = CpuidLeaf::FeatureInformation;
+    let cpuid_result = cpuid!(leaf);
+    let extended_model_id = (cpuid_result.edx >> 16) & 0xF;
     guest_registers.rdx = 0x600 | ((extended_model_id as u64) << 16);
     guest_registers.rax = 0x0;
     guest_registers.rbx = 0x0;
