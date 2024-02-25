@@ -6,6 +6,7 @@ use {
             cr0, cr2_write, cr4, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write,
             get_cpuid_feature_info, rdmsr, vmread, vmwrite,
         },
+        vmexit::ExitType,
     },
     x86::{
         bits64::rflags,
@@ -16,7 +17,7 @@ use {
     },
 };
 
-pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
+pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Initializes the processor to the state after INIT as described in the Intel SDM.
     //
@@ -29,7 +30,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
     vmwrite(vmcs::control::CR0_READ_SHADOW, 0u64);
     cr2_write(0);
     vmwrite(vmcs::guest::CR3, 0u64);
-    vmwrite(vmcs::control::CR4_GUEST_HOST_MASK, 0u64);
+    vmwrite(vmcs::control::CR4_READ_SHADOW, 0u64);
 
     //
     // Actual guest CR0 and CR4 must fulfill requirements for VMX. Apply those.
@@ -180,6 +181,9 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
     //  - BND0-BND3
     //  - IA32_BNDCFGS
     //
+    //vmwrite(vmcs::control::XSS_EXITING_BITMAP_FULL, 0u64);
+    //vmwrite(vmcs::guest::IA32_BNDCFGS_FULL, 0u64);
+    //vmwrite(vmcs::guest::IA32, 0u64);
 
     //
     // Set Guest EFER, FS_BASE and GS_BASE to 0.
@@ -235,6 +239,8 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) {
     //
     let vmx_wait_for_sipi = 0x3u64;
     vmwrite(vmcs::guest::ACTIVITY_STATE, vmx_wait_for_sipi);
+
+    ExitType::Continue
 }
 
 /// Further adjusts CR0 considering the UnrestrictedGuest feature.

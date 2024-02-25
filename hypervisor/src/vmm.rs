@@ -11,11 +11,14 @@ use {
                 cpuid::handle_cpuid,
                 ept::{handle_ept_misconfiguration, handle_ept_violation},
                 exception::{handle_exception, handle_undefined_opcode_exception},
+                halt::handle_halt,
+                init::handle_init_signal,
                 invd::handle_invd,
                 invept::handle_invept,
                 invvpid::handle_invvpid,
                 msr::{handle_msr_access, MsrAccessType},
                 rdtsc::handle_rdtsc,
+                sipi::handle_sipi_signal,
                 xsetbv::handle_xsetbv,
                 ExitType,
             },
@@ -64,6 +67,9 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
             let exit_type = match basic_exit_reason {
                 VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
+                VmxBasicExitReason::InitSignal => handle_init_signal(&mut vm.guest_registers),
+                VmxBasicExitReason::StartupIpi => handle_sipi_signal(&mut vm.guest_registers),
+                VmxBasicExitReason::Hlt => handle_halt(),
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
 
                 // Grouping multiple exit reasons that are handled by the same function
