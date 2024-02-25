@@ -198,7 +198,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     let mut vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
     vmentry_controls &= !(1 << 9); // Clear the IA32E_MODE_GUEST bit
-    vmwrite(vmcs::guest::IA32_EFER_HIGH, vmentry_controls);
+    vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
 
     //
     // Invalidate TLBs to be on the safe side. It is unclear whether TLBs are
