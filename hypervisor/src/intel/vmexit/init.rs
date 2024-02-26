@@ -282,7 +282,8 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
 fn adjust_cr0(cr0: Cr0) -> Cr0 {
     let fixed0_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED0) as usize);
     let fixed1_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED1) as usize);
-    (cr0 & fixed1_cr0) | fixed0_cr0
+    let new_cr0 = ((cr0 | Cr0::from_bits_truncate(Cr0::CR0_EXTENSION_TYPE.bits())) & fixed1_cr0) | fixed0_cr0;
+    new_cr0
 }
 
 /// Adjusts CR4 register values based on fixed bits.
