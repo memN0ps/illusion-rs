@@ -222,7 +222,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // See: Table 9-1. IA-32 and Intel 64 Processor States Following Power-up, Reset, or INIT
     //
-    invvpid_single_context(VPID_TAG);
+    invvpid_single_context(vmread(vmcs::control::VPID) as _);
 
     //
     // "All the processors on the system bus (...) execute the multiple processor
