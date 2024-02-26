@@ -3,7 +3,7 @@ use {
         capture::GuestRegisters,
         invvpid::{invvpid_single_context, VPID_TAG},
         support::{
-            cr0, cr2_write, cr4, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
+            cr0, cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
             vmread, vmwrite,
         },
         vmexit::{cpuid::CpuidLeaf, ExitType},
@@ -16,6 +16,8 @@ use {
         segmentation::{CodeSegmentType, DataSegmentType, SystemDescriptorTypes64},
         vmx::vmcs::{self, control::SecondaryControls},
     },
+    x86_64::registers::control::Cr4Flags,
+    bitflags::Flags,
 };
 
 pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
@@ -36,11 +38,8 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Actual guest CR0 and CR4 must fulfill requirements for VMX. Apply those.
     //
-    vmwrite(
-        vmcs::guest::CR0,
-        adjust_guest_cr0(Cr0::from_bits_truncate(cr0().bits())),
-    );
-    vmwrite(vmcs::guest::CR4, adjust_cr4(cr4().bits() as u64));
+    vmwrite(vmcs::guest::CR0, adjust_guest_cr0(Cr0::from_bits_truncate(cr0().bits())));
+    vmwrite(vmcs::guest::CR4, adjust_cr4());
 
     //
     // Set the CS segment registers to their initial state (ExecuteReadAccessed).
@@ -287,8 +286,9 @@ fn adjust_cr0(cr0: Cr0) -> Cr0 {
 }
 
 /// Adjusts CR4 register values based on fixed bits.
-fn adjust_cr4(cr4: u64) -> u64 {
-    let fixed0 = rdmsr(IA32_VMX_CR4_FIXED0);
-    let fixed1 = rdmsr(IA32_VMX_CR4_FIXED1);
-    (cr4 & fixed1) | fixed0
+fn adjust_cr4() -> u64 {
+    let fixed0_cr4 = Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED0));
+    let zero_cr4 = Cr4Flags::empty();
+    let new_cr4 = (zero_cr4 & Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED1))) | fixed0_cr4;
+    new_cr4.bits()
 }
