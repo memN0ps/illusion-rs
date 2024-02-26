@@ -1,7 +1,7 @@
 use {
     crate::intel::{
         capture::GuestRegisters,
-        invvpid::{invvpid_single_context, VPID_TAG},
+        invvpid::invvpid_single_context,
         support::{
             cr0, cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
             vmread, vmwrite,
@@ -14,7 +14,7 @@ use {
         cpuid::cpuid,
         msr::{IA32_VMX_CR0_FIXED0, IA32_VMX_CR0_FIXED1, IA32_VMX_CR4_FIXED0, IA32_VMX_CR4_FIXED1},
         segmentation::{CodeSegmentType, DataSegmentType, SystemDescriptorTypes64},
-        vmx::vmcs::{self, control::SecondaryControls},
+        vmx::vmcs::{self, control::{SecondaryControls, EntryControls}},
     },
     x86_64::registers::control::Cr4Flags,
     bitflags::Flags,
@@ -198,9 +198,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set IA32E_MODE_GUEST to 0.
     //
-    let mut vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
-    vmentry_controls &= !(1 << 9); // Clear the IA32E_MODE_GUEST bit
-    vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
+    let vmentry_controls_bits = vmread(vmcs::control::VMENTRY_CONTROLS);
+    let mut vmentry_controls = EntryControls::from_bits_truncate(vmentry_controls_bits as _);
+    vmentry_controls.remove(EntryControls::IA32E_MODE_GUEST);     // Clear the IA32E_MODE_GUEST bit
+    vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls.bits());
 
     //
     // Invalidate TLBs to be on the safe side. It is unclear whether TLBs are
