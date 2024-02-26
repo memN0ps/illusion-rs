@@ -111,8 +111,9 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     // Execute CPUID instruction on the host and retrieve the result
     //
     let leaf = CpuidLeaf::FeatureInformation;
-    let cpuid_result = cpuid!(leaf);
-    let extended_model_id = (cpuid_result.edx >> 16) & 0xF;
+    let sub_leaf = guest_registers.rcx;
+    let cpuid_result = cpuid!(leaf, sub_leaf);
+    let extended_model_id = cpuid_result.ecx;
     guest_registers.rdx = 0x600 | ((extended_model_id as u64) << 16);
     guest_registers.rax = 0x0;
     guest_registers.rbx = 0x0;
