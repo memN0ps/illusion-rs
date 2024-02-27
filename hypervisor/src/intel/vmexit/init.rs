@@ -6,13 +6,12 @@ use {
             cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread,
             vmwrite,
         },
-        vmexit::{cpuid::CpuidLeaf, ExitType},
+        vmexit::ExitType,
     },
     bitflags::Flags,
     x86::{
         bits64::rflags,
         controlregs::Cr0,
-        cpuid::cpuid,
         msr::{IA32_VMX_CR0_FIXED0, IA32_VMX_CR0_FIXED1, IA32_VMX_CR4_FIXED0, IA32_VMX_CR4_FIXED1},
         segmentation::{CodeSegmentType, DataSegmentType, Descriptor, SystemDescriptorTypes64},
         vmx::vmcs::{self, control::SecondaryControls},
@@ -97,10 +96,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Execute CPUID instruction on the host and retrieve the result
     //
-    let leaf = CpuidLeaf::FeatureInformation;
-    let sub_leaf = guest_registers.rcx;
-    let cpuid_result = cpuid!(leaf, sub_leaf);
-    let extended_model_id = cpuid_result.ecx;
+    let extended_model_id = get_cpuid_feature_info().extended_model_id();
     guest_registers.rdx = 0x600 | ((extended_model_id as u64) << 16);
     guest_registers.rax = 0x0;
     guest_registers.rbx = 0x0;
@@ -243,4 +239,11 @@ fn adjust_cr4() -> u64 {
     let new_cr4 =
         (zero_cr4 & Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED1))) | fixed0_cr4;
     new_cr4.bits()
+}
+
+/// Get the CPUID feature information.
+pub fn get_cpuid_feature_info() -> x86::cpuid::FeatureInfo {
+    let cpuid = x86::cpuid::CpuId::new();
+    let cpu_version_info = cpuid.get_feature_info().unwrap();
+    cpu_version_info
 }
