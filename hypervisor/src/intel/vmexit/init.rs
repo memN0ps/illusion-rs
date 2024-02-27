@@ -46,8 +46,8 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     let mut descriptor: Descriptor = Descriptor::default();
     descriptor.set_type(CodeSegmentType::ExecuteReadAccessed as u8);
-    descriptor.set_p();
     descriptor.set_s();
+    descriptor.set_p();
     vmwrite(vmcs::guest::CS_SELECTOR, 0xf000u64);
     vmwrite(vmcs::guest::CS_BASE, 0xffff0000u64);
     vmwrite(vmcs::guest::CS_LIMIT, 0xffffu64);
@@ -121,25 +121,22 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Handle LDTR
     //
+    let mut descriptor: Descriptor = Descriptor::default();
+    descriptor.set_type(SystemDescriptorTypes64::LDT as u8);
+    descriptor.set_p();
     vmwrite(vmcs::guest::LDTR_SELECTOR, 0u64);
     vmwrite(vmcs::guest::LDTR_BASE, 0u64);
     vmwrite(vmcs::guest::LDTR_LIMIT, 0xffffu64);
-    vmwrite(
-        vmcs::guest::LDTR_ACCESS_RIGHTS,
-        SystemDescriptorTypes64::LDT as u64,
-    );
+    vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, descriptor.as_u64());
 
     //
     // Handle TR
     //
-
+    descriptor.set_type(SystemDescriptorTypes64::TssBusy as u8);
     vmwrite(vmcs::guest::TR_SELECTOR, 0u64);
     vmwrite(vmcs::guest::TR_BASE, 0u64);
     vmwrite(vmcs::guest::TR_LIMIT, 0xffffu64);
-    vmwrite(
-        vmcs::guest::TR_ACCESS_RIGHTS,
-        SystemDescriptorTypes64::TssBusy as u64,
-    );
+    vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, descriptor.as_u64());
 
     //
     // DR0, DR1, DR2, DR3, DR6, DR7
