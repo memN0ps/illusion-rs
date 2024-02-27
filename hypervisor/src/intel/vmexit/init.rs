@@ -166,15 +166,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //  - BNDCFGU
     //  - BND0-BND3
     //  - IA32_BNDCFGS
-    //
-    //vmwrite(vmcs::control::XSS_EXITING_BITMAP_FULL, 0u64);
-    //vmwrite(vmcs::guest::IA32_BNDCFGS_FULL, 0u64);
-    //vmwrite(vmcs::guest::IA32, 0u64);
 
     //
     // Set Guest EFER, FS_BASE and GS_BASE to 0.
     //
-
     vmwrite(vmcs::guest::IA32_EFER_FULL, 0u64);
     vmwrite(vmcs::guest::FS_BASE, 0u64);
     vmwrite(vmcs::guest::GS_BASE, 0u64);
@@ -187,41 +182,12 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
 
     //
-    // Invalidate TLBs to be on the safe side. It is unclear whether TLBs are
-    // invalidated on INIT, as the Intel SDM contradicts itself. However, doing
-    // so is harmless, while failure to invalidate them when necessary can cause
-    // issues.
-    //
-    // "Asserting the INIT# pin on the processor invokes a similar response to a
-    //  hardware reset. ... the TLBs and BTB are invalidated as with a hardware
-    //  reset)."
-    //
-    // See: 9.1 INITIALIZATION OVERVIEW
-    //
-    // "
-    //  | Register                  | Power up | Reset   | INIT      |
-    //  +---------------------------+----------+---------+-----------+
-    //  | Data and Code Cache, TLBs | Invalid  | Invalid | Unchanged |
-    // ""
-    //
-    // See: Table 9-1. IA-32 and Intel 64 Processor States Following Power-up, Reset, or INIT
+    // Invalidate TLB for current VPID
     //
     invvpid_single_context(vmread(vmcs::control::VPID) as _);
 
     //
-    // "All the processors on the system bus (...) execute the multiple processor
-    //  (MP) initialization protocol. ... The application (non-BSP) processors
-    //  (APs) go into a Wait For Startup IPI (SIPI) state while the BSP is executing
-    //  initialization code."
-    // See: 10.1 INITIALIZATION OVERVIEW
-    //
-    // "Upon receiving an INIT ..., the processor responds by beginning the
-    //  initialization process of the processor core and the local APIC. The state
-    //  of the local APIC following an INIT reset is the same as it is after a
-    //  power-up or hardware reset ... . This state is also referred to at the
-    //  "wait-for-SIPI" state."
-    //
-    // See: 10.4.7.3 Local APIC State After an INIT Reset ("Wait-for-SIPI" State)
+    // Set the activity state to "Wait for SIPI".
     //
     let vmx_wait_for_sipi = 0x3u64;
     vmwrite(vmcs::guest::ACTIVITY_STATE, vmx_wait_for_sipi);
