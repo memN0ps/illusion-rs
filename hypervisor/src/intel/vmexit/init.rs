@@ -1,9 +1,9 @@
 use {
     crate::intel::{
         capture::GuestRegisters,
-        invvpid::{invvpid_single_context, VPID_TAG},
+        invvpid::invvpid_single_context,
         support::{
-            cr0, cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
+            cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr,
             vmread, vmwrite,
         },
         vmexit::{cpuid::CpuidLeaf, ExitType},
@@ -38,7 +38,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Actual guest CR0 and CR4 must fulfill requirements for VMX. Apply those.
     //
-    vmwrite(vmcs::guest::CR0, adjust_guest_cr0(Cr0::from_bits_truncate(cr0().bits())));
+    vmwrite(vmcs::guest::CR0, adjust_guest_cr0(Cr0::CR0_EXTENSION_TYPE));
     vmwrite(vmcs::guest::CR4, adjust_cr4());
 
     //
@@ -282,7 +282,7 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
 fn adjust_cr0(cr0: Cr0) -> Cr0 {
     let fixed0_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED0) as usize);
     let fixed1_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED1) as usize);
-    let new_cr0 = ((cr0 | Cr0::from_bits_truncate(Cr0::CR0_EXTENSION_TYPE.bits())) & fixed1_cr0) | fixed0_cr0;
+    let new_cr0 = (cr0 & fixed1_cr0) | fixed0_cr0;
     new_cr0
 }
 
