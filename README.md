@@ -1,17 +1,17 @@
-# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: illusion)
+# UEFI Red Pill Type-1 Hypervisor in Rust (Codename: illusion)
 
-![Build Status](https://github.com/memN0ps/hypervisor-rs/actions/workflows/github-actions.yml/badge.svg)
-![License](https://img.shields.io/github/license/memN0ps/hypervisor-rs)
-![Issues](https://img.shields.io/github/issues/memN0ps/hypervisor-rs)
-![Forks](https://img.shields.io/github/forks/memN0ps/hypervisor-rs)
-![Stars](https://img.shields.io/github/stars/memN0ps/hypervisor-rs)
+![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/github-actions.yml/badge.svg)
+![License](https://img.shields.io/github/license/memN0ps/illusion-rs)
+![Issues](https://img.shields.io/github/issues/memN0ps/illusion-rs)
+![Forks](https://img.shields.io/github/forks/memN0ps/illusion-rs)
+![Stars](https://img.shields.io/github/stars/memN0ps/illusion-rs)
 
 A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hypervisor with hooks for Intel VT-x, focused on studying the core concepts of virtualization.
 
 ## Features
 
 - :white_check_mark: **Extended Page Tables (EPT)**: Support for Memory Type Range Registers (MTRR).
-- :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
+- :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
 - :white_check_mark: **Kernel Inline Hooks**: PatchGuard-compatible breakpoint (`int3`) hooks.
 - :white_check_mark: **System Call (Syscall) Hooks**: PatchGuard-compatible hooks for System Service Descriptor Table (SSDT) function entries.
 
@@ -32,52 +32,12 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 1. Install Rust from [here](https://www.rust-lang.org/tools/install).
 2. Switch to Rust Nightly: `rustup toolchain install nightly` and `rustup default nightly`.
-3. Install LLVM: `winget install LLVM.LLVM`.
-4. Install Tools: `cargo install cargo-make cargo-expand cargo-edit cargo-workspaces`.
-5. Install WDK/SDK/EWDK: Steps [here](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk).
+3. Install Tools: `cargo install cargo-make cargo-expand cargo-edit cargo-workspaces`.
 
 ## Building the Project
 
-- Development: `cargo make --profile development`.
-- Production: `cargo make --profile release`.
-
-## Debugging
-
-#### Enabling Debug Modes
-
-- Test Mode: Activate test signing with `bcdedit.exe /set testsigning on`.
-- Windows Debugging: Follow the steps in this [Microsoft guide](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--bootdebug).
-
-```powershell
-bcdedit.exe /bootdebug {bootmgr} on
-bcdedit.exe /bootdebug on
-bcdedit.exe /debug on
-```
-
-#### Network Debugging with Windbg
-
-Setup: `bcdedit.exe /dbgsettings net hostip:w.x.y.z port:n`.
-
-#### Debug Print Filter
-
-1. Open `regedit.exe`.
-2. Go to `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager`.
-3. Create `Debug Print Filter` with `DEFAULT` DWORD = `8`.
-
-#### VMware Serial Port Debugging
-
-1. Add Serial Port in VMware: 'Use output file'.
-2. Configure in Windows VM: `$serialPort = New-Object System.IO.Ports.SerialPort COM2,9600,None,8,One; $serialPort.Open()`.
-
-#### Service Management
-
-Use Service Controller (`sc.exe`) to create and manage the hypervisor service:
-
-```powershell
-sc.exe create illusion type= kernel binPath= C:\Windows\System32\drivers\illusion.sys
-sc.exe query illusion
-sc.exe start illusion
-```
+- Debug: `cargo build --target x86_64-unknown-uefi --debug`.
+- Release: `cargo build --target x86_64-unknown-uefi --release`.
 
 ## Acknowledgments, References, and Motivation
 
@@ -125,8 +85,10 @@ Big thanks to the amazing people and resources that have shaped this project. A 
 
 Special thanks to:
 - [Daax Rynd](https://revers.engineering/)
-- [Satoshi Tanda](https://github.com/tandasat)
+- [Satoshi Tanda (@tandasat)](https://github.com/tandasat)
 - [Drew (@drew)](https://github.com/drew-gpf)
+- [iPower (@iPower)](https://github.com/iPower)
+- [Namazso (@namazso)](https://github.com/namazso)
 - [Matthias @not-matthias](https://github.com/not-matthias/)
 - [@felix-rs / @joshuа](https://github.com/felix-rs)
 - Jess (@jessiep_)
