@@ -1,3 +1,8 @@
+//! Provides a mechanism to virtualize the system by installing a hypervisor on the current processor,
+//! utilizing custom stack allocation and low-level assembly for context switching. Essential for
+//! enabling hardware-assisted virtualization with specific guest register configurations and shared data.
+//! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
+
 use {
     alloc::alloc::{alloc_zeroed, handle_alloc_error},
     core::{alloc::Layout, arch::global_asm},

@@ -1,3 +1,8 @@
+//! Provides functionality to nullify the relocation table of a loaded UEFI image,
+//! preventing UEFI from relocating hypervisor code during the transition from
+//! physical to virtual addressing. Useful for ensuring stable memory layout in hypervisor development.
+//! Credits Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
+
 use {
     log::debug,
     uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},
