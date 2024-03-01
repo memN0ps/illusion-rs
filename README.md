@@ -1,4 +1,4 @@
-# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: illusion)
+# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: Illusion)
 
 ## Work in Progress (Under Development)
 
