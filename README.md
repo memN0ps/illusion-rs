@@ -1,4 +1,4 @@
-# UEFI Red Pill Type-1 Hypervisor in Rust (Codename: illusion)
+# UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: illusion)
 
 ![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/github-actions.yml/badge.svg)
 ![License](https://img.shields.io/github/license/memN0ps/illusion-rs)
