@@ -1,3 +1,9 @@
+//! Provides VMX signal handling and control register adjustment.
+//!
+//! Includes functionality for responding to INIT signals in a virtualized environment and adjusting
+//! control registers (CR0, CR4) to meet VMX operation requirements. Essential for virtual machine initialization
+//! and maintaining correct processor states.
+
 use {
     crate::intel::{
         capture::GuestRegisters,
@@ -19,6 +25,19 @@ use {
     x86_64::registers::control::Cr4Flags,
 };
 
+/// Handles the INIT signal by initializing processor state according to Intel SDM.
+///
+/// Initializes the guest's processor state to mimic the state after receiving an INIT signal, including
+/// setting registers and segment selectors to their startup values. This ensures the guest VM is correctly
+/// initialized in line with the MP initialization protocol.
+///
+/// # Arguments
+///
+/// - `guest_registers`: A mutable reference to the guest's general-purpose registers.
+///
+/// # Returns
+///
+/// Returns `ExitType::Continue` to indicate the VM should continue execution post-initialization.
 pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Initializes the processor to the state after INIT as described in the Intel SDM.
@@ -191,7 +210,18 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     ExitType::Continue
 }
 
-/// Further adjusts CR0 considering the UnrestrictedGuest feature.
+/// Adjusts guest CR0 considering UnrestrictedGuest feature and fixed MSRs.
+///
+/// Modifies the guest's CR0 register to ensure it meets VMX operation constraints, particularly
+/// when the UnrestrictedGuest feature is enabled. Adjusts for protection and paging enable bits.
+///
+/// # Arguments
+///
+/// - `cr0`: The original CR0 register value from the guest.
+///
+/// # Returns
+///
+/// Returns the adjusted CR0 value as a `u64`.
 fn adjust_guest_cr0(cr0: Cr0) -> u64 {
     // Adjust the CR0 register according to the fixed0 and fixed1 MSR values.
     let mut new_cr0 = adjust_cr0(cr0);
@@ -224,7 +254,18 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
     new_cr0.bits() as u64
 }
 
-/// Adjusts CR0 for VMX operation based on fixed MSRs.
+/// Adjusts guest CR0 considering UnrestrictedGuest feature and fixed MSRs.
+///
+/// Modifies the guest's CR0 register to ensure it meets VMX operation constraints, particularly
+/// when the UnrestrictedGuest feature is enabled. Adjusts for protection and paging enable bits.
+///
+/// # Arguments
+///
+/// - `cr0`: The original CR0 register value from the guest.
+///
+/// # Returns
+///
+/// Returns the adjusted CR0 value as a `u64`.
 fn adjust_cr0(cr0: Cr0) -> Cr0 {
     let fixed0_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED0) as usize);
     let fixed1_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED1) as usize);
@@ -232,7 +273,14 @@ fn adjust_cr0(cr0: Cr0) -> Cr0 {
     new_cr0
 }
 
-/// Adjusts CR4 register values based on fixed bits.
+/// Adjusts CR4 for VMX operation, considering fixed bit requirements.
+///
+/// Sets or clears CR4 bits based on the IA32_VMX_CR4_FIXED0/1 MSRs to ensure the register
+/// meets VMX operation constraints.
+///
+/// # Returns
+///
+/// Returns the adjusted CR4 value as a `u64`.
 fn adjust_cr4() -> u64 {
     let fixed0_cr4 = Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED0));
     let zero_cr4 = Cr4Flags::empty();
@@ -241,7 +289,14 @@ fn adjust_cr4() -> u64 {
     new_cr4.bits()
 }
 
-/// Get the CPUID feature information.
+/// Retrieves CPU feature information using the CPUID instruction.
+///
+/// Executes the CPUID instruction to obtain various feature information about the processor,
+/// which can be used for further adjustments and checks in the virtualization context.
+///
+/// # Returns
+///
+/// Returns a `FeatureInfo` struct containing the CPU feature information.
 pub fn get_cpuid_feature_info() -> x86::cpuid::FeatureInfo {
     let cpuid = x86::cpuid::CpuId::new();
     let cpu_version_info = cpuid.get_feature_info().unwrap();

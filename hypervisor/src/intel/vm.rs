@@ -1,3 +1,10 @@
+//! Manages the VMCS region for VMX operations within a virtualized environment.
+//!
+//! Offers functionality to configure and activate the VMCS (Virtual Machine Control Structure),
+//! which is essential for executing and managing VMX operations on Intel CPUs. This includes
+//! setting up guest and host states, managing memory with EPT (Extended Page Tables), and
+//! handling VM-exit reasons for debugging and control purposes.
+
 use {
     crate::{
         error::HypervisorError,
@@ -22,33 +29,52 @@ use {
     x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
 
+/// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
+///
+/// This structure manages the VM's lifecycle, including setup, execution, and handling of VM-exits.
+/// It holds the VMCS region, guest and host descriptor tables, paging information, MSR bitmaps,
+/// and the state of guest registers. Additionally, it tracks whether the VM has been launched.
 pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
     pub vmcs_region: Box<Vmcs>,
 
-    /// The guest's descriptor tables.
+    /// Descriptor tables for the guest state.
     pub guest_descriptor: Descriptors,
 
-    /// The host's descriptor tables.
+    /// Descriptor tables for the host state.
     pub host_descriptor: Descriptors,
 
-    /// The host's paging tables.
+    /// Paging tables for the host.
     pub host_paging: Box<PageTables>,
 
-    /// The guest's general-purpose registers state.
+    /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
 
-    /// The MSR bitmaps.
+    /// Bitmap controlling MSR read/write operations.
     pub msr_bitmap: Box<Page>,
 
-    /// Whether the VM has been launched.
+    /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
 
-    /// The shared data between processors.
+    /// Shared data across processors for synchronization and state management.
     pub shared_data: NonNull<SharedData>,
 }
 
 impl Vm {
+    /// Initializes a new VM instance with specified guest registers and shared data.
+    ///
+    /// Sets up the necessary environment for the VM, including VMCS initialization, host and guest
+    /// descriptor tables, paging structures, and MSR bitmaps. Prepares the VM for execution.
+    ///
+    /// # Arguments
+    ///
+    /// - `guest_registers`: The initial state of guest registers for the VM.
+    /// - `shared_data`: Mutable reference to shared data used across processors.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Self)` with a newly created `Vm` instance, or an `Err(HypervisorError)` if
+    /// any part of the setup fails.
     pub fn new(
         guest_registers: &GuestRegisters,
         shared_data: &mut SharedData,
@@ -77,6 +103,14 @@ impl Vm {
         })
     }
 
+    /// Activates the VMCS region for the VM, preparing it for execution.
+    ///
+    /// Clears and loads the VMCS region, setting it as the current VMCS for VMX operations.
+    /// Calls `setup_vmcs` to configure the VMCS with guest, host, and control settings.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if activation fails.
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
         debug!("Activating VMCS");
         self.vmcs_region.revision_id.set_bit(31, false);
@@ -96,6 +130,14 @@ impl Vm {
         Ok(())
     }
 
+    /// Configures the VMCS with necessary settings for guest and host state, and VM execution controls.
+    ///
+    /// Includes setting up guest registers, host state on VM-exits, and control fields for VM execution.
+    /// Utilizes shared data for setting up Extended Page Tables (EPT) and MSR bitmaps.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if VMCS setup is successful, or an `Err(HypervisorError)` for setup failures.
     pub fn setup_vmcs(&mut self) -> Result<(), HypervisorError> {
         debug!("Setting up VMCS");
 
@@ -110,7 +152,15 @@ impl Vm {
         Ok(())
     }
 
-    // launches in a loop returns the types of vmexits
+    /// Executes the VM, running in a loop until a VM-exit occurs.
+    ///
+    /// Launches or resumes the VM based on its current state, handling VM-exits as they occur.
+    /// Updates the VM's state based on VM-exit reasons and captures the guest register state post-exit.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(VmxBasicExitReason)` indicating the reason for the VM-exit, or an `Err(HypervisorError)`
+    /// if the VM fails to launch or an unknown exit reason is encountered.
     pub fn run(&mut self) -> Result<VmxBasicExitReason, HypervisorError> {
         // Run the VM until the VM-exit occurs.
         let flags = unsafe { launch_vm(&mut self.guest_registers, u64::from(self.has_launched)) };
@@ -168,7 +218,20 @@ impl Vm {
     }
 }
 
-/// Allocates memory for a type and initializes it to zero.
+/// Allocates and zeros memory for a given type, returning a boxed instance.
+///
+/// # Safety
+///
+/// This function allocates memory and initializes it to zero. It must be called
+/// in a safe context where allocation errors and uninitialized memory access are handled.
+///
+/// # Returns
+///
+/// Returns a `Box<T>` pointing to the zero-initialized memory of type `T`.
+///
+/// # Panics
+///
+/// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
     let layout = Layout::new::<T>();
     let ptr = unsafe { alloc::alloc::alloc_zeroed(layout) }.cast::<T>();

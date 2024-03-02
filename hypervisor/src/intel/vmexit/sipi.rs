@@ -1,3 +1,9 @@
+//! Handles VMX operations related to inter-processor communication.
+//!
+//! This module specifically deals with the emulation of SIPI signals, facilitating the initialization
+//! and startup of Application Processors (APs) in a virtualized environment. Essential for simulating
+//! multi-processor startup sequences within a VM, aligning with the MP initialization protocol.
+
 use {
     crate::intel::{
         capture::GuestRegisters,
@@ -7,6 +13,20 @@ use {
     x86::vmx::vmcs,
 };
 
+/// Emulates the effect of a Startup IPI (SIPI) signal within the VM.
+///
+/// Upon receiving a SIPI, this function adjusts the guest's code segment selector,
+/// base, and instruction pointer to reflect the startup vector indicated by the SIPI.
+/// It ensures that subsequent SIPI signals, if any, are ignored once the AP is out of
+/// the wait-for-SIPI state, following VMX and MP initialization protocols.
+///
+/// # Arguments
+///
+/// - `_guest_registers`: A mutable reference to the guest's general-purpose registers. Currently unused.
+///
+/// # Returns
+///
+/// Returns `ExitType::Continue` to indicate the VM should continue execution.
 pub fn handle_sipi_signal(_guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Then, emulate effects of SIPI by making further changes.

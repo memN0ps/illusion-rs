@@ -1,3 +1,9 @@
+//! A crate responsible for managing the VMCS region for VMX operations.
+//!
+//! This crate provides functionality to set up the VMCS region in memory, which
+//! is vital for VMX operations on the CPU. It also offers utility functions for
+//! adjusting VMCS entries and displaying VMCS state for debugging purposes.
+
 use {
     crate::{
         error::HypervisorError,
@@ -40,6 +46,10 @@ pub struct Vmcs {
 }
 
 impl Default for Vmcs {
+    /// Constructs a default `Vmcs` instance with the necessary revision ID.
+    ///
+    /// Initializes the VMCS with the appropriate revision identifier obtained from the IA32_VMX_BASIC MSR,
+    /// sets the abort indicator to 0, and fills the reserved area with zeros, preparing the VMCS for use.
     fn default() -> Self {
         Self {
             revision_id: rdmsr(msr::IA32_VMX_BASIC) as u32,

@@ -1,13 +1,47 @@
+//! Facilitates capturing and managing guest CPU state for VMX operations.
+//!
+//! Provides mechanisms to capture the current state of general-purpose registers, RFLAGS, RSP, and RIP,
+//! essential for virtualization tasks such as state saving/restoring during VM exits and entries. Suitable
+//! for use in hypervisor development, allowing precise control and manipulation of guest CPU context.
+
 use core::arch::global_asm;
 
 extern "efiapi" {
-    /// Captures current general purpose registers, RFLAGS, RSP, and RIP.
+    /// Captures the current state of general-purpose registers, RFLAGS, RSP, and RIP.
+    ///
+    /// Safely stores the current CPU state into the provided `GuestRegisters` struct. Intended
+    /// for use in contexts where capturing the exact CPU state is necessary, such as before VM
+    /// entry or after VM exit.
+    ///
+    /// # Arguments
+    ///
+    /// - `registers`: A mutable reference to a `GuestRegisters` struct where the CPU state
+    /// will be stored.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the capture was successful, `false` otherwise. Currently always returns `true`.
+    ///
+    /// # Safety
+    ///
+    /// This function involves inline assembly and direct manipulation of register values, requiring
+    /// careful consideration of calling context to ensure system stability.
     pub fn capture_registers(registers: &mut GuestRegisters) -> bool;
 }
 
-/// The collection of the guest general purpose register values.
-#[derive(Clone, Copy, Debug, Default)]
+/// Represents the state of guest general-purpose registers along with RFLAGS, RSP, and RIP.
+///
+/// Stores the complete CPU state relevant for VM operations, including all general-purpose
+/// registers and system flags. Useful for tasks requiring preservation of the CPU state, such
+/// as context switching in a virtualized environment.
+///
+/// Fields:
+/// - `rax`, `rbx`, `rcx`, etc.: General-purpose registers.
+/// - `rflags`: Status flags register.
+/// - `rsp`: Stack pointer register.
+/// - `rip`: Instruction pointer register.
 #[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct GuestRegisters {
     pub rax: u64,
     pub rbx: u64,

@@ -1,3 +1,9 @@
+//! Manages GDT and TSS for VMX virtualization contexts.
+//!
+//! Facilitates the creation and manipulation of the Global Descriptor Table (GDT) and
+//! Task State Segment (TSS) necessary for VMX operations. Supports both host and guest
+//! environments, ensuring compatibility and proper setup for virtualization.
+
 use {
     crate::intel::support::sgdt,
     alloc::{boxed::Box, vec::Vec},
@@ -10,19 +16,28 @@ use {
     },
 };
 
-// UEFI does not set TSS in the GDT. This is incompatible to be both as VM and
-// hypervisor states. This struct supports creating a new GDT that does contain
-// the TSS.
-//
-// See: 27.2.3 Checks on Host Segment and Descriptor-Table Registers
-// See: 27.3.1.2 Checks on Guest Segment Registers
+/// Manages GDT and TSS for VMX operations.
+///
+/// Supports creating a new GDT that includes TSS, addressing compatibility issues in UEFI environments
+/// and ensuring proper VM and hypervisor states. This struct is essential for setting up the environment
+/// for both host and guest VMX operations.
 pub struct Descriptors {
+    /// Vector holding the GDT entries.
     gdt: Vec<u64>,
+
+    /// Descriptor table pointer to the GDT.
     pub gdtr: DescriptorTablePointer<u64>,
+
+    /// Code segment selector.
     pub cs: SegmentSelector,
+
+    /// Task register selector.
     pub tr: SegmentSelector,
+
+    /// Task State Segment.
     pub tss: TaskStateSegment,
 }
+
 impl Default for Descriptors {
     fn default() -> Self {
         Self {
@@ -35,7 +50,13 @@ impl Default for Descriptors {
     }
 }
 impl Descriptors {
-    /// Creates a new GDT with TSS based on the current GDT.
+    /// Creates a new GDT based on the current one, including TSS.
+    ///
+    /// Copies the current GDT and appends a TSS descriptor to it. Useful for guest
+    /// VM setup to ensure compatibility with VMX requirements.
+    ///
+    /// # Returns
+    /// A `Descriptors` instance with an updated GDT including TSS.
     pub fn new_from_current() -> Self {
         log::debug!("Creating a new GDT with TSS for guest");
 
@@ -72,6 +93,12 @@ impl Descriptors {
     }
 
     /// Creates a new GDT with TSS from scratch for the host.
+    ///
+    /// Initializes a GDT with essential descriptors, including a TSS descriptor,
+    /// tailored for host operation in a VMX environment.
+    ///
+    /// # Returns
+    /// A `Descriptors` instance with a newly created GDT for the host.
     pub fn new_for_host() -> Self {
         log::debug!("Creating a new GDT with TSS for host");
 
@@ -95,7 +122,18 @@ impl Descriptors {
         descriptors
     }
 
-    /// Builds a segment descriptor from the task state segment.
+    /// Builds a descriptor for the Task State Segment (TSS).
+    ///
+    /// Configures a TSS descriptor based on the provided TSS's base and limit,
+    /// setting it as present and with a privilege level of ring 0.
+    ///
+    /// # Arguments
+    ///
+    /// - `tss`: A reference to the `TaskStateSegment` for which to create the descriptor.
+    ///
+    /// # Returns
+    ///
+    /// A `Descriptor` instance representing the TSS in the GDT.
     fn task_segment_descriptor(tss: &TaskStateSegment) -> Descriptor {
         <DescriptorBuilder as GateDescriptorBuilder<u32>>::tss_descriptor(tss.base, tss.limit, true)
             .present()
@@ -103,6 +141,14 @@ impl Descriptors {
             .finish()
     }
 
+    /// Constructs a code segment descriptor for use in the GDT.
+    ///
+    /// Creates a descriptor representing a code segment with standard access rights,
+    /// suitable for execution in a protected or long mode environment.
+    ///
+    /// # Returns
+    ///
+    /// A `Descriptor` instance configured as a code segment.
     fn code_segment_descriptor() -> Descriptor {
         DescriptorBuilder::code_descriptor(0, u32::MAX, CodeSegmentType::ExecuteAccessed)
             .present()
@@ -112,7 +158,15 @@ impl Descriptors {
             .finish()
     }
 
-    /// Gets the table as a slice from the pointer.
+    /// Converts a descriptor table pointer to a slice of GDT entries.
+    ///
+    /// # Arguments
+    ///
+    /// - `pointer`: A reference to the `DescriptorTablePointer` for the GDT.
+    ///
+    /// # Returns
+    ///
+    /// A slice of the GDT entries represented as `u64` values.
     pub fn from_pointer(pointer: &DescriptorTablePointer<u64>) -> &[u64] {
         unsafe {
             core::slice::from_raw_parts(
@@ -123,16 +177,35 @@ impl Descriptors {
     }
 }
 
+/// Represents the Task State Segment (TSS).
+///
+/// Encapsulates the TSS, which is critical for task-switching and storing state information
+/// in protected mode operations. Includes fields for the base address, limit, and access rights.:
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct TaskStateSegment {
+    /// The base address of the TSS.
     pub base: u64,
+
+    /// The size of the TSS minus one.
     pub limit: u64,
+
+    /// Access rights for the TSS.
     pub ar: u32,
+
+    /// The actual TSS data.
     #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
     segment: Box<TaskStateSegmentRaw>,
 }
+
+/// Initializes a default TSS.
+///
+/// Allocates and sets up a default TSS with predefined access rights and size,
+/// ready for use in VMX operations.
+///
+/// # Returns
+/// A default `TaskStateSegment` instance.
 impl Default for TaskStateSegment {
     fn default() -> Self {
         let segment = Box::new(TaskStateSegmentRaw([0; 104]));
@@ -145,6 +218,10 @@ impl Default for TaskStateSegment {
     }
 }
 
+/// Low-level representation of the 64-bit Task State Segment (TSS).
+///
+/// Encapsulates the raw structure of the TSS as defined in the x86_64 architecture.
+/// This structure is used internally to manage the TSS's memory layout directly.
 /// See: Figure 8-11. 64-Bit TSS Format
 #[allow(dead_code)]
 struct TaskStateSegmentRaw([u8; 104]);

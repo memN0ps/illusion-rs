@@ -1,7 +1,31 @@
-use crate::intel::capture::GuestRegisters;
-use core::arch::global_asm;
+//! Provides functionality for launching a virtual machine (VM) using VMX operations.
+//!
+//! Includes an assembly implementation for the `launch_vm` function that handles
+//! the transition of CPU execution state to and from a guest VM. This operation
+//! is crucial for hypervisor development, facilitating the execution of guest code
+//! within an isolated environment.
+//! Credits: Satoshi's Hypervisor-101 in Rust: https://github.com/tandasat/Hypervisor-101-in-Rust/blob/main/hypervisor/src/hardware_vt/vmx_run_vm.S
+
+use {crate::intel::capture::GuestRegisters, core::arch::global_asm};
 
 extern "efiapi" {
+    /// Launches or resumes a virtual machine (VM) using the VMX operation.
+    ///
+    /// This function transitions the CPU to execute the guest VM code until a VM-exit occurs.
+    /// It manages the saving and restoring of both host and guest registers, ensuring the
+    /// correct execution state is maintained across VM-entries and VM-exits.
+    ///
+    /// # Arguments
+    ///
+    /// * `registers` - A mutable reference to a `GuestRegisters` struct containing the initial
+    /// or current state of guest registers to be loaded for the VM execution.
+    ///
+    /// * `launched` - A flag indicating whether the VM has been launched (1) or not (0). Determines
+    /// whether to execute `vmlaunch` or `vmresume`.
+    ///
+    /// # Returns
+    ///
+    /// Returns a 64-bit value representing the RFlags for indications of failure from the `launch_vm` function.
     pub fn launch_vm(registers: &mut GuestRegisters, launched: u64) -> u64;
 }
 
