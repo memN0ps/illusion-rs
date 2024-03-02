@@ -36,18 +36,35 @@ pub fn init(level: log::LevelFilter) {
 /// The logger can be used with the Rust `log` crate's macros (e.g., `info!`, `debug!`) to direct log output
 /// to the serial port.
 struct SerialLogger {
+    /// Mutex to protect access to the Serial instance.
     port: Mutex<Serial>,
 }
 
 impl SerialLogger {
-
-
+    /// Creates a new instance of `SerialLogger`.
+    ///
+    /// Initializes `SerialLogger` with a `Serial` instance protected by a `Mutex`.
+    /// This ensures that access to the serial port is synchronized across different
+    /// execution contexts, preventing data races and ensuring thread safety.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `SerialLogger` instance with a mutex-protected `Serial` port ready for logging.
     const fn new() -> Self {
         Self {
             port: Mutex::new(Serial {}),
         }
     }
 
+    /// Acquires a lock on the serial port for exclusive access.
+    ///
+    /// This method locks the mutex protecting the `Serial` instance, ensuring that
+    /// the current context has exclusive access to the serial port for writing log messages.
+    /// The lock is released when the returned `MutexGuard` is dropped at the end of its scope.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `MutexGuard` for the `Serial` instance, providing exclusive access to the serial port.
     fn lock(&self) -> spin::MutexGuard<'_, Serial> {
         self.port.lock()
     }
@@ -77,7 +94,9 @@ impl log::Log for SerialLogger {
     /// - `record`: The log record to be output.
     fn log(&self, record: &log::Record<'_>) {
         if self.enabled(record.metadata()) {
-            let _ = writeln!(self.lock(), "{}: {}", record.level(), record.args());
+            // Ensure we lock the mutex before writing to the serial port
+            let mut serial = self.lock();
+            let _ = writeln!(serial, "{}: {}", record.level(), record.args());
         }
     }
 
