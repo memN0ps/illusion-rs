@@ -1,3 +1,9 @@
+//! Manages hypervisor startup and VM exit handling.
+//!
+//! Provides the infrastructure for starting a hypervisor, including checking CPU support and enabling VMX.
+//! Also, handles various VM exit reasons, ensuring that the guest VM can be efficiently managed and controlled.
+//! This crate is essential for hypervisor operation, facilitating VM execution and interaction with the physical CPU.
+
 use {
     crate::{
         error::HypervisorError,
@@ -29,7 +35,20 @@ use {
     x86::vmx::vmcs::{guest, ro},
 };
 
-/// Starts the hypervisor.
+/// Initiates the hypervisor, activating VMX and setting up the initial VM state.
+///
+/// Validates CPU compatibility and VMX support, then proceeds to enable VMX operation.
+/// Initializes a VM instance and activates its VMCS, handling VM exits in a continuous loop.
+///
+/// # Arguments
+///
+/// - `guest_registers`: The initial state of the guest's general-purpose registers.
+/// - `shared_data`: Shared data between the hypervisor and the guest VM.
+///
+/// # Panics
+///
+/// Panics if the CPU is not supported, VMX cannot be enabled, VM or VMCS activation fails,
+/// or an unhandled VM exit reason is encountered.
 pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
     debug!("Starting hypervisor");
 
@@ -113,11 +132,14 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
     }
 }
 
-/// Advances the guest's instruction pointer (RIP) after a VM exit.
+/// Advances the guest's instruction pointer after handling a VM exit.
 ///
-/// When a VM exit occurs, the guest's execution is interrupted, and control is transferred
-/// to the hypervisor. To ensure that the guest does not re-execute the instruction that
-/// caused the VM exit, the hypervisor needs to advance the guest's RIP to the next instruction.
+/// Ensures the guest VM does not re-execute the instruction causing the VM exit
+/// by moving the instruction pointer to the next instruction.
+///
+/// # Arguments
+///
+/// - `guest_registers`: A mutable reference to the guest's general-purpose registers.
 #[rustfmt::skip]
 fn advance_guest_rip(guest_registers: &mut GuestRegisters) {
     trace!("Advancing guest RIP...");
@@ -127,11 +149,13 @@ fn advance_guest_rip(guest_registers: &mut GuestRegisters) {
     trace!("Guest RIP advanced to: {:#x}", vmread(guest::RIP));
 }
 
-/// Check if the CPU is supported.
+/// Checks if the CPU is supported for hypervisor operation.
+///
+/// Verifies the CPU is Intel with VMX support and Memory Type Range Registers (MTRRs) support.
 ///
 /// # Returns
 ///
-/// A `Result` which is `Ok` if the CPU is supported, or `Err` if it's not.
+/// Returns `Ok(())` if the CPU meets all requirements, otherwise returns `Err(HypervisorError)`.
 fn check_supported_cpu() -> Result<(), HypervisorError> {
     /* Intel® 64 and IA-32 Architectures Software Developer's Manual: 24.6 DISCOVERING SUPPORT FOR VMX */
     has_intel_cpu()?;
@@ -146,11 +170,11 @@ fn check_supported_cpu() -> Result<(), HypervisorError> {
     Ok(())
 }
 
-/// Check to see if CPU is Intel (“GenuineIntel”).
+/// Verifies the CPU is from Intel.
 ///
 /// # Returns
 ///
-/// A `Result` which is `Ok` if the CPU is Intel, or `Err` if it's not.
+/// Returns `Ok(())` if the CPU vendor is GenuineIntel, otherwise `Err(HypervisorError::CPUUnsupported)`.
 fn has_intel_cpu() -> Result<(), HypervisorError> {
     let cpuid = x86::cpuid::CpuId::new();
     if let Some(vi) = cpuid.get_vendor_info() {
@@ -161,11 +185,11 @@ fn has_intel_cpu() -> Result<(), HypervisorError> {
     Err(HypervisorError::CPUUnsupported)
 }
 
-/// Check processor support for Virtual Machine Extension (VMX) technology.
+/// Checks for Virtual Machine Extension (VMX) support on the CPU.
 ///
 /// # Returns
 ///
-/// A `Result` which is `Ok` if VMX technology is supported, or `Err` if it's not.
+/// Returns `Ok(())` if VMX is supported, otherwise `Err(HypervisorError::VMXUnsupported)`.
 fn has_vmx_support() -> Result<(), HypervisorError> {
     let cpuid = x86::cpuid::CpuId::new();
     if let Some(fi) = cpuid.get_feature_info() {
@@ -176,11 +200,11 @@ fn has_vmx_support() -> Result<(), HypervisorError> {
     Err(HypervisorError::VMXUnsupported)
 }
 
-/// Check processor support for Memory Type Range Registers (MTRRs).
+/// Checks for Memory Type Range Registers (MTRRs) support on the CPU.
 ///
 /// # Returns
 ///
-/// A `Result` which is `Ok` if MTRRs are supported, or `Err` if it's not.
+/// Returns `Ok(())` if MTRRs are supported, otherwise `Err(HypervisorError::MTRRUnsupported)`.
 fn has_mtrr() -> Result<(), HypervisorError> {
     let cpuid = x86::cpuid::CpuId::new();
     if let Some(fi) = cpuid.get_feature_info() {
