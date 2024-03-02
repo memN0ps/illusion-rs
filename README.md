@@ -1,7 +1,5 @@
 # UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: Illusion)
 
-## Work in Progress (Under Development)
-
 ![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/github-actions.yml/badge.svg)
 ![License](https://img.shields.io/github/license/memN0ps/illusion-rs)
 ![Issues](https://img.shields.io/github/issues/memN0ps/illusion-rs)
@@ -14,11 +12,12 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 - :white_check_mark: **Extended Page Tables (EPT)**: Support for Memory Type Range Registers (MTRR).
 - :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
-
-## Planned Enhancements
-
 - :x: **Kernel Inline Hooks**: PatchGuard-compatible breakpoint (`int3`) hooks. (Reuse this code: [matrix-rs](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs))
 - :x: **System Call (Syscall) Hooks**: PatchGuard-compatible hooks for System Service Descriptor Table (SSDT) function entries (Reuse this code: [matrix-rs](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs)).
+
+## Bug Fix:
+
+When launching a Windows virtual machine immediately after running the hypervisor from the UEFI shell, you might encounter a bug. Specifically, it arises when handling the `InitSignal` vmexit, resulting in a `VmEntryFailureInvalidGuestState` error. This issue occurs during the boot process into Windows and requires appropriate handling of both `InitSignal` and `StartupIpi` vmexits. This problem is associated with the processor states after initialization, as detailed in the Intel Manual under `"Table 10-1. IA-32 and Intel® 64 Processor States Following Power-up, Reset, or INIT."` Addressing this bug is crucial for ensuring the virtual machine can successfully transition from the UEFI hypervisor environment into the Windows operating system without encountering the `VmEntryFailureInvalidGuestState` error.
 
 ## Supported Hardware
 
