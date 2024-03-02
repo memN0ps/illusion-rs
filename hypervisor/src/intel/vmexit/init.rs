@@ -3,6 +3,7 @@
 //! Includes functionality for responding to INIT signals in a virtualized environment and adjusting
 //! control registers (CR0, CR4) to meet VMX operation requirements. Essential for virtual machine initialization
 //! and maintaining correct processor states.
+//! Credits to Satoshi Tanada: https://github.com/tandasat/MiniVisorPkg/blob/master/Sources/HostMain.c
 
 use {
     crate::intel::{

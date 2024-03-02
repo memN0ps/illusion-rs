@@ -3,6 +3,7 @@
 //! This module specifically deals with the emulation of SIPI signals, facilitating the initialization
 //! and startup of Application Processors (APs) in a virtualized environment. Essential for simulating
 //! multi-processor startup sequences within a VM, aligning with the MP initialization protocol.
+//! Credits to Satoshi Tanada: https://github.com/tandasat/MiniVisorPkg/blob/master/Sources/HostMain.c
 
 use {
     crate::intel::{
