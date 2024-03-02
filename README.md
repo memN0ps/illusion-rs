@@ -36,8 +36,8 @@ When launching a Windows virtual machine immediately after running the hyperviso
 
 ## Building the Project
 
-- Debug: `cargo build --target x86_64-unknown-uefi --debug`.
-- Release: `cargo build --target x86_64-unknown-uefi --release`.
+- Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
+- Release: `cargo build --target x86_64-unknown-uefi --profile release`.
 
 ## Acknowledgments, References, and Motivation
 
