@@ -232,29 +232,14 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
     // Adjust the CR0 register according to the fixed0 and fixed1 MSR values.
     let mut new_cr0 = adjust_cr0(cr0);
 
-    // Fetch the fixed0 value for CR0 from the MSR to use in UnrestrictedGuest logic.
-    let fixed0_cr0 = Cr0::from_bits_truncate(rdmsr(IA32_VMX_CR0_FIXED0) as usize);
-
     // Read the secondary processor-based VM-execution controls to check for UnrestrictedGuest support.
     let secondary_proc_based_ctls2 = vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS);
     let unrestricted_guest =
-        secondary_proc_based_ctls2 & SecondaryControls::UNRESTRICTED_GUEST.bits() as u64 != 0;
+        secondary_proc_based_ctls2 as u32 & SecondaryControls::UNRESTRICTED_GUEST.bits() != 0;
 
     if unrestricted_guest {
-        let protection_enable = Cr0::CR0_PROTECTED_MODE;
-        let paging_enable = Cr0::CR0_ENABLE_PAGING;
-
-        if cr0.contains(protection_enable) && fixed0_cr0.contains(protection_enable) {
-            new_cr0.insert(protection_enable);
-        } else {
-            new_cr0.remove(protection_enable);
-        }
-
-        if cr0.contains(paging_enable) && fixed0_cr0.contains(paging_enable) {
-            new_cr0.insert(paging_enable);
-        } else {
-            new_cr0.remove(paging_enable);
-        }
+        // if the guest is unrestricted, only set these bits if the guest requested them to be set
+        new_cr0 &= cr0 & (Cr0::CR0_PROTECTED_MODE | Cr0::CR0_PROTECTED_MODE);
     }
 
     new_cr0.bits() as u64
