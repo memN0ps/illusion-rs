@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/hypervisor-rs.iml" filepath="$PROJECT_DIR$/.idea/hypervisor-rs.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/illusion-rs.iml" filepath="$PROJECT_DIR$/.idea/illusion-rs.iml" />
     </modules>
   </component>
 </project>
