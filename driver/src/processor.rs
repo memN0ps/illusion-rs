@@ -46,6 +46,11 @@ pub fn start_hypervisor_on_all_processors(
         start_hypervisor(shared_data.as_mut());
     } else {
         info!("Found multiple processors, virtualizing all of them");
+
+        // Don't forget to virtualize this thread...
+        start_hypervisor(shared_data.as_mut());
+
+        // Virtualize all other threads...
         mp_services.startup_all_aps(
             true,
             start_hypervisor_on_ap as _,
