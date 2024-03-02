@@ -47,7 +47,8 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     // See: Table 9-1. IA-32 and Intel 64 Processor States Following Power-up, Reset, or INIT
     //
     vmwrite(vmcs::guest::RFLAGS, rflags::RFlags::FLAGS_A1.bits());
-    vmwrite(vmcs::guest::RIP, 0xfff0u64);
+    guest_registers.rip = 0xfff0u64;
+    vmwrite(vmcs::guest::RIP, guest_registers.rip);
     vmwrite(vmcs::control::CR0_READ_SHADOW, 0u64);
     cr2_write(0);
     vmwrite(vmcs::guest::CR3, 0u64);
@@ -123,7 +124,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     guest_registers.rsi = 0x0;
     guest_registers.rdi = 0x0;
     guest_registers.rbp = 0x0;
-    vmwrite(vmcs::guest::RSP, 0u64);
+
+    // RSP
+    guest_registers.rsp = 0x0u64;
+    vmwrite(vmcs::guest::RSP, guest_registers.rsp);
 
     //
     // Handle GDTR and IDTR
