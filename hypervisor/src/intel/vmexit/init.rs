@@ -206,10 +206,9 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set IA32E_MODE_GUEST to 0.
     //
-    let vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
-    let mut controls = vmcs::control::EntryControls::from_bits_truncate(vmentry_controls as u32);
-    controls.set(vmcs::control::EntryControls::IA32E_MODE_GUEST, false);
-    vmwrite(vmcs::control::VMENTRY_CONTROLS, controls.bits() as u64);
+    let mut vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
+    vmentry_controls &= !0x200; // Clear the IA32E_MODE_GUEST bit
+    vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
 
     //
     // Invalidate TLB for current VPID
