@@ -12,8 +12,8 @@ use {
         segmentation::VmxSegmentAccessRights,
         state::GuestActivityState,
         support::{
-            cr2_write, dr0_read, dr0_write, dr1_read, dr1_write, dr2_read, dr2_write, dr3_read,
-            dr3_write, dr6_read, dr6_write, dr7_read, rdmsr, vmread, vmwrite,
+            cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread,
+            vmwrite,
         },
         vmexit::ExitType,
     },
