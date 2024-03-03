@@ -130,6 +130,36 @@ pub fn dr6_write(val: u64) {
     unsafe { x86::debugregs::dr6_write(dr6) };
 }
 
+/// Reads the DR0 register.
+pub fn dr0_read() -> u64 {
+    unsafe { x86::debugregs::dr0() as u64 }
+}
+
+/// Reads the DR1 register.
+pub fn dr1_read() -> u64 {
+    unsafe { x86::debugregs::dr1() as u64 }
+}
+
+/// Reads the DR2 register.
+pub fn dr2_read() -> u64 {
+    unsafe { x86::debugregs::dr2() as u64 }
+}
+
+/// Reads the DR3 register.
+pub fn dr3_read() -> u64 {
+    unsafe { x86::debugregs::dr3() as u64 }
+}
+
+/// Reads the DR6 register.
+pub fn dr6_read() -> u64 {
+    unsafe { x86::debugregs::dr6().bits() as u64 }
+}
+
+/// Reads the DR7 register.
+pub fn dr7_read() -> u64 {
+    unsafe { x86::debugregs::dr7().0 as u64 }
+}
+
 /// Disables maskable interrupts.
 pub fn cli() {
     unsafe { x86::irq::disable() };
