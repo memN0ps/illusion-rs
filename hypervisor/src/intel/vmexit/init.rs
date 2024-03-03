@@ -204,10 +204,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::guest::GS_BASE, 0u64);
 
     //
-    // Set IA32E_MODE_GUEST to 0.
+    // Set IA32E_MODE_GUEST to 0. from_bits_truncate will fail
     //
     let mut vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
-    vmentry_controls &= !0x200; // Clear the IA32E_MODE_GUEST bit
+    vmentry_controls &= !(vmcs::control::EntryControls::IA32E_MODE_GUEST.bits() as u64); // Clear the IA32E_MODE_GUEST bit
     vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
 
     //
