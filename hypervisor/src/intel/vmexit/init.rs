@@ -10,6 +10,7 @@ use {
         capture::GuestRegisters,
         invvpid::invvpid_single_context,
         segmentation::VmxSegmentAccessRights,
+        state::GuestActivityState,
         support::{
             cr2_write, dr0_read, dr0_write, dr1_read, dr1_write, dr2_read, dr2_write, dr3_read,
             dr3_write, dr6_read, dr6_write, dr7_read, rdmsr, vmread, vmwrite,
@@ -218,8 +219,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set the activity state to "Wait for SIPI".
     //
-    let vmx_wait_for_sipi = 0x3u64;
-    vmwrite(vmcs::guest::ACTIVITY_STATE, vmx_wait_for_sipi);
+    vmwrite(
+        vmcs::guest::ACTIVITY_STATE,
+        GuestActivityState::WaitForSipi as u32,
+    );
 
     ExitType::Continue
 }
