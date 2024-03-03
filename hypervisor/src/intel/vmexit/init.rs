@@ -171,13 +171,6 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     dr6_write(0xffff0ff0u64);
     vmwrite(vmcs::guest::DR7, 0x400u64);
 
-    log::debug!("DR0: {:#x?}", dr0_read());
-    log::debug!("DR1: {:#x?}", dr1_read());
-    log::debug!("DR2: {:#x?}", dr2_read());
-    log::debug!("DR3: {:#x?}", dr3_read());
-    log::debug!("DR6: {:#x?}", dr6_read());
-    log::debug!("DR7: {:#x?}", dr7_read());
-
     //
     // Set the guest registers r8-r15 to 0.
     //
