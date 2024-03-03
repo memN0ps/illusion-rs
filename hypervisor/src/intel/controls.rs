@@ -1,6 +1,7 @@
 //! Module for handling VMX control adjustments.
 //! Provides mechanisms for adjusting VMX controls based on certain conditions
 //! and capabilities, ensuring safe and effective VMX operations.
+//! Credits to Satoshi Tanda: https://github.com/tandasat/Hypervisor-101-in-Rust/blob/main/hypervisor/src/hardware_vt/vmx.rs
 
 use x86::msr;
 

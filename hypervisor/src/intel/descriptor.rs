@@ -3,6 +3,7 @@
 //! Facilitates the creation and manipulation of the Global Descriptor Table (GDT) and
 //! Task State Segment (TSS) necessary for VMX operations. Supports both host and guest
 //! environments, ensuring compatibility and proper setup for virtualization.
+//! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/descriptors.rs
 
 use {
     crate::intel::support::sgdt,
