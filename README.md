@@ -6,14 +6,14 @@
 ![Forks](https://img.shields.io/github/forks/memN0ps/illusion-rs)
 ![Stars](https://img.shields.io/github/stars/memN0ps/illusion-rs)
 
-A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hypervisor with hooks for Intel VT-x, focused on studying the core concepts of virtualization.
+A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hypervisor without hooks for Intel VT-x, focused on studying the core concepts of virtualization.
 
 ## Features
 
 - :white_check_mark: **Extended Page Tables (EPT)**: Support for Memory Type Range Registers (MTRR).
 - :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
-- :x: **Kernel Inline Hooks**: PatchGuard-compatible breakpoint (`int3`) hooks. (Reuse this code: [matrix-rs](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs))
-- :x: **System Call (Syscall) Hooks**: PatchGuard-compatible hooks for System Service Descriptor Table (SSDT) function entries (Reuse this code: [matrix-rs](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs)).
+- :x: **Hidden Kernel Inline Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
+- :x: **Hidden System Call (Syscall) Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks for System Service Descriptor Table (SSDT) function entries. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) and [SSDT](https://github.com/memN0ps/matrix-rs/tree/main/hypervisor/src/utils/ssdt) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
 
 ## Supported Hardware
 
@@ -23,6 +23,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 ## Supported Platforms
 
 - :white_check_mark: Windows 10 - Windows 11, x64 only.
+- :x: Ubuntu 22.04.4 LTS, x64 only (Minor adjustments will support Linux compatibility).
 
 ## Installation
 
