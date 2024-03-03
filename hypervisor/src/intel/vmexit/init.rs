@@ -17,7 +17,6 @@ use {
         },
         vmexit::ExitType,
     },
-    bitflags::Flags,
     x86::{
         bits64::rflags,
         controlregs::Cr0,
