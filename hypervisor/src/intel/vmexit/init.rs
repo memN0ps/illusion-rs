@@ -247,7 +247,7 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
 
     if unrestricted_guest {
         // if the guest is unrestricted, only set these bits if the guest requested them to be set
-        new_cr0 &= cr0 & (Cr0::CR0_PROTECTED_MODE | Cr0::CR0_PROTECTED_MODE);
+        new_cr0 &= cr0 & (Cr0::CR0_PROTECTED_MODE | Cr0::CR0_ENABLE_PAGING);
     }
 
     new_cr0.bits() as u64
