@@ -274,7 +274,9 @@ impl fmt::Debug for Vmcs {
             .field("Guest IA32_SYSENTER_CS: ", &vmread(vmcs::guest::IA32_SYSENTER_CS))
             .field("Guest IA32_SYSENTER_ESP: ", &vmread(vmcs::guest::IA32_SYSENTER_ESP))
             .field("Guest IA32_SYSENTER_EIP: ", &vmread(vmcs::guest::IA32_SYSENTER_EIP))
+            .field("Guest IA32_EFER_FULL: ", &vmread(vmcs::guest::IA32_EFER_FULL))
             .field("Guest VMCS Link Pointer: ", &vmread(vmcs::guest::LINK_PTR_FULL))
+            .field("Guest Activity State: ", &vmread(vmcs::guest::ACTIVITY_STATE))
 
             /* VMCS Host state fields */
             .field("Host CR0: ", &vmread(vmcs::host::CR0))
@@ -308,6 +310,7 @@ impl fmt::Debug for Vmcs {
             .field("CR4 Read Shadow: ", &vmread(vmcs::control::CR4_READ_SHADOW))
             .field("MSR Bitmaps Address: ", &vmread(vmcs::control::MSR_BITMAPS_ADDR_FULL))
             .field("EPT Pointer: ", &vmread(vmcs::control::EPTP_FULL))
+            .field("VPID: ", &vmread(vmcs::control::VPID))
             .finish_non_exhaustive()
     }
 }
