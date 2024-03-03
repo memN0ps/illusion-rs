@@ -175,7 +175,8 @@ impl Vmcs {
             | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS.bits()
             | vmcs::control::SecondaryControls::ENABLE_INVPCID.bits()
             | vmcs::control::SecondaryControls::ENABLE_VPID.bits()
-            | vmcs::control::SecondaryControls::ENABLE_EPT.bits()) as u64;
+            | vmcs::control::SecondaryControls::ENABLE_EPT.bits()
+            | vmcs::control::SecondaryControls::UNRESTRICTED_GUEST.bits()) as u64;
         const ENTRY_CTL: u64 = vmcs::control::EntryControls::IA32E_MODE_GUEST.bits() as u64;
         const EXIT_CTL: u64 = vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits() as u64;
         const PINBASED_CTL: u64 = 0;
