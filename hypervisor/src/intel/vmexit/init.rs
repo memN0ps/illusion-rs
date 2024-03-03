@@ -9,9 +9,10 @@ use {
     crate::intel::{
         capture::GuestRegisters,
         invvpid::invvpid_single_context,
+        segmentation::VmxSegmentAccessRights,
         support::{
-            cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread,
-            vmwrite,
+            cr2_write, dr0_read, dr0_write, dr1_read, dr1_write, dr2_read, dr2_write, dr3_read,
+            dr3_write, dr6_read, dr6_write, dr7_read, rdmsr, vmread, vmwrite,
         },
         vmexit::ExitType,
     },
@@ -20,7 +21,7 @@ use {
         bits64::rflags,
         controlregs::Cr0,
         msr::{IA32_VMX_CR0_FIXED0, IA32_VMX_CR0_FIXED1, IA32_VMX_CR4_FIXED0, IA32_VMX_CR4_FIXED1},
-        segmentation::{CodeSegmentType, DataSegmentType, Descriptor, SystemDescriptorTypes64},
+        segmentation::{CodeSegmentType, DataSegmentType, SystemDescriptorTypes64},
         vmx::vmcs::{self, control::SecondaryControls},
     },
     x86_64::registers::control::Cr4Flags,
@@ -65,23 +66,24 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set the CS segment registers to their initial state (ExecuteReadAccessed).
     //
-    let mut descriptor: Descriptor = Descriptor::default();
-    descriptor.set_type(CodeSegmentType::ExecuteReadAccessed as u8);
-    descriptor.set_s();
-    descriptor.set_p();
+    let mut access_rights = VmxSegmentAccessRights(0);
+    access_rights.set_segment_type(CodeSegmentType::ExecuteReadAccessed as u32);
+    access_rights.set_descriptor_type(true);
+    access_rights.set_present(true);
+
     vmwrite(vmcs::guest::CS_SELECTOR, 0xf000u64);
     vmwrite(vmcs::guest::CS_BASE, 0xffff0000u64);
     vmwrite(vmcs::guest::CS_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::CS_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Set the SS segment registers to their initial state (ReadWriteAccessed).
     //
-    descriptor.set_type(DataSegmentType::ReadWriteAccessed as u8);
+    access_rights.set_segment_type(DataSegmentType::ReadWriteAccessed as u32);
     vmwrite(vmcs::guest::SS_SELECTOR, 0u64);
     vmwrite(vmcs::guest::SS_BASE, 0u64);
     vmwrite(vmcs::guest::SS_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::SS_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Set the DS segment registers to their initial state (ReadWriteAccessed).
@@ -89,7 +91,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::guest::DS_SELECTOR, 0u64);
     vmwrite(vmcs::guest::DS_BASE, 0u64);
     vmwrite(vmcs::guest::DS_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::DS_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Set the ES segment registers to their initial state (ReadWriteAccessed).
@@ -97,7 +99,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::guest::ES_SELECTOR, 0u64);
     vmwrite(vmcs::guest::ES_BASE, 0u64);
     vmwrite(vmcs::guest::ES_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::ES_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Set the FS segment registers to their initial state (ReadWriteAccessed).
@@ -105,7 +107,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::guest::FS_SELECTOR, 0u64);
     vmwrite(vmcs::guest::FS_BASE, 0u64);
     vmwrite(vmcs::guest::FS_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::FS_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Set the GS segment registers to their initial state (ReadWriteAccessed).
@@ -113,7 +115,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     vmwrite(vmcs::guest::GS_SELECTOR, 0u64);
     vmwrite(vmcs::guest::GS_BASE, 0u64);
     vmwrite(vmcs::guest::GS_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::GS_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Execute CPUID instruction on the host and retrieve the result
@@ -142,22 +144,21 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Handle LDTR
     //
-    let mut descriptor: Descriptor = Descriptor::default();
-    descriptor.set_type(SystemDescriptorTypes64::LDT as u8);
-    descriptor.set_p();
+    access_rights.set_segment_type(SystemDescriptorTypes64::LDT as u32);
+    access_rights.set_descriptor_type(false);
     vmwrite(vmcs::guest::LDTR_SELECTOR, 0u64);
     vmwrite(vmcs::guest::LDTR_BASE, 0u64);
     vmwrite(vmcs::guest::LDTR_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::LDTR_ACCESS_RIGHTS, access_rights.0);
 
     //
     // Handle TR
     //
-    descriptor.set_type(SystemDescriptorTypes64::TssBusy as u8);
+    access_rights.set_segment_type(SystemDescriptorTypes64::TssBusy as u32);
     vmwrite(vmcs::guest::TR_SELECTOR, 0u64);
     vmwrite(vmcs::guest::TR_BASE, 0u64);
     vmwrite(vmcs::guest::TR_LIMIT, 0xffffu64);
-    vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, descriptor.as_u64());
+    vmwrite(vmcs::guest::TR_ACCESS_RIGHTS, access_rights.0);
 
     //
     // DR0, DR1, DR2, DR3, DR6, DR7
@@ -168,6 +169,13 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     dr3_write(0u64);
     dr6_write(0xffff0ff0u64);
     vmwrite(vmcs::guest::DR7, 0x400u64);
+
+    log::debug!("DR0: {:#x?}", dr0_read());
+    log::debug!("DR1: {:#x?}", dr1_read());
+    log::debug!("DR2: {:#x?}", dr2_read());
+    log::debug!("DR3: {:#x?}", dr3_read());
+    log::debug!("DR6: {:#x?}", dr6_read());
+    log::debug!("DR7: {:#x?}", dr7_read());
 
     //
     // Set the guest registers r8-r15 to 0.
@@ -198,9 +206,10 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set IA32E_MODE_GUEST to 0.
     //
-    let mut vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
-    vmentry_controls &= !(1 << 9); // Clear the IA32E_MODE_GUEST bit
-    vmwrite(vmcs::control::VMENTRY_CONTROLS, vmentry_controls);
+    let vmentry_controls = vmread(vmcs::control::VMENTRY_CONTROLS);
+    let mut controls = vmcs::control::EntryControls::from_bits_truncate(vmentry_controls as u32);
+    controls.set(vmcs::control::EntryControls::IA32E_MODE_GUEST, false);
+    vmwrite(vmcs::control::VMENTRY_CONTROLS, controls.bits() as u64);
 
     //
     // Invalidate TLB for current VPID
