@@ -101,11 +101,11 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
         leaf if leaf == CpuidLeaf::HypervisorVendor as u32 => {
             log::trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
             // Set the CPUID response to provide the hypervisor's vendor ID signature.
-            // We use the signature "MatrixVisor" encoded in a little-endian format.
-            // cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
-            // cpuid_result.ebx = 0x69727461; // "atri", part of "MatrixVisor" (in reverse order due to little-endian storage).
-            // cpuid_result.ecx = 0x73695678; // "xVis", part of "MatrixVisor" (in reverse order due to little-endian storage).
-            // cpuid_result.edx = 0x0000726f; // "or", the final part of "MatrixVisor" followed by two null bytes (in reverse order).
+            // We use the signature "Illusion" encoded in a little-endian format.
+            cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
+            cpuid_result.ebx = 0x756c6c49; // "ullI", part of "Illusion" (in reverse order due to little-endian storage).
+            cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
+            cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
         },
         // Handle CPUID for hypervisor interface identification.
         leaf if leaf == CpuidLeaf::HypervisorInterface as u32 => {

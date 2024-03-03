@@ -36,6 +36,10 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
 - Release: `cargo build --target x86_64-unknown-uefi --profile release`.
 
+## Showcase
+
+![Check HV Vendor](images/check-hv-vendor.png)
+
 ## Acknowledgments, References, and Motivation
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
