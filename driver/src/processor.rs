@@ -14,6 +14,11 @@ use {
     uefi::{prelude::*, proto::pi::mp::MpServices},
 };
 
+/// The main SharedData object.
+///
+/// This static mutable option holds the global instance of the SharedData used by this hypervisor.
+static mut SHARED_DATA: Option<Box<SharedData>> = None;
+
 /// Starts the hypervisor on all processors.
 ///
 /// # Arguments
@@ -59,6 +64,8 @@ pub fn start_hypervisor_on_all_processors(
             None,
         )?;
     }
+
+    unsafe { SHARED_DATA = Some(shared_data) };
 
     info!("The hypervisor has been installed successfully!");
 
