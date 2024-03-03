@@ -14,11 +14,6 @@ use {
     uefi::{prelude::*, proto::pi::mp::MpServices},
 };
 
-/// The main SharedData object.
-///
-/// This static mutable option holds the global instance of the SharedData used by this hypervisor.
-static mut SHARED_DATA: Option<Box<SharedData>> = None;
-
 /// Starts the hypervisor on all processors.
 ///
 /// # Arguments
@@ -36,8 +31,9 @@ pub fn start_hypervisor_on_all_processors(
     secondary_ept: Box<Ept>,
 ) -> uefi::Result<()> {
     debug!("Creating Shared Data");
-    let mut shared_data =
+    let shared_data =
         SharedData::new(primary_ept, secondary_ept).expect("Failed to create shared data");
+    let shared_data = Box::leak(shared_data);
 
     let handle = boot_services.get_handle_for_protocol::<MpServices>()?;
     let mp_services = boot_services.open_protocol_exclusive::<MpServices>(handle)?;
@@ -48,24 +44,22 @@ pub fn start_hypervisor_on_all_processors(
 
     if processor_count.enabled == 1 {
         info!("Found only one processor, virtualizing it");
-        start_hypervisor(shared_data.as_mut());
+        start_hypervisor(shared_data);
     } else {
         info!("Found multiple processors, virtualizing all of them");
 
         // Don't forget to virtualize this thread...
-        start_hypervisor(shared_data.as_mut());
+        start_hypervisor(shared_data);
 
         // Virtualize all other threads...
         mp_services.startup_all_aps(
             true,
             start_hypervisor_on_ap as _,
-            shared_data.as_mut() as *mut _ as *mut _,
+            shared_data as *mut _ as *mut _,
             None,
             None,
         )?;
     }
-
-    unsafe { SHARED_DATA = Some(shared_data) };
 
     info!("The hypervisor has been installed successfully!");
 

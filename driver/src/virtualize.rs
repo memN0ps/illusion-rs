@@ -32,7 +32,7 @@ pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut Sha
     unsafe {
         switch_stack(
             guest_registers,
-            shared_data,
+            shared_data as *mut _ as *mut u8,
             start_hypervisor as usize,
             stack_base,
         )
@@ -43,7 +43,7 @@ extern "efiapi" {
     /// Jumps to the landing code with the new stack pointer.
     fn switch_stack(
         guest_registers: &GuestRegisters,
-        shared_data: &mut SharedData,
+        shared_data: *mut u8,
         landing_code: usize,
         stack_base: u64,
     ) -> !;
