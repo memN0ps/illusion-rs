@@ -101,7 +101,13 @@ impl log::Log for SerialLogger {
             let mut serial = self.lock();
 
             // Format and print the log message with APIC ID, log level, and log message
-            let _ = writeln!(serial, "vcpu-{} {}: {}", vcpu_id, record.level(), record.args());
+            let _ = writeln!(
+                serial,
+                "vcpu-{} {}: {}",
+                vcpu_id,
+                record.level(),
+                record.args()
+            );
         }
     }
 
