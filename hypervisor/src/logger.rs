@@ -94,9 +94,14 @@ impl log::Log for SerialLogger {
     /// - `record`: The log record to be output.
     fn log(&self, record: &log::Record<'_>) {
         if self.enabled(record.metadata()) {
+            // Explicitly get the APIC ID (core number) before locking the serial port
+            let vcpu_id = apic_id();
+
             // Ensure we lock the mutex before writing to the serial port
             let mut serial = self.lock();
-            let _ = writeln!(serial, "{}: {}", record.level(), record.args());
+
+            // Format and print the log message with APIC ID, log level, and log message
+            let _ = writeln!(serial, "vcpu-{} {}: {}", vcpu_id, record.level(), record.args());
         }
     }
 
@@ -139,6 +144,17 @@ impl Write for Serial {
         }
         Ok(())
     }
+}
+
+/// Gets an APIC ID.
+///
+/// # Returns
+///
+/// Returns the APIC ID of the current processor.
+fn apic_id() -> u32 {
+    // See: (AMD) CPUID Fn0000_0001_EBX LocalApicId, LogicalProcessorCount, CLFlush
+    // See: (Intel) Table 3-8. Information Returned by CPUID Instruction
+    x86::cpuid::cpuid!(0x1).ebx >> 24
 }
 
 /// The global serial port logger instance.
