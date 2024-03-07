@@ -14,10 +14,7 @@ use {
 };
 
 /// The global serial port logger instance.
-static SERIAL_LOGGER: SerialLogger = SerialLogger::new();
-
-/// The default COM port for the serial logger (COM1).
-static mut COM_PORT: u16 = 0x3f8;
+static mut SERIAL_LOGGER: Option<SerialLogger> = None;
 
 /// Enum representing available serial ports.
 #[repr(u16)]
@@ -36,10 +33,14 @@ pub enum SerialPort {
 ///
 /// # Arguments
 ///
+/// - `port`: The serial port to use for logging.
 /// - `level`: The maximum log level filter. Messages with a level higher than this will not be logged.
+///
 pub fn init(port: SerialPort, level: log::LevelFilter) {
-    unsafe { COM_PORT = port as u16 };
-    log::set_logger(&SERIAL_LOGGER)
+    unsafe { SERIAL_LOGGER = Some(SerialLogger::new(port)) };
+    let serial_logger = unsafe { SERIAL_LOGGER.as_ref().unwrap() };
+
+    log::set_logger(serial_logger)
         .map(|()| log::set_max_level(level))
         .unwrap();
 }
@@ -64,12 +65,16 @@ impl SerialLogger {
     /// This ensures that access to the serial port is synchronized across different
     /// execution contexts, preventing data races and ensuring thread safety.
     ///
+    /// # Arguments
+    ///
+    /// - `port`: The serial port to use for logging.
+    ///
     /// # Returns
     ///
     /// Returns a `SerialLogger` instance with a mutex-protected `Serial` port ready for logging.
-    const fn new() -> Self {
+    const fn new(port: SerialPort) -> Self {
         Self {
-            port: Mutex::new(Serial {}),
+            port: Mutex::new(Serial { port }),
         }
     }
 
@@ -138,7 +143,10 @@ impl log::Log for SerialLogger {
 ///
 /// Provides low-level access to a serial port for writing log messages. This struct implements
 /// the `Write` trait, allowing it to be used with Rust's formatting macros and functions.
-struct Serial;
+struct Serial {
+    /// The serial COM port.
+    port: SerialPort,
+}
 
 /// Writes a string slice to the serial port.
 ///
@@ -160,9 +168,9 @@ impl Write for Serial {
         const UART_OFFSET_LINE_STATUS: u16 = 5;
 
         for byte in string.bytes() {
-            while (inb(unsafe { COM_PORT } + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
+            while (inb(self.port as u16 + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
             outb(
-                unsafe { COM_PORT } + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER,
+                self.port as u16 + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER,
                 byte,
             );
         }
