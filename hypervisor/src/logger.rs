@@ -13,6 +13,22 @@ use {
     spin::Mutex,
 };
 
+/// The global serial port logger instance.
+static SERIAL_LOGGER: SerialLogger = SerialLogger::new();
+
+/// The default COM port for the serial logger (COM1).
+static mut COM_PORT: u16 = 0x3f8;
+
+/// Enum representing available serial ports.
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SerialPort {
+    /// COM1 serial port (0x3F8).
+    COM1 = 0x3F8,
+    /// COM2 serial port (0x2F8).
+    COM2 = 0x2F8,
+}
+
 /// Initializes the serial port logger.
 ///
 /// Sets up the logging framework to output through the serial port specified in the `Serial` struct.
@@ -21,7 +37,8 @@ use {
 /// # Arguments
 ///
 /// - `level`: The maximum log level filter. Messages with a level higher than this will not be logged.
-pub fn init(level: log::LevelFilter) {
+pub fn init(port: SerialPort, level: log::LevelFilter) {
+    unsafe { COM_PORT = port as u16 };
     log::set_logger(&SERIAL_LOGGER)
         .map(|()| log::set_max_level(level))
         .unwrap();
@@ -139,14 +156,15 @@ struct Serial;
 impl Write for Serial {
     // Writes bytes `string` to the serial port.
     fn write_str(&mut self, string: &str) -> Result<(), fmt::Error> {
-        //const UART_COM1: u16 = 0x3f8;
-        const UART_COM2: u16 = 0x2f8;
         const UART_OFFSET_TRANSMITTER_HOLDING_BUFFER: u16 = 0;
         const UART_OFFSET_LINE_STATUS: u16 = 5;
 
         for byte in string.bytes() {
-            while (inb(UART_COM2 + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
-            outb(UART_COM2 + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER, byte);
+            while (inb(unsafe { COM_PORT } + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
+            outb(
+                unsafe { COM_PORT } + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER,
+                byte,
+            );
         }
         Ok(())
     }
@@ -162,6 +180,3 @@ fn apic_id() -> u32 {
     // See: (Intel) Table 3-8. Information Returned by CPUID Instruction
     x86::cpuid::cpuid!(0x1).ebx >> 24
 }
-
-/// The global serial port logger instance.
-static SERIAL_LOGGER: SerialLogger = SerialLogger::new();
