@@ -12,7 +12,7 @@ default = []
 
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
-x86_64 = "0.14.11" # https://crates.io/crates/x86_64
+x86_64 = "0.15.0" # https://crates.io/crates/x86_64
 thiserror-no-std = "2.0.2" # https://crates.io/crates/thiserror-no-std
 bitfield = "0.14.0" # https://crates.io/crates/bitfield
 bit_field = "0.10.2" # https://crates.io/crates/bit_field
