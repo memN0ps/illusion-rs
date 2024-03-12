@@ -160,4 +160,7 @@ pub enum HypervisorError {
 
     #[error("VM instruction failed due to zero flag being set")]
     VmInstructionError,
+
+    #[error("Large page remap error")]
+    LargePageRemapError,
 }

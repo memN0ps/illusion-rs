@@ -26,6 +26,7 @@ pub enum MemoryType {
 }
 
 /// Represents a Mttr range descriptor.
+#[derive(Debug, Clone)]
 pub struct Mtrr {
     descriptors: Vec<MtrrRangeDescriptor>,
 }
@@ -52,16 +53,9 @@ impl Mtrr {
                 };
 
                 descriptors.push(descriptor);
-                log::trace!(
-                    "MTRR Range: Base=0x{:x} End=0x{:x} Type={:?}",
-                    descriptor.base_address,
-                    descriptor.end_address,
-                    descriptor.memory_type
-                );
             }
         }
 
-        log::trace!("Total MTRR Ranges Committed: {}", descriptors.len());
         Self { descriptors }
     }
 

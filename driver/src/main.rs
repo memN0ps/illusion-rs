@@ -12,10 +12,7 @@ extern crate alloc;
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
     hypervisor::{
-        intel::{
-            ept::paging::{AccessType, Ept},
-            vm::box_zeroed,
-        },
+        intel::{ept::paging::Ept, vm::box_zeroed},
         logger::{self, SerialPort},
     },
     log::*,
@@ -91,12 +88,12 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     debug!("Identity mapping primary and secondary EPTs");
 
-    if let Err(e) = primary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE) {
+    if let Err(e) = primary_ept.build_identity() {
         error!("Failed to identity map primary EPT: {:?}", e);
         return Status::ABORTED;
     }
 
-    if let Err(e) = secondary_ept.identity_2mb(AccessType::READ_WRITE_EXECUTE) {
+    if let Err(e) = secondary_ept.build_identity() {
         error!("Failed to identity map secondary EPT: {:?}", e);
         return Status::ABORTED;
     }
