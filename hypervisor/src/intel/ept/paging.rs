@@ -10,42 +10,18 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::ept::mtrr::{MemoryType, Mtrr},
+        intel::{
+            ept::mtrr::{MemoryType, Mtrr},
+            vm::box_zeroed,
+        },
     },
     bitfield::bitfield,
-    bitflags::bitflags,
     core::ptr::addr_of,
+    log::trace,
     x86::bits64::paging::{
-        pd_index, pdpt_index, pml4_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE,
-        LARGE_PAGE_SIZE, PAGE_SIZE_ENTRIES,
+        pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE,
     },
 };
-
-bitflags! {
-    /// Represents the different access permissions for an EPT entry.
-    #[derive(Debug, Clone, Copy)]
-    pub struct AccessType: u8 {
-        /// The EPT entry allows read access.
-        const READ = 0b001;
-        /// The EPT entry allows write access.
-        const WRITE = 0b010;
-        /// The EPT entry allows execute access.
-        const EXECUTE = 0b100;
-        /// The EPT entry allows read and write access.
-        const READ_WRITE = Self::READ.bits() | Self::WRITE.bits();
-        /// The EPT entry allows read and execute access.
-        const READ_EXECUTE = Self::READ.bits() | Self::EXECUTE.bits();
-        /// The EPT entry allows write and execute access.
-        const WRITE_EXECUTE = Self::WRITE.bits() | Self::EXECUTE.bits();
-        /// The EPT entry allows read, write, and execute access.
-        const READ_WRITE_EXECUTE = Self::READ.bits() | Self::WRITE.bits() | Self::EXECUTE.bits();
-    }
-}
-
-pub const _512GiB: u64 = 512 * 1024 * 1024 * 1024;
-pub const _1GiB: u64 = 1024 * 1024 * 1024;
-pub const _2MiB: usize = 2 * 1024 * 1024;
-pub const _4KiB: usize = 4 * 1024;
 
 /// Represents the entire Extended Page Table structure.
 ///
@@ -61,263 +37,141 @@ pub struct Ept {
     pdpt: Pdpt,
     /// Array of Page Directory Table (PDT).
     pd: [Pd; 512],
-    /// A two-dimensional array of Page Tables (PT).
-    pt: [[Pt; 512]; 512],
+    /// Page Tables (PT).
+    pt: Pt,
 }
 
 impl Ept {
-    /// Creates an identity map for 2MB pages in the Extended Page Tables (EPT).
-    ///
-    /// Similar to `identity_4kb`, but maps larger 2MB pages for better performance in some scenarios
-    ///
-    /// # Arguments
-    ///
-    /// * `access_type`: The type of access allowed for these pages (read, write, execute).
+    /// Builds an identity-mapped Extended Page Table (EPT) structure with considerations for Memory Type Range Registers (MTRR).
+    /// This function initializes the EPT with a 1:1 physical-to-virtual memory mapping,
+    /// setting up the required PML4, PDPT, and PD entries for the initial memory range.
     ///
     /// # Returns
+    /// A result indicating the success or failure of the operation. In case of failure,
+    /// a `HypervisorError` is returned, detailing the nature of the error.
     ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn identity_2mb(&mut self, access_type: AccessType) -> Result<(), HypervisorError> {
-        log::trace!("Creating identity map for 2MB pages");
-
+    /// # Errors
+    /// This function returns an `Err(HypervisorError::MemoryTypeResolutionError)` if it fails
+    /// to resolve memory types based on MTRR settings for any page.
+    pub fn build_identity(&mut self) -> Result<(), HypervisorError> {
+        // Initialize a new MTRR instance for memory type resolution.
         let mut mtrr = Mtrr::new();
+        trace!("{mtrr:#x?}");
+        trace!("Initializing EPTs");
 
-        for pa in (0.._512GiB).step_by(_2MiB) {
-            self.map_2mb(pa, pa, access_type, &mut mtrr)?;
+        // Start with a physical address (pa) of 0.
+        let mut pa = 0u64;
+
+        // Configure the first PML4 entry to point to the PDPT. This sets up the root of our page table.
+        self.pml4.0.entries[0].set_readable(true);
+        self.pml4.0.entries[0].set_writable(true);
+        self.pml4.0.entries[0].set_executable(true);
+        self.pml4.0.entries[0].set_pfn(addr_of!(self.pdpt) as u64 >> BASE_PAGE_SHIFT);
+
+        // Iterate through each PDPT entry to configure PDs.
+        for (i, pdpte) in self.pdpt.0.entries.iter_mut().enumerate() {
+            pdpte.set_readable(true);
+            pdpte.set_writable(true);
+            pdpte.set_executable(true);
+            pdpte.set_pfn(addr_of!(self.pd[i]) as u64 >> BASE_PAGE_SHIFT);
+
+            // Configure each PDE within a PD. The first PD manages the first 2MB with 4KB granularity.
+            for pde in &mut self.pd[i].0.entries {
+                if pa == 0 {
+                    // Handle the special case for the first 2MB to ensure MTRR types are correctly applied.
+                    pde.set_readable(true);
+                    pde.set_writable(true);
+                    pde.set_executable(true);
+                    pde.set_pfn(addr_of!(self.pt) as u64 >> BASE_PAGE_SHIFT);
+
+                    // Configure the PT entries for the first 2MB, respecting MTRR settings.
+                    for pte in &mut self.pt.0.entries {
+                        let memory_type = mtrr
+                            .find(pa..pa + BASE_PAGE_SIZE as u64)
+                            .ok_or(HypervisorError::MemoryTypeResolutionError)?;
+                        pte.set_readable(true);
+                        pte.set_writable(true);
+                        pte.set_executable(true);
+                        pte.set_memory_type(memory_type as u64);
+                        pte.set_pfn(pa >> BASE_PAGE_SHIFT);
+                        pa += BASE_PAGE_SIZE as u64;
+                    }
+                } else {
+                    // For the rest of the physical address space, configure PD entries for large pages (2MB).
+                    let memory_type = mtrr
+                        .find(pa..pa + LARGE_PAGE_SIZE as u64)
+                        .ok_or(HypervisorError::MemoryTypeResolutionError)?;
+
+                    pde.set_readable(true);
+                    pde.set_writable(true);
+                    pde.set_executable(true);
+                    pde.set_memory_type(memory_type as u64);
+                    pde.set_large(true);
+                    pde.set_pfn(pa >> BASE_PAGE_SHIFT);
+                    pa += LARGE_PAGE_SIZE as u64;
+                }
+            }
         }
 
         Ok(())
     }
 
-    /// Creates an identity map for 4KB pages in the Extended Page Tables (EPT).
+    /// Splits a large 2MB page into 512 smaller 4KB pages for a given guest physical address.
     ///
-    /// An identity map means every guest physical address maps directly to the same host physical address.
+    /// This is necessary to apply more granular hooks and reduce the number of
+    /// page faults that occur when the guest tries to access a page that is hooked.
     ///
     /// # Arguments
     ///
-    /// * `access_type`: The type of access allowed for these pages (read, write, execute).
+    /// * `guest_pa`: The guest physical address within the 2MB page that needs to be split.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn identity_4kb(&mut self, access_type: AccessType) -> Result<(), HypervisorError> {
-        log::trace!("Creating identity map for 4KB pages");
+    pub fn split_2mb_to_4kb(&mut self, guest_pa: u64) -> Result<(), HypervisorError> {
+        trace!("Splitting 2mb page into 4kb pages: {:x}", guest_pa);
 
-        let mut mtrr = Mtrr::new();
+        let guest_pa = VAddr::from(guest_pa);
 
-        for pa in (0.._512GiB).step_by(BASE_PAGE_SIZE) {
-            self.map_4kb(pa, pa, access_type, &mut mtrr)?;
+        let pdpt_index = pdpt_index(guest_pa);
+        let pd_index = pd_index(guest_pa);
+        let pde = &mut self.pd[pdpt_index].0.entries[pd_index];
+
+        // We can only split large pages and not page directories.
+        // If it's a page directory, it is already split.
+        //
+        if !pde.large() {
+            trace!("Page is already split: {:x}.", guest_pa);
+            return Err(HypervisorError::PageAlreadySplit);
         }
 
-        Ok(())
-    }
+        // Get the memory type of the large page, before we unmap (reset) it.
+        let memory_type = pde.memory_type();
 
-    /// Maps a single 2MB page in the EPT.
-    ///
-    /// # Arguments
-    ///
-    /// * `guest_pa`: The guest physical address to map.
-    /// * `host_pa`: The host physical address to map to.
-    /// * `access_type`: The type of access allowed for this page (read, write, execute).
-    /// * `mtrr`: The Memory Type Range Registers (MTRR) to use for this page.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn map_2mb(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        access_type: AccessType,
-        mtrr: &mut Mtrr,
-    ) -> Result<(), HypervisorError> {
-        self.map_pml4(guest_pa, access_type)?;
-        self.map_pdpt(guest_pa, access_type)?;
-        self.map_pde(guest_pa, host_pa, access_type, mtrr)?;
+        // Unmap the 2MB page by resetting the page directory entry.
+        Self::unmap_2mb(pde);
 
-        Ok(())
-    }
+        // Create a new page table for the 4KB pages.
+        let mut pt = unsafe { box_zeroed::<Pt>() };
 
-    /// Maps a single 4KB page in the EPT.
-    ///
-    /// # Arguments
-    /// * `guest_pa`: The guest physical address to map.
-    /// * `host_pa`: The host physical address to map to.
-    /// * `access_type`: The type of access allowed for this page (read, write, execute).
-    /// * `mtrr`: The Memory Type Range Registers (MTRR) to use for this page.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn map_4kb(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        access_type: AccessType,
-        mtrr: &mut Mtrr,
-    ) -> Result<(), HypervisorError> {
-        self.map_pml4(guest_pa, access_type)?;
-        self.map_pdpt(guest_pa, access_type)?;
-        self.map_pdt(guest_pa, access_type)?;
-        self.map_pt(guest_pa, host_pa, access_type, mtrr)?;
-
-        Ok(())
-    }
-
-    /// Updates the PML4 entry corresponding to the provided guest physical address.
-    ///
-    /// # Arguments
-    ///
-    /// * `guest_pa`: The guest physical address whose corresponding PML4 entry will be updated.
-    /// * `access_type`: The type of access allowed for the region covered by this PML4 entry.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    fn map_pml4(&mut self, guest_pa: u64, access_type: AccessType) -> Result<(), HypervisorError> {
-        let pml4_index = pml4_index(VAddr::from(guest_pa));
-        let pml4_entry = &mut self.pml4.0.entries[pml4_index];
-
-        if !pml4_entry.readable() {
-            pml4_entry.set_readable(access_type.contains(AccessType::READ));
-            pml4_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pml4_entry.set_executable(access_type.contains(AccessType::EXECUTE));
-            pml4_entry.set_pfn(addr_of!(self.pdpt) as u64 >> BASE_PAGE_SHIFT);
+        // Map the unmapped physical memory to 4KB pages.
+        for (i, pte) in &mut pt.0.entries.iter_mut().enumerate() {
+            let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
+            pte.set_readable(true);
+            pte.set_writable(true);
+            pte.set_executable(true);
+            pte.set_memory_type(memory_type);
+            pte.set_pfn(pa >> BASE_PAGE_SHIFT);
         }
 
-        Ok(())
-    }
-
-    /// Updates the PDPT entry corresponding to the provided guest physical address.
-    ///
-    /// # Arguments
-    /// * `guest_pa`: The guest physical address whose corresponding PDPT entry will be updated.
-    /// * `access_type`: The type of access allowed for the region covered by this PDPT entry.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    fn map_pdpt(&mut self, guest_pa: u64, access_type: AccessType) -> Result<(), HypervisorError> {
-        let pdpt_index = pdpt_index(VAddr::from(guest_pa));
-        let pdpt_entry = &mut self.pdpt.0.entries[pdpt_index];
-
-        if !pdpt_entry.readable() {
-            pdpt_entry.set_readable(access_type.contains(AccessType::READ));
-            pdpt_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pdpt_entry.set_executable(access_type.contains(AccessType::EXECUTE));
-            pdpt_entry.set_pfn(addr_of!(self.pd[pdpt_index]) as u64 >> BASE_PAGE_SHIFT);
-        }
-
-        Ok(())
-    }
-
-    /// Updates the PDT entry corresponding to the provided guest physical address.
-    ///
-    /// # Arguments
-    ///
-    /// * `guest_pa`: The guest physical address whose corresponding PDT entry will be updated.
-    /// * `access_type`: The type of access allowed for the region covered by this PDT entry.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    fn map_pdt(&mut self, guest_pa: u64, access_type: AccessType) -> Result<(), HypervisorError> {
-        let pdpt_index = pdpt_index(VAddr::from(guest_pa));
-        let pd_index = pd_index(VAddr::from(guest_pa));
-        let pd_entry = &mut self.pd[pdpt_index].0.entries[pd_index];
-
-        if !pd_entry.readable() {
-            pd_entry.set_readable(access_type.contains(AccessType::READ));
-            pd_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pd_entry.set_executable(access_type.contains(AccessType::EXECUTE));
-            pd_entry.set_pfn(addr_of!(self.pt[pdpt_index][pd_index]) as u64 >> BASE_PAGE_SHIFT);
-        }
-
-        Ok(())
-    }
-
-    /// Updates the PD entry corresponding to the provided guest physical address for 2MB page mapping.
-    ///
-    /// # Arguments
-    /// * `guest_pa`: The guest physical address whose corresponding PD entry will be updated.
-    /// * `host_pa`: The host physical address to map to.
-    /// * `access_type`: The type of access allowed for this 2MB page.
-    /// * `mtrr`: The Memory Type Range Registers (MTRR) to use for this page.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    fn map_pde(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        access_type: AccessType,
-        mtrr: &mut Mtrr,
-    ) -> Result<(), HypervisorError> {
-        let pdpt_index = pdpt_index(VAddr::from(guest_pa));
-        let pd_index = pd_index(VAddr::from(guest_pa));
-        let pd_entry = &mut self.pd[pdpt_index].0.entries[pd_index];
-
-        let memory_type = mtrr
-            .find(guest_pa..guest_pa + LARGE_PAGE_SIZE as u64)
-            .unwrap_or(MemoryType::Uncacheable);
-
-        if !pd_entry.readable() {
-            pd_entry.set_readable(access_type.contains(AccessType::READ));
-            pd_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pd_entry.set_executable(access_type.contains(AccessType::EXECUTE));
-            pd_entry.set_memory_type(memory_type as u64);
-            pd_entry.set_large(true);
-            pd_entry.set_pfn(host_pa >> BASE_PAGE_SHIFT);
-        } else {
-            log::warn!(
-                "Attempted to map an already-mapped 2MB page: {:x}",
-                guest_pa
-            );
-        }
-
-        Ok(())
-    }
-
-    /// Updates the PT entry corresponding to the provided guest physical address for 4KB page mapping.
-    ///
-    /// # Arguments
-    /// * `guest_pa`: The guest physical address whose corresponding PT entry will be updated.
-    /// * `host_pa`: The host physical address to map to.
-    /// * `access_type`: The type of access allowed for this 4KB page.
-    /// * `mtrr`: The Memory Type Range Registers (MTRR) to use for this page.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    fn map_pt(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        access_type: AccessType,
-        mtrr: &mut Mtrr,
-    ) -> Result<(), HypervisorError> {
-        let pdpt_index = pdpt_index(VAddr::from(guest_pa));
-        let pd_index = pd_index(VAddr::from(guest_pa));
-        let pt_index = pt_index(VAddr::from(guest_pa));
-        let pt_entry = &mut self.pt[pdpt_index][pd_index].0.entries[pt_index];
-
-        let memory_type = mtrr
-            .find(guest_pa..guest_pa + BASE_PAGE_SIZE as u64)
-            .unwrap_or(MemoryType::Uncacheable);
-
-        if !pt_entry.readable() {
-            pt_entry.set_readable(access_type.contains(AccessType::READ));
-            pt_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pt_entry.set_executable(access_type.contains(AccessType::EXECUTE));
-            pt_entry.set_memory_type(memory_type as u64);
-            pt_entry.set_pfn(host_pa >> BASE_PAGE_SHIFT);
-        } else {
-            log::warn!(
-                "Attempted to map an already-mapped 4KB page: {:x}",
-                guest_pa
-            );
-        }
+        // Update the PDE to point to the new page table.
+        pde.set_readable(true);
+        pde.set_writable(true);
+        pde.set_executable(true);
+        pde.set_memory_type(memory_type);
+        pde.set_large(false); // This is no longer a large page.
+                              // We use this to get the raw pointer because it's a Box.
+        pde.set_pfn((pt.as_ref() as *const Pt as u64) >> BASE_PAGE_SHIFT);
 
         Ok(())
     }
@@ -336,7 +190,7 @@ impl Ept {
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn change_page_flags(
+    pub fn modify_page_permissions(
         &mut self,
         guest_pa: u64,
         access_type: AccessType,
@@ -355,88 +209,17 @@ impl Ept {
         let pd_entry = &mut self.pd[pdpt_index].0.entries[pd_index];
 
         if pd_entry.large() {
-            log::trace!("Changing the permissions of a 2mb page");
+            trace!("Changing the permissions of a 2mb page");
             pd_entry.set_readable(access_type.contains(AccessType::READ));
             pd_entry.set_writable(access_type.contains(AccessType::WRITE));
             pd_entry.set_executable(access_type.contains(AccessType::EXECUTE));
         } else {
-            log::trace!("Changing the permissions of a 4kb page");
-
-            let pt_entry = &mut self.pt[pdpt_index][pd_index].0.entries[pt_index];
+            trace!("Changing the permissions of a 4kb page");
+            let pt_entry = &mut self.pt.0.entries[pt_index];
             pt_entry.set_readable(access_type.contains(AccessType::READ));
             pt_entry.set_writable(access_type.contains(AccessType::WRITE));
             pt_entry.set_executable(access_type.contains(AccessType::EXECUTE));
         }
-
-        Ok(())
-    }
-
-    /// Splits a large 2MB page into 512 smaller 4KB pages for a given guest physical address.
-    ///
-    /// This is necessary to apply more granular hooks and reduce the number of
-    /// page faults that occur when the guest tries to access a page that is hooked.
-    ///
-    /// # Arguments
-    ///
-    /// * `guest_pa`: The guest physical address within the 2MB page that needs to be split.
-    /// * `access_type`: The type of access allowed for the newly created 4KB pages.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn split_2mb_to_4kb(
-        &mut self,
-        guest_pa: u64,
-        access_type: AccessType,
-    ) -> Result<(), HypervisorError> {
-        log::trace!("Splitting 2mb page into 4kb pages: {:x}", guest_pa);
-
-        let guest_pa = VAddr::from(guest_pa);
-
-        let pdpt_index = pdpt_index(guest_pa);
-        let pd_index = pd_index(guest_pa);
-        let pd_entry = &mut self.pd[pdpt_index].0.entries[pd_index];
-
-        // We can only split large pages and not page directories.
-        // If it's a page directory, it is already split.
-        //
-        if !pd_entry.large() {
-            log::trace!("Page is already split: {:x}.", guest_pa);
-            return Err(HypervisorError::PageAlreadySplit);
-        }
-
-        // Unmap the 2MB page by resetting the page directory entry.
-        Self::unmap_2mb(pd_entry);
-
-        let mut mtrr = Mtrr::new();
-
-        // Map the unmapped physical memory again to 4KB pages.
-        for i in 0..PAGE_SIZE_ENTRIES {
-            let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
-            self.map_4kb(pa, pa, access_type, &mut mtrr)?;
-        }
-
-        Ok(())
-    }
-
-    /// Remaps the given guest physical address and changes it to the given host physical address.
-    ///
-    /// # Arguments
-    ///
-    /// * `guest_pa`: The guest physical address to remap.
-    /// * `host_pa`: The host physical address to remap to.
-    /// * `access_type`: The type of access allowed for this page (read, write, execute).
-    /// * `mtrr`: The Memory Type Range Registers (MTRR) to use for this page.
-    /// Credits: Jess / jessiep_
-    pub fn remap_page(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        access_type: AccessType,
-    ) -> Result<(), HypervisorError> {
-        let mut mtrr = Mtrr::new();
-
-        self.map_pt(guest_pa, host_pa, access_type, &mut mtrr)?;
 
         Ok(())
     }
@@ -587,4 +370,25 @@ bitfield! {
     pub pfn, set_pfn: 51, 12;
     pub verify_guest_paging, set_verify_guest_paging: 57;
     pub paging_write_access, set_paging_write_access: 58;
+}
+
+bitflags::bitflags! {
+    /// Represents the different access permissions for an EPT entry.
+    #[derive(Debug, Clone, Copy)]
+    pub struct AccessType: u8 {
+        /// The EPT entry allows read access.
+        const READ = 0b001;
+        /// The EPT entry allows write access.
+        const WRITE = 0b010;
+        /// The EPT entry allows execute access.
+        const EXECUTE = 0b100;
+        /// The EPT entry allows read and write access.
+        const READ_WRITE = Self::READ.bits() | Self::WRITE.bits();
+        /// The EPT entry allows read and execute access.
+        const READ_EXECUTE = Self::READ.bits() | Self::EXECUTE.bits();
+        /// The EPT entry allows write and execute access.
+        const WRITE_EXECUTE = Self::WRITE.bits() | Self::EXECUTE.bits();
+        /// The EPT entry allows read, write, and execute access.
+        const READ_WRITE_EXECUTE = Self::READ.bits() | Self::WRITE.bits() | Self::EXECUTE.bits();
+    }
 }
