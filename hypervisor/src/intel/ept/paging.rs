@@ -7,6 +7,7 @@
 
 #![allow(non_upper_case_globals)]
 
+use alloc::boxed::Box;
 use {
     crate::{
         error::HypervisorError,
@@ -154,6 +155,9 @@ impl Ept {
         // Create a new page table for the 4KB pages.
         let mut pt = unsafe { box_zeroed::<Pt>() };
 
+        // Leak the box to prevent it from being deallocated.
+        let pt_leak = Box::leak(pt);
+
         // Map the unmapped physical memory to 4KB pages.
         for (i, pte) in &mut pt.0.entries.iter_mut().enumerate() {
             let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
@@ -170,8 +174,7 @@ impl Ept {
         pde.set_executable(true);
         pde.set_memory_type(memory_type);
         pde.set_large(false); // This is no longer a large page.
-                              // We use this to get the raw pointer because it's a Box.
-        pde.set_pfn((pt.as_ref() as *const Pt as u64) >> BASE_PAGE_SHIFT);
+        pde.set_pfn((pt_leak as *mut _ as u64) >> BASE_PAGE_SHIFT);
 
         Ok(())
     }
