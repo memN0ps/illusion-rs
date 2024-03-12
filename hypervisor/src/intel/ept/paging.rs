@@ -153,10 +153,10 @@ impl Ept {
         Self::unmap_2mb(pde);
 
         // Create a new page table for the 4KB pages.
-        let mut pt = unsafe { box_zeroed::<Pt>() };
+        let pt = unsafe { box_zeroed::<Pt>() };
 
         // Leak the box to prevent it from being deallocated.
-        let pt_leak = Box::leak(pt);
+        let pt = Box::leak(pt);
 
         // Map the unmapped physical memory to 4KB pages.
         for (i, pte) in &mut pt.0.entries.iter_mut().enumerate() {
@@ -174,7 +174,7 @@ impl Ept {
         pde.set_executable(true);
         pde.set_memory_type(memory_type);
         pde.set_large(false); // This is no longer a large page.
-        pde.set_pfn((pt_leak as *mut _ as u64) >> BASE_PAGE_SHIFT);
+        pde.set_pfn((pt as *mut _ as u64) >> BASE_PAGE_SHIFT);
 
         Ok(())
     }
