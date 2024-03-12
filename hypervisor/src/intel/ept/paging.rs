@@ -16,7 +16,7 @@ use {
     alloc::boxed::Box,
     bitfield::bitfield,
     core::ptr::addr_of,
-    log::trace,
+    log::*,
     x86::bits64::paging::{
         pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE,
     },
@@ -199,7 +199,7 @@ impl Ept {
         let guest_pa = VAddr::from(guest_pa);
 
         if !guest_pa.is_large_page_aligned() && !guest_pa.is_base_page_aligned() {
-            log::error!("Page is not aligned: {:#x}", guest_pa);
+            error!("Page is not aligned: {:#x}", guest_pa);
             return Err(HypervisorError::UnalignedAddressError);
         }
 
@@ -207,13 +207,13 @@ impl Ept {
         let pd_index = pd_index(guest_pa);
         let pt_index = pt_index(guest_pa);
 
-        let pd_entry = &mut self.pd[pdpt_index].0.entries[pd_index];
+        let pde = &mut self.pd[pdpt_index].0.entries[pd_index];
 
-        if pd_entry.large() {
+        if pde.large() {
             trace!("Changing the permissions of a 2mb page");
-            pd_entry.set_readable(access_type.contains(AccessType::READ));
-            pd_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pd_entry.set_executable(access_type.contains(AccessType::EXECUTE));
+            pde.set_readable(access_type.contains(AccessType::READ));
+            pde.set_writable(access_type.contains(AccessType::WRITE));
+            pde.set_executable(access_type.contains(AccessType::EXECUTE));
         } else {
             trace!("Changing the permissions of a 4kb page");
             let pt_entry = &mut self.pt.0.entries[pt_index];
@@ -221,6 +221,62 @@ impl Ept {
             pt_entry.set_writable(access_type.contains(AccessType::WRITE));
             pt_entry.set_executable(access_type.contains(AccessType::EXECUTE));
         }
+
+        Ok(())
+    }
+
+    /// Remaps a guest physical address to a new host physical address within the EPT.
+    ///
+    /// This function updates the EPT entry corresponding to the provided guest physical address (GPA)
+    /// to map to the specified host physical address (HPA). It is designed to remap 4KB pages.
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_pa` - The guest physical address that needs to be remapped.
+    /// * `host_pa` - The new host physical address to map the guest physical address to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<(), HypervisorError>` indicating if the operation was successful. In case of failure,
+    /// a `HypervisorError` is returned, detailing the nature of the error.
+    pub fn remap_gpa_to_hpa(&mut self, guest_pa: u64, host_pa: u64) -> Result<(), HypervisorError> {
+        trace!("Remapping GPA {:x} to HPA {:x}", guest_pa, host_pa);
+
+        let guest_pa = VAddr::from(guest_pa);
+        let host_pa = VAddr::from(host_pa);
+
+        // Ensure both addresses are page aligned
+        if !guest_pa.is_base_page_aligned() || !host_pa.is_base_page_aligned() {
+            error!(
+                "Addresses are not aligned: GPA {:#x}, HPA {:#x}",
+                guest_pa, host_pa
+            );
+            return Err(HypervisorError::UnalignedAddressError);
+        }
+
+        // Calculate indexes for accessing the EPT hierarchy
+        let pdpt_index = pdpt_index(guest_pa);
+        let pd_index = pd_index(guest_pa);
+        let pt_index = pt_index(guest_pa);
+
+        let pde = &self.pd[pdpt_index].0.entries[pd_index];
+
+        // Verify that we're not dealing with a large page mapping
+        if pde.large() {
+            error!("Cannot remap a large page: GPA {:#x}", guest_pa);
+            return Err(HypervisorError::LargePageRemapError);
+        }
+
+        // Access the corresponding PT entry
+        let pte = &mut self.pt.0.entries[pt_index];
+
+        // Update the PTE to point to the new HPA
+        pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);
+        trace!(
+            "Updated PTE for GPA {:x} to point to HPA {:x}",
+            guest_pa,
+            host_pa
+        );
 
         Ok(())
     }
