@@ -8,12 +8,8 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::{
-            ept::mtrr::{MemoryType, Mtrr},
-            vm::box_zeroed,
-        },
+        intel::ept::mtrr::{MemoryType, Mtrr},
     },
-    alloc::boxed::Box,
     bitfield::bitfield,
     core::ptr::addr_of,
     log::*,
@@ -36,8 +32,10 @@ pub struct Ept {
     pdpt: Pdpt,
     /// Array of Page Directory Table (PDT).
     pd: [Pd; 512],
-    /// Page Tables (PT).
-    pt: Pt,
+    /// Array of Page Tables (PT).
+    /// We reserve 1-63 PTs for splitting large 2MB pages into 512 smaller 4KB pages for a given guest physical address (`split_2mb_to_4kb`)
+    /// Pt[0] is used for the first 2MB of the physical address space, when calling `build_identity`
+    pt: [Pt; 64],
 }
 
 impl Ept {
@@ -81,10 +79,10 @@ impl Ept {
                     pde.set_readable(true);
                     pde.set_writable(true);
                     pde.set_executable(true);
-                    pde.set_pfn(addr_of!(self.pt) as u64 >> BASE_PAGE_SHIFT);
+                    pde.set_pfn(addr_of!(self.pt[0]) as u64 >> BASE_PAGE_SHIFT); // Use Pt[0] for the first 2MB
 
-                    // Configure the PT entries for the first 2MB, respecting MTRR settings.
-                    for pte in &mut self.pt.0.entries {
+                    // Configure PT entries for the first 2MB, respecting MTRR settings, using Pt[0].
+                    for pte in &mut self.pt[0].0.entries {
                         let memory_type = mtrr
                             .find(pa..pa + BASE_PAGE_SIZE as u64)
                             .ok_or(HypervisorError::MemoryTypeResolutionError)?;
@@ -123,12 +121,24 @@ impl Ept {
     /// # Arguments
     ///
     /// * `guest_pa`: The guest physical address within the 2MB page that needs to be split.
+    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
+    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn split_2mb_to_4kb(&mut self, guest_pa: u64) -> Result<(), HypervisorError> {
+    pub fn split_2mb_to_4kb(
+        &mut self,
+        guest_pa: u64,
+        pt_table_index: usize,
+    ) -> Result<(), HypervisorError> {
         trace!("Splitting 2mb page into 4kb pages: {:x}", guest_pa);
+
+        // Ensure the PT index is valid.
+        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
+            error!("Invalid PT index: {}", pt_table_index);
+            return Err(HypervisorError::InvalidPtIndex);
+        }
 
         let guest_pa = VAddr::from(guest_pa);
 
@@ -150,14 +160,8 @@ impl Ept {
         // Unmap the 2MB page by resetting the page directory entry.
         Self::unmap_2mb(pde);
 
-        // Create a new page table for the 4KB pages.
-        let pt = unsafe { box_zeroed::<Pt>() };
-
-        // Leak the box to prevent it from being deallocated.
-        let pt = Box::leak(pt);
-
         // Map the unmapped physical memory to 4KB pages.
-        for (i, pte) in &mut pt.0.entries.iter_mut().enumerate() {
+        for (i, pte) in &mut self.pt[pt_table_index].0.entries.iter_mut().enumerate() {
             let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
             pte.set_readable(true);
             pte.set_writable(true);
@@ -172,7 +176,7 @@ impl Ept {
         pde.set_executable(true);
         pde.set_memory_type(memory_type);
         pde.set_large(false); // This is no longer a large page.
-        pde.set_pfn((pt as *mut _ as u64) >> BASE_PAGE_SHIFT);
+        pde.set_pfn(addr_of!(self.pt[pt_table_index]) as u64 >> BASE_PAGE_SHIFT);
 
         Ok(())
     }
@@ -187,6 +191,8 @@ impl Ept {
     ///
     /// * `guest_pa` - Guest physical address of the page whose permissions are to be changed.
     /// * `access_type` - The new access permissions to set for the page.
+    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
+    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
     ///
     /// # Returns
     ///
@@ -195,9 +201,19 @@ impl Ept {
         &mut self,
         guest_pa: u64,
         access_type: AccessType,
+        pt_table_index: usize,
     ) -> Result<(), HypervisorError> {
+        trace!("Modifying permissions for GPA {:x}", guest_pa);
+
+        // Ensure the PT index is valid.
+        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
+            error!("Invalid PT index: {}", pt_table_index);
+            return Err(HypervisorError::InvalidPtIndex);
+        }
+
         let guest_pa = VAddr::from(guest_pa);
 
+        // Ensure the guest physical address is aligned to a page boundary.
         if !guest_pa.is_large_page_aligned() && !guest_pa.is_base_page_aligned() {
             error!("Page is not aligned: {:#x}", guest_pa);
             return Err(HypervisorError::UnalignedAddressError);
@@ -216,10 +232,10 @@ impl Ept {
             pde.set_executable(access_type.contains(AccessType::EXECUTE));
         } else {
             trace!("Changing the permissions of a 4kb page");
-            let pt_entry = &mut self.pt.0.entries[pt_index];
-            pt_entry.set_readable(access_type.contains(AccessType::READ));
-            pt_entry.set_writable(access_type.contains(AccessType::WRITE));
-            pt_entry.set_executable(access_type.contains(AccessType::EXECUTE));
+            let pte = &mut self.pt[pt_table_index].0.entries[pt_index];
+            pte.set_readable(access_type.contains(AccessType::READ));
+            pte.set_writable(access_type.contains(AccessType::WRITE));
+            pte.set_executable(access_type.contains(AccessType::EXECUTE));
         }
 
         Ok(())
@@ -234,13 +250,26 @@ impl Ept {
     ///
     /// * `guest_pa` - The guest physical address that needs to be remapped.
     /// * `host_pa` - The new host physical address to map the guest physical address to.
+    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
+    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful. In case of failure,
     /// a `HypervisorError` is returned, detailing the nature of the error.
-    pub fn remap_gpa_to_hpa(&mut self, guest_pa: u64, host_pa: u64) -> Result<(), HypervisorError> {
+    pub fn remap_gpa_to_hpa(
+        &mut self,
+        guest_pa: u64,
+        host_pa: u64,
+        pt_table_index: usize,
+    ) -> Result<(), HypervisorError> {
         trace!("Remapping GPA {:x} to HPA {:x}", guest_pa, host_pa);
+
+        // Ensure the PT index is valid.
+        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
+            error!("Invalid PT index: {}", pt_table_index);
+            return Err(HypervisorError::InvalidPtIndex);
+        }
 
         let guest_pa = VAddr::from(guest_pa);
         let host_pa = VAddr::from(host_pa);
@@ -268,7 +297,7 @@ impl Ept {
         }
 
         // Access the corresponding PT entry
-        let pte = &mut self.pt.0.entries[pt_index];
+        let pte = &mut self.pt[pt_table_index].0.entries[pt_index];
 
         // Update the PTE to point to the new HPA
         pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);

@@ -163,4 +163,7 @@ pub enum HypervisorError {
 
     #[error("Large page remap error")]
     LargePageRemapError,
+
+    #[error("Invalid PT index")]
+    InvalidPtIndex,
 }
