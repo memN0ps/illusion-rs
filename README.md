@@ -1,6 +1,6 @@
 # UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: Illusion)
 
-![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/github-actions.yml/badge.svg)
+![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/rust.yml/badge.svg)
 ![License](https://img.shields.io/github/license/memN0ps/illusion-rs)
 ![Issues](https://img.shields.io/github/issues/memN0ps/illusion-rs)
 ![Forks](https://img.shields.io/github/forks/memN0ps/illusion-rs)
