@@ -3,7 +3,7 @@
 //! Includes support for primary and optional secondary EPTs.
 
 use {
-    crate::{error::HypervisorError, intel::ept::paging::Ept},
+    crate::{error::HypervisorError, intel::ept::Ept},
     alloc::boxed::Box,
 };
 

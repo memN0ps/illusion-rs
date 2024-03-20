@@ -7,7 +7,7 @@ use {
     core::ffi::c_void,
     hypervisor::intel::{
         capture::{capture_registers, GuestRegisters},
-        ept::paging::Ept,
+        ept::Ept,
         shared::SharedData,
     },
     log::*,

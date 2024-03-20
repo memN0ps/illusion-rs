@@ -12,7 +12,7 @@ extern crate alloc;
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
     hypervisor::{
-        intel::{ept::paging::Ept, vm::box_zeroed},
+        intel::{ept::Ept, vm::box_zeroed},
         logger::{self, SerialPort},
     },
     log::*,

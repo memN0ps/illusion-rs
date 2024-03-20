@@ -8,7 +8,7 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::ept::mtrr::{MemoryType, Mtrr},
+        intel::mtrr::{MemoryType, Mtrr},
     },
     bitfield::bitfield,
     core::ptr::addr_of,

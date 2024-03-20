@@ -6,6 +6,7 @@ pub mod ept;
 pub mod events;
 pub mod invept;
 pub mod invvpid;
+pub mod mtrr;
 pub mod page;
 pub mod paging;
 pub mod segmentation;
