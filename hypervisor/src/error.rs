@@ -83,9 +83,6 @@ pub enum HypervisorError {
     #[error("Failed to find original instructions")]
     NoInstructions,
 
-    #[error("Failed to encode trampoline")]
-    EncodingFailed,
-
     #[error("Found rip-relative instruction which is not supported")]
     RelativeInstruction,
 
@@ -166,4 +163,7 @@ pub enum HypervisorError {
 
     #[error("Invalid PT index")]
     InvalidPtIndex,
+
+    #[error("Failed to encode instructions")]
+    EncodingFailed(#[from] iced_x86::IcedError),
 }
