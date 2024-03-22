@@ -18,6 +18,9 @@ use {
     },
 };
 
+/// The maximum number of Page Tables (PT) in the EPT for splitting large 2MB pages into 512 smaller 4KB pages.
+pub const PT_INDEX_MAX: usize = 64;
+
 /// Represents the entire Extended Page Table structure.
 ///
 /// EPT is a set of nested page tables similar to the standard x86-64 paging mechanism.
@@ -35,7 +38,7 @@ pub struct Ept {
     /// Array of Page Tables (PT).
     /// We reserve 1-63 PTs for splitting large 2MB pages into 512 smaller 4KB pages for a given guest physical address (`split_2mb_to_4kb`)
     /// Pt[0] is used for the first 2MB of the physical address space, when calling `build_identity`
-    pt: [Pt; 64],
+    pt: [Pt; PT_INDEX_MAX],
 }
 
 impl Ept {
