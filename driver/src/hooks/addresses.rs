@@ -27,6 +27,16 @@ impl PhysicalAddress {
         Self(PAddr::from(pfn << BASE_PAGE_SHIFT))
     }
 
+    /// Constructs a `PhysicalAddress` from a given virtual address.
+    pub fn from_va(va: u64) -> Self {
+        Self(PAddr::from(Self::pa_from_va(va)))
+    }
+
+    /// Retrieves the virtual address corresponding to the physical address.
+    pub fn va(&self) -> *mut u64 {
+        Self::va_from_pa(self.0.as_u64()) as *mut u64
+    }
+
     /// Retrieves the page frame number (PFN) for the physical address.
     pub fn pfn(&self) -> u64 {
         self.0.as_u64() >> BASE_PAGE_SHIFT
@@ -35,6 +45,21 @@ impl PhysicalAddress {
     /// Retrieves the physical address.
     pub fn pa(&self) -> u64 {
         self.0.as_u64()
+    }
+
+    /// Converts a virtual address to its corresponding physical address.
+    pub fn pa_from_va(va: u64) -> u64 {
+        //unsafe { MmGetPhysicalAddress(va as _).QuadPart as u64 }
+        0
+    }
+
+    /// Converts a physical address to its corresponding virtual address.
+    pub fn va_from_pa(pa: u64) -> u64 {
+        //let mut physical_address: PHYSICAL_ADDRESS = unsafe { core::mem::zeroed() };
+        //(physical_address.QuadPart) = pa as i64;
+
+        //unsafe { MmGetVirtualForPhysical(physical_address) as u64 }
+        0
     }
 }
 
@@ -52,4 +77,13 @@ impl const DerefMut for PhysicalAddress {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// Converts a virtual address to its corresponding physical address.
+///
+/// # Arguments
+///
+/// * `ptr` - The virtual address to convert.
+pub fn physical_address(ptr: *const u64) -> PAddr {
+    PhysicalAddress::from_va(ptr as u64).0
 }

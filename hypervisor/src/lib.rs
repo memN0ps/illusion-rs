@@ -14,7 +14,6 @@ extern crate alloc;
 extern crate static_assertions;
 
 pub mod error;
-pub mod hooks;
 pub mod intel;
 pub mod logger;
 pub mod vmm;

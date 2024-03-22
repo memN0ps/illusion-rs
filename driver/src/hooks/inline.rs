@@ -1,7 +1,7 @@
-//! This library provides functionality to create and manage hooks at the instruction
-//! level using hardware-assisted virtualization features. It supports creating trampoline
-//! shellcode for safely redirecting execution flow to custom handlers while preserving
-//! the original execution context.
+//! Provides utilities for inline hooking of functions, allowing redirection of function calls.
+//! It includes creating and managing hooks with support for different types, enabling and disabling hooks,
+//! and managing the necessary memory and page table entries.
+//! Credits to Matthias: https://github.com/not-matthias/amd_hypervisor/blob/main/hypervisor/src/utils/function_hook.rs
 
 use {
     crate::error::HypervisorError,
@@ -13,70 +13,70 @@ use {
     log::*,
 };
 
-/// Length in bytes of the shellcode used to perform a jump (JMP) hook.
+/// Length in bytes of the shellcode used to perform a jump (JMP) inline hook.
 pub const JMP_SHELLCODE_LEN: usize = 14;
 
-/// Length in bytes of the shellcode for a breakpoint (INT3) hook.
+/// Length in bytes of the shellcode for a breakpoint (INT3) inline hook.
 pub const BP_SHELLCODE_LEN: usize = 1;
 
-/// Types of hooks that can be created by this library.
-pub enum HookType {
-    /// Jump-based hook, which redirects execution flow to a custom handler.
+/// Types of inline hooks that can be created by this library.
+pub enum InlineHookType {
+    /// Jump-based inline hook, which redirects execution flow to a custom handler.
     Jmp,
 
-    /// Breakpoint-based hook, utilizing the INT3 instruction to trigger a breakpoint exception.
+    /// Breakpoint-based inline hook, utilizing the INT3 instruction to trigger a breakpoint exception.
     Breakpoint,
 }
 
-/// Represents a hook on a specific function or memory address.
-pub struct Hook {
+/// Represents an inline hook on a specific function or memory address.
+pub struct InlineHook {
     /// Memory address of the target function or code block to be hooked.
-    target_address: u64,
+    pub original_va: u64,
 
     /// Optional: Copy of the target memory address, allowing for safer manipulation.
-    target_address_copy: Option<u64>,
+    pub shadow_va: Option<u64>,
 
-    /// Memory address of the custom handler function that the hook redirects to.
-    hook_address: u64,
+    /// Memory address of the custom handler function that the inline hook redirects to.
+    pub hook_handler: u64,
 
     /// Dynamically generated trampoline code to ensure original code execution can continue.
-    trampoline: Box<[u8]>,
+    pub trampoline: Box<[u8]>,
 
-    /// Type of the hook, determining the method of interception.
-    hook_type: HookType,
+    /// Type of the inline hook, determining the method of interception.
+    pub hook_type: InlineHookType,
 }
 
-impl Hook {
+impl InlineHook {
     /// Constructs a new hook with the specified parameters.
     ///
     /// # Arguments
     ///
-    /// * `target_address`: Address of the code to hook.
-    /// * `target_address_copy`: Optional address of a copy of the target code.
-    /// * `hook_address`: Address of the hook handler function.
+    /// * `original_va`: Address of the code to hook.
+    /// * `shadow_va`: Optional address of a copy of the target code.
+    /// * `hook_handler`: Address of the hook handler function.
     /// * `hook_type`: Type of the hook (JMP or Breakpoint).
     ///
     /// # Returns
     ///
-    /// * An initialized `Hook` instance, if successful.
+    /// * An `Option<Self>` containing the constructed hook if successful.
     pub fn new(
-        target_address: u64,
-        target_address_copy: Option<u64>,
-        hook_address: u64,
-        hook_type: HookType,
+        original_va: u64,
+        shadow_va: Option<u64>,
+        hook_handler: u64,
+        hook_type: InlineHookType,
     ) -> Option<Self> {
         // Generate the appropriate trampoline based on the hook type.
         let trampoline = match hook_type {
-            HookType::Jmp => Self::trampoline_shellcode(target_address, JMP_SHELLCODE_LEN).ok()?,
-            HookType::Breakpoint => {
-                Self::trampoline_shellcode(target_address, BP_SHELLCODE_LEN).ok()?
+            InlineHookType::Jmp => Self::trampoline_shellcode(original_va, JMP_SHELLCODE_LEN).ok()?,
+            InlineHookType::Breakpoint => {
+                Self::trampoline_shellcode(original_va, BP_SHELLCODE_LEN).ok()?
             }
         };
 
         Some(Self {
-            target_address,
-            target_address_copy,
-            hook_address,
+            original_va,
+            shadow_va,
+            hook_handler,
             trampoline,
             hook_type,
         })
@@ -94,28 +94,28 @@ impl Hook {
     ///
     /// # Returns
     ///
-    /// * A `Result` containing the generated trampoline shellcode or an error.
+    /// * A `Result<Box<[u8]>, HypervisorError>` containing the trampoline shellcode if successful.
     fn trampoline_shellcode(
-        target_address: u64,
+        original_va: u64,
         required_size: usize,
     ) -> Result<Box<[u8]>, HypervisorError> {
         // Attempt to read the original code from the target address.
         let target_bytes = unsafe {
             core::slice::from_raw_parts(
-                target_address as *mut u8,
+                original_va as *mut u8,
                 usize::max(required_size * 2, 15), // Read more than needed to find valid instructions.
             )
         };
 
         trace!("Original code:");
-        Self::disassemble(target_bytes, target_address);
+        Self::disassemble(target_bytes, original_va);
 
         // Decode the instructions at the target address to ensure we can safely relocate them.
         let original_code: Vec<u8> = target_bytes.to_vec();
         let mut decoder = Decoder::with_ip(
             64,
             original_code.as_slice(),
-            target_address,
+            original_va,
             DecoderOptions::NONE,
         );
 
@@ -134,10 +134,10 @@ impl Hook {
                 break;
             }
 
+            // Create the new trampoline instruction
             instructions_to_relocate.push(instr);
             total_bytes += instr.len();
 
-            // Create the new trampoline instruction
             match instr.flow_control() {
                 FlowControl::Next | FlowControl::Return => {}
                 FlowControl::Call
@@ -167,7 +167,7 @@ impl Hook {
 
         // Append a JMP instruction to jump back to the original code after executing the hook.
         let jmp_back_instruction =
-            Self::create_jmp_instruction(target_address + total_bytes as u64);
+            Self::create_jmp_instruction(original_va + total_bytes as u64);
 
         instructions_to_relocate.push(jmp_back_instruction);
 
@@ -207,31 +207,31 @@ impl Hook {
     /// # Returns
     ///
     /// * A `Result<(), HypervisorError>` indicating success or failure of the hook activation.
-    fn enable_hook(&mut self) -> Result<(), HypervisorError> {
+    pub fn enable(&mut self) -> Result<(), HypervisorError> {
         // Generate the JMP instruction to redirect execution to the hook handler.
-        let hook_type = Self::create_jmp_instruction(self.hook_address);
+        let hook_type = Self::create_jmp_instruction(self.hook_handler);
 
         let mut encoder = Encoder::new(64);
 
         // Check if we want to hook the original function or a copy of the function
-        let address = match self.target_address_copy {
-            Some(_) => self.target_address_copy.unwrap(),
-            None => self.target_address,
+        let address = match self.shadow_va {
+            Some(_) => self.shadow_va.unwrap(),
+            None => self.original_va,
         };
 
         // Encode the JMP instruction to be written into the target address.
-        encoder.encode(&hook_type, self.target_address)?;
+        encoder.encode(&hook_type, self.original_va)?;
 
         // Get the encoded bytes
         let buffer = encoder.take_buffer();
 
         // Check if the hook length is JMP or INT3
         let buffer_length = match self.hook_type {
-            HookType::Jmp => JMP_SHELLCODE_LEN,
-            HookType::Breakpoint => BP_SHELLCODE_LEN,
+            InlineHookType::Jmp => JMP_SHELLCODE_LEN,
+            InlineHookType::Breakpoint => BP_SHELLCODE_LEN,
         };
 
-        // Copy the encoded bytes (Might need to use another function to perform the copy??? maybe not)
+        // Copy the encoded bytes to the target address
         unsafe {
             core::ptr::copy_nonoverlapping(buffer.as_ptr(), address as *mut u8, buffer_length)
         };
@@ -253,7 +253,7 @@ impl Hook {
     ///
     /// # Returns
     ///
-    /// * The generated `Instruction` object.
+    /// * An `Instruction` representing the JMP instruction.
     fn create_jmp_instruction(target_address: u64) -> Instruction {
         let mut jmp_instr = Instruction::new();
         jmp_instr.set_code(Code::Jmp_rel32_64);
@@ -269,7 +269,7 @@ impl Hook {
     ///
     /// # Returns
     ///
-    /// * The address of the trampoline as a `*mut u64`.
+    /// * A mutable pointer to the trampoline shellcode.
     pub const fn trampoline_address(&self) -> *mut u64 {
         self.trampoline.as_ptr() as *mut u64
     }

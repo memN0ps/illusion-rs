@@ -19,6 +19,7 @@ use {
     uefi::prelude::*,
 };
 
+//pub mod hooks;
 pub mod processor;
 pub mod relocation;
 pub mod virtualize;
