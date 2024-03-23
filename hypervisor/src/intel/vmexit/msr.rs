@@ -49,6 +49,8 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
     const HYPERV_MSR_START: u64 = 0x40000000;
     const HYPERV_MSR_END: u64 = 0x4000FFFF;
 
+    const VMX_LOCK_BIT: u64 = 1 << 0;
+
     let msr_id = guest_registers.rcx as u32;
     let msr_value = (guest_registers.rdx << 32) | (guest_registers.rax & MSR_MASK_LOW);
 
@@ -66,7 +68,13 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
         // Credits: https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
         MsrAccessType::Read => {
             let result_value = match msr_id {
+                // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
+                // This way, the guest OS sees what it expects, assuming no tampering has occurred.
                 msr::IA32_LSTAR => guest_registers.original_lstar,
+
+                // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
+                // Set lock bit, indicating that feature control is locked.
+                msr::IA32_FEATURE_CONTROL => VMX_LOCK_BIT,
                 _ => rdmsr(msr_id),
             };
 
@@ -76,9 +84,13 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR && msr_value == guest_registers.original_lstar {
                 // Let the guest overwrite our hook to avoid possible detection, but shadow the original value.
+                // If the guest attempts to write the original LSTAR value (perhaps as part of an integrity check or during normal operation),
+                // the hypervisor intercepts this and writes its hook address (hook_lstar) instead, maintaining the interception mechanism.
                 wrmsr(msr_id, guest_registers.hook_lstar);
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
+                // If the guest writes any other value (which would typically only happen if the guest is attempting to modify the syscall mechanism itself),
+                // the write operation proceeds.
                 wrmsr(msr_id, msr_value);
             }
         },
