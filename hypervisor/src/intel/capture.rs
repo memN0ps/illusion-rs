@@ -61,6 +61,8 @@ pub struct GuestRegisters {
     pub rflags: u64,
     pub rsp: u64,
     pub rip: u64,
+    pub original_lstar: u64,
+    pub hook_lstar: u64,
 }
 
 global_asm!(
