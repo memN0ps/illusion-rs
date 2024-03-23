@@ -11,7 +11,6 @@ use {
         intel::{
             capture::GuestRegisters,
             descriptor::Descriptors,
-            page::Page,
             paging::PageTables,
             shared::SharedData,
             support::{rdmsr, vmclear, vmptrld, vmread},
@@ -49,9 +48,6 @@ pub struct Vm {
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
-
-    /// Bitmap controlling MSR read/write operations.
-    pub msr_bitmap: Box<Page>,
 
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
@@ -97,7 +93,6 @@ impl Vm {
             host_descriptor: Descriptors::new_for_host(),
             guest_descriptor: Descriptors::new_from_current(),
             guest_registers: guest_registers.clone(),
-            msr_bitmap: unsafe { box_zeroed::<Page>() },
             has_launched: false,
             shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
         })
@@ -142,10 +137,12 @@ impl Vm {
         debug!("Setting up VMCS");
 
         let primary_eptp = unsafe { self.shared_data.as_ref().primary_eptp };
+        let msr_bitmap =
+            unsafe { self.shared_data.as_ref().msr_bitmap.as_ref() as *const _ as u64 };
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
         Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
-        Vmcs::setup_vmcs_control_fields(primary_eptp, &self.msr_bitmap)?;
+        Vmcs::setup_vmcs_control_fields(primary_eptp, msr_bitmap)?;
 
         debug!("VMCS setup successfully!");
 

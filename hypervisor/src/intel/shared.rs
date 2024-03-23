@@ -3,8 +3,12 @@
 //! Includes support for primary and optional secondary EPTs.
 
 use {
-    crate::{error::HypervisorError, intel::ept::Ept},
+    crate::{
+        error::HypervisorError,
+        intel::{bitmap::MsrBitmap, ept::Ept},
+    },
     alloc::boxed::Box,
+    x86::msr::IA32_EFER,
 };
 
 /// Represents shared data structures for hypervisor operations.
@@ -13,6 +17,9 @@ use {
 /// for the hypervisor, enabling memory virtualization and control over certain processor features.
 #[repr(C)]
 pub struct SharedData {
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: Box<MsrBitmap>,
+
     /// The primary EPT (Extended Page Tables) for the VM.
     pub primary_ept: Box<Ept>,
 
@@ -47,7 +54,11 @@ impl SharedData {
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
         let secondary_eptp = secondary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
+        let mut msr_bitmap = MsrBitmap::new();
+        msr_bitmap.mask(IA32_EFER, true);
+
         Ok(Box::new(Self {
+            msr_bitmap,
             primary_ept,
             primary_eptp,
             secondary_ept,

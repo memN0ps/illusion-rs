@@ -1,3 +1,4 @@
+pub mod bitmap;
 pub mod capture;
 pub mod controls;
 pub mod descriptor;
