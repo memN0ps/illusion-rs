@@ -55,6 +55,10 @@ impl SharedData {
         let secondary_eptp = secondary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
         let mut msr_bitmap = MsrBitmap::new();
+
+        // Intercept read and write operations for the IA32_EFER MSR.
+        // The value of 'true' indicates a write operation` and 'false' indicates a read operation
+        msr_bitmap.mask(IA32_EFER, false);
         msr_bitmap.mask(IA32_EFER, true);
 
         Ok(Box::new(Self {
