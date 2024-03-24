@@ -9,7 +9,6 @@ use {
         intel::{bitmap::MsrBitmap, ept::Ept},
     },
     alloc::boxed::Box,
-    x86::msr::IA32_EFER,
 };
 
 /// Represents shared data structures for hypervisor operations.
