@@ -71,11 +71,17 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
             let result_value = match msr_id {
                 // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
                 // This way, the guest OS sees what it expects, assuming no tampering has occurred.
-                msr::IA32_LSTAR => guest_registers.original_lstar,
+                msr::IA32_LSTAR =>  {
+                    log::trace!("IA32_LSTAR read attempted with MSR value: {:#x}", msr_value);
+                    guest_registers.original_lstar
+                },
 
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
                 // Set lock bit, indicating that feature control is locked.
-                msr::IA32_FEATURE_CONTROL => VMX_LOCK_BIT,
+                msr::IA32_FEATURE_CONTROL => {
+                    log::trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
+                    VMX_LOCK_BIT
+                }
                 _ => rdmsr(msr_id),
             };
 
