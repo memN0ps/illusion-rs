@@ -4,6 +4,7 @@
 //! Credits:
 //! https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
 //! https://mellownight.github.io/AetherVisor
+//! jessiep_
 
 use {
     crate::intel::support::{rdmsr, wrmsr},
@@ -65,7 +66,7 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
 
     log::trace!("Valid MSR access attempted: {:#x}", msr_id);
     match access_type {
-        // Credits: https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
+        // Credits: jessiep_ and https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
         MsrAccessType::Read => {
             let result_value = match msr_id {
                 // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
