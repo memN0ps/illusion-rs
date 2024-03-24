@@ -57,7 +57,7 @@ impl SharedData {
 
         let mut msr_bitmap = MsrBitmap::new();
 
-        // Intercept read and write operations for the IA32_EFER MSR.
+        // Intercept read and write operations for the IA32_LSTAR MSR.
         // The value of 'true' indicates a write operation` and 'false' indicates a read operation
         msr_bitmap.mask(msr::IA32_LSTAR, false);
         msr_bitmap.mask(msr::IA32_LSTAR, true);
