@@ -84,10 +84,9 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
         },
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR {
-                log::trace!("Writing IA32_LSTAR: {:#x}", guest_registers.original_lstar);
-                log::trace!("msr_value: {:#x}", msr_value);
-                log::trace!("Original LSTAR value: {:#x}", guest_registers.original_lstar);
-                log::trace!("Hook LSTAR value: {:#x}", guest_registers.hook_lstar);
+                log::trace!("IA32_LSTAR write attempted with MSR value: {:#x}", msr_value);
+                log::trace!("GuestRegisters Original LSTAR value: {:#x}", guest_registers.original_lstar);
+                log::trace!("GuestRegisters Hook LSTAR value: {:#x}", guest_registers.hook_lstar);
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
