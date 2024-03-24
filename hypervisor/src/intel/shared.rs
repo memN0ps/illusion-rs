@@ -2,6 +2,7 @@
 //! Extended Page Tables (EPT) and Model-Specific Register (MSR) bitmaps.
 //! Includes support for primary and optional secondary EPTs.
 
+use x86::msr;
 use {
     crate::{
         error::HypervisorError,
@@ -58,8 +59,8 @@ impl SharedData {
 
         // Intercept read and write operations for the IA32_EFER MSR.
         // The value of 'true' indicates a write operation` and 'false' indicates a read operation
-        msr_bitmap.mask(IA32_EFER, false);
-        msr_bitmap.mask(IA32_EFER, true);
+        msr_bitmap.mask(msr::IA32_LSTAR, false);
+        msr_bitmap.mask(msr::IA32_LSTAR, true);
 
         Ok(Box::new(Self {
             msr_bitmap,
