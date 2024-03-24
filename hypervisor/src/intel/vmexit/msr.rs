@@ -73,6 +73,7 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
                 // This way, the guest OS sees what it expects, assuming no tampering has occurred.
                 msr::IA32_LSTAR =>  {
                     log::trace!("IA32_LSTAR read attempted with MSR value: {:#x}", msr_value);
+                    // This won't be 0 here because we intercept and populate it during MsrAccessType::Write on IA32_LSTAR which is set during the initial phase when ntoskrnl.exe
                     guest_registers.original_lstar
                 },
 
