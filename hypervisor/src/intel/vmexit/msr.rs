@@ -71,6 +71,7 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
                 // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
                 // This way, the guest OS sees what it expects, assuming no tampering has occurred.
                 msr::IA32_LSTAR =>  {
+                    log::trace!("Reading IA32_LSTAR: {:#x}", guest_registers.original_lstar);
                     // If the original LSTAR value is 0, store the original LSTAR value the first time it is accessed.
                     if guest_registers.original_lstar == 0 {
                         guest_registers.original_lstar = rdmsr(msr_id);
@@ -89,16 +90,34 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
             guest_registers.rdx = result_value >> 32;
         },
         MsrAccessType::Write => {
-            if msr_id == msr::IA32_LSTAR && msr_value == guest_registers.original_lstar {
-                // Let the guest overwrite our hook to avoid possible detection, but shadow the original value.
-                // If the guest attempts to write the original LSTAR value (perhaps as part of an integrity check or during normal operation),
-                // the hypervisor intercepts this and writes its hook address (hook_lstar) instead, maintaining the interception mechanism.
+            if msr_id == msr::IA32_LSTAR {
+                log::trace!("Writing IA32_LSTAR: {:#x}", guest_registers.original_lstar);
+                log::trace!("msr_value: {:#x}", msr_value);
+                log::trace!("Original LSTAR value: {:#x}", guest_registers.original_lstar);
+                log::trace!("Hook LSTAR value: {:#x}", guest_registers.hook_lstar);
 
-                // When a hook is performed, `hook_lstar` should not be 0, if it is, the original LSTAR value is written instead.
-                if guest_registers.hook_lstar == 0 {
-                    wrmsr(msr_id, guest_registers.original_lstar)
-                } else {
-                    wrmsr(msr_id, guest_registers.hook_lstar);
+                // Check if it's the first time we're intercepting a write to LSTAR.
+                // If so, store the value being written as the original LSTAR value.
+                if guest_registers.original_lstar == 0 {
+                    guest_registers.original_lstar = msr_value;
+                    // Optionally set a hook LSTAR value here. For now, let's assume we simply store the original value.
+                    // This is a placeholder for where you would set your hook.
+                    guest_registers.hook_lstar = guest_registers.original_lstar; // This should eventually be replaced with an actual hook address.
+                }
+
+                // If the guest attempts to write back the original LSTAR value we provided,
+                // it could be part of an integrity check. In such a case, we allow the write to go through
+                // but actually write our hook again to maintain control.
+                if msr_value == guest_registers.original_lstar {
+                    // Write the hook LSTAR value if it's set, otherwise write the original value.
+                    // This check is necessary in case the hook_lstar is not yet implemented or set to 0.
+                    let value_to_write = if guest_registers.hook_lstar != 0 {
+                        guest_registers.hook_lstar
+                    } else {
+                        guest_registers.original_lstar
+                    };
+
+                    wrmsr(msr_id, value_to_write);
                 }
 
             } else {
