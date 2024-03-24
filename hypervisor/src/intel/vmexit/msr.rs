@@ -70,7 +70,14 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
             let result_value = match msr_id {
                 // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
                 // This way, the guest OS sees what it expects, assuming no tampering has occurred.
-                msr::IA32_LSTAR => guest_registers.original_lstar,
+                msr::IA32_LSTAR =>  {
+                    // If the original LSTAR value is 0, store the original LSTAR value the first time it is accessed.
+                    if guest_registers.original_lstar == 0 {
+                        guest_registers.original_lstar = rdmsr(msr_id);
+                        log::trace!("Original LSTAR value: {:#x}", guest_registers.original_lstar);
+                    }
+                    guest_registers.original_lstar
+                },
 
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
                 // Set lock bit, indicating that feature control is locked.
@@ -86,7 +93,14 @@ pub fn handle_msr_access(guest_registers: &mut GuestRegisters, access_type: MsrA
                 // Let the guest overwrite our hook to avoid possible detection, but shadow the original value.
                 // If the guest attempts to write the original LSTAR value (perhaps as part of an integrity check or during normal operation),
                 // the hypervisor intercepts this and writes its hook address (hook_lstar) instead, maintaining the interception mechanism.
-                wrmsr(msr_id, guest_registers.hook_lstar);
+
+                // When a hook is performed, `hook_lstar` should not be 0, if it is, the original LSTAR value is written instead.
+                if guest_registers.hook_lstar == 0 {
+                    wrmsr(msr_id, guest_registers.original_lstar)
+                } else {
+                    wrmsr(msr_id, guest_registers.hook_lstar);
+                }
+
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
                 // If the guest writes any other value (which would typically only happen if the guest is attempting to modify the syscall mechanism itself),
