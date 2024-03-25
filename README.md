@@ -10,10 +10,19 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Features
 
-- :white_check_mark: **Extended Page Tables (EPT)**: Support for Memory Type Range Registers (MTRR).
-- :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
-- :x: **Hidden Kernel Inline Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
-- :x: **Hidden System Call (Syscall) Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks for System Service Descriptor Table (SSDT) function entries. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) and [SSDT](https://github.com/memN0ps/matrix-rs/tree/main/hypervisor/src/utils/ssdt) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
+### PatchGuard Compatible Features
+
+- :white_check_mark: Hidden System Call (Syscall) hooks via System Service Descriptor Table (SSDT) and `MSR_LSTAR`.
+- :white_check_mark: Hidden Kernel inline hooks.
+- :white_check_mark: Hidden Model Specific Registers (MSR) hooks.
+- :x: Kernel page substitution.
+- :x: Kernel page EPT Translation Lookaside Buffer (TLB) splitting.
+- :x: Hidden Interrupt Descriptor Table (IDT) hooks.
+- :x: Nested virtualization support for Microsoft Hyper-V with Virtualization Based Security (VBS) enabled.
+
+### VM Exit Handling
+
+- :white_check_mark: VM Exit Handling: `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
 
 ## Supported Hardware
 
@@ -26,18 +35,21 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Installation
 
-1. Install Rust from [here](https://www.rust-lang.org/tools/install).
-2. Switch to Rust Nightly: `rustup toolchain install nightly` and `rustup default nightly`.
-3. Install Tools: `cargo install cargo-make cargo-expand cargo-edit cargo-workspaces`.
+- Install Rust from [here](https://www.rust-lang.org/tools/install).
 
 ## Building the Project
 
-- Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
-- Release: `cargo build --target x86_64-unknown-uefi --profile release`.
+Development:
 
-## Showcase
+```
+cargo build --target x86_64-unknown-uefi --profile dev
+```
 
-![Check HV Vendor](images/check-hv-vendor.png)
+Release: 
+
+```
+cargo build --target x86_64-unknown-uefi --profile release
+```
 
 ## Acknowledgments, References, and Motivation
 
