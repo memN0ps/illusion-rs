@@ -169,4 +169,7 @@ pub enum HypervisorError {
 
     #[error("EPT PT table index exhausted")]
     EptPtTableIndexExhausted,
+
+    #[error("Failed to get image base address")]
+    FailedToGetImageBaseAddress,
 }

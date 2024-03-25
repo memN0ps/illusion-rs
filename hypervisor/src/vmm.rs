@@ -104,9 +104,11 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
                 VmxBasicExitReason::Rdmsr => {
                     handle_msr_access(&mut vm.guest_registers, MsrAccessType::Read)
+                        .expect("Failed to handle RDMSR")
                 }
                 VmxBasicExitReason::Wrmsr => {
                     handle_msr_access(&mut vm.guest_registers, MsrAccessType::Write)
+                        .expect("Failed to handle WRMSR")
                 }
                 VmxBasicExitReason::Invd => handle_invd(&mut vm.guest_registers),
                 VmxBasicExitReason::Rdtsc => handle_rdtsc(&mut vm.guest_registers),

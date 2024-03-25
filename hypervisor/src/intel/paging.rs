@@ -78,6 +78,64 @@ impl PageTables {
         log::debug!("Identity map built successfully");
     }
 
+    /// Translates a guest virtual address to a physical address using the guest's CR3.
+    /// This function traverses the guest's page tables, assuming an identity-mapped
+    /// host address space for simplicity.
+    ///
+    /// # Arguments
+    /// * `guest_cr3` - The guest CR3 register value, which contains the base address of the
+    /// guest's page table hierarchy.
+    /// * `virtual_address` - The guest virtual address to translate.
+    ///
+    /// # Safety
+    /// This function is unsafe because it involves raw memory access based on potentially
+    /// arbitrary addresses, which may lead to undefined behavior if the addresses are invalid
+    /// or the memory is not properly mapped.
+    ///
+    /// # Returns
+    /// Returns Some(usize) containing the translated physical address if successful,
+    /// or None if the translation fails at any level of the page table hierarchy.
+    ///
+    /// # Credits
+    /// Credits to Jessie (jessiep_) for the initial concept.
+    pub fn translate_guest_virtual_to_physical(
+        guest_cr3: usize,
+        virtual_address: usize,
+    ) -> Option<usize> {
+        // Mask used to clear the lower 12 bits of an address, effectively aligning it to a page boundary.
+        const ADDRESS_MASK: usize = ((1 << x86::bits64::paging::MAXPHYADDR) - 1) & !0xFFF;
+
+        // Start at the base of the guest's page table hierarchy.
+        let mut current_paging = guest_cr3 as *const usize;
+
+        // Iterate through the page table levels, checking for large pages and
+        // extracting the physical address from the page table entries.
+        for (supports_large, index, offset_mask) in [
+            (false, (virtual_address >> 39) & 0x1FF, 0),
+            (true, (virtual_address >> 30) & 0x1FF, 0x3FFFFFFF),
+            (true, (virtual_address >> 21) & 0x1FF, 0x1FFFFF),
+        ] {
+            let page_entry = unsafe { *current_paging.add(index) };
+
+            // If the page is not present, translation fails.
+            if page_entry & 1 == 0 {
+                return None;
+            }
+
+            // If this is a large page, calculate the physical address and return it, taking into account the offset within the large page.
+            if supports_large && (page_entry & 0x80 != 0) {
+                return Some((page_entry & ADDRESS_MASK) | (virtual_address & offset_mask));
+            }
+
+            // go to the next page :)
+            current_paging = (page_entry & ADDRESS_MASK) as *const usize;
+        }
+
+        let page_entry = unsafe { *current_paging.add((virtual_address >> 12) & 0x1FF) };
+
+        Some((page_entry & ADDRESS_MASK) | (virtual_address & 0xFFF))
+    }
+
     /// Gets the physical address of the PML4 table, ensuring it is 4KB aligned.
     ///
     /// This method is typically used to retrieve the address to be loaded into CR3.
