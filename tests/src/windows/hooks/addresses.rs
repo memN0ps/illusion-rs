@@ -5,6 +5,10 @@
 //! as well as methods for extracting page frame numbers (PFNs) and other address-related information.
 
 use {
+    crate::windows::nt::{
+        functions::{MmGetPhysicalAddress, MmGetVirtualForPhysical},
+        types::PHYSICAL_ADDRESS,
+    },
     core::ops::{Deref, DerefMut},
     x86::bits64::paging::{PAddr, BASE_PAGE_SHIFT},
 };
@@ -49,17 +53,15 @@ impl PhysicalAddress {
 
     /// Converts a virtual address to its corresponding physical address.
     pub fn pa_from_va(va: u64) -> u64 {
-        //unsafe { MmGetPhysicalAddress(va as _).QuadPart as u64 }
-        0
+        unsafe { MmGetPhysicalAddress(va as _).QuadPart as u64 }
     }
 
     /// Converts a physical address to its corresponding virtual address.
     pub fn va_from_pa(pa: u64) -> u64 {
-        //let mut physical_address: PHYSICAL_ADDRESS = unsafe { core::mem::zeroed() };
-        //(physical_address.QuadPart) = pa as i64;
+        let mut physical_address: PHYSICAL_ADDRESS = unsafe { core::mem::zeroed() };
+        unsafe { *(physical_address.QuadPart_mut()) = pa as i64 };
 
-        //unsafe { MmGetVirtualForPhysical(physical_address) as u64 }
-        0
+        MmGetVirtualForPhysical(physical_address as _);
     }
 }
 

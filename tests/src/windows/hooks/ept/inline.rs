@@ -4,8 +4,8 @@
 //! Credits to Matthias: https://github.com/not-matthias/amd_hypervisor/blob/main/hypervisor/src/utils/function_hook.rs
 
 use {
-    crate::error::HypervisorError,
     alloc::{boxed::Box, string::String, vec::Vec},
+    hypervisor::error::HypervisorError,
     iced_x86::{
         BlockEncoder, BlockEncoderOptions, Code, Decoder, DecoderOptions, Encoder, FlowControl,
         Formatter, Instruction, InstructionBlock, NasmFormatter, OpKind,
@@ -67,7 +67,9 @@ impl InlineHook {
     ) -> Option<Self> {
         // Generate the appropriate trampoline based on the hook type.
         let trampoline = match hook_type {
-            InlineHookType::Jmp => Self::trampoline_shellcode(original_va, JMP_SHELLCODE_LEN).ok()?,
+            InlineHookType::Jmp => {
+                Self::trampoline_shellcode(original_va, JMP_SHELLCODE_LEN).ok()?
+            }
             InlineHookType::Breakpoint => {
                 Self::trampoline_shellcode(original_va, BP_SHELLCODE_LEN).ok()?
             }
@@ -166,8 +168,7 @@ impl InlineHook {
         }
 
         // Append a JMP instruction to jump back to the original code after executing the hook.
-        let jmp_back_instruction =
-            Self::create_jmp_instruction(original_va + total_bytes as u64);
+        let jmp_back_instruction = Self::create_jmp_instruction(original_va + total_bytes as u64);
 
         instructions_to_relocate.push(jmp_back_instruction);
 

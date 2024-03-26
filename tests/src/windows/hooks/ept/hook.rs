@@ -1,9 +1,13 @@
-use alloc::boxed::Box;
-use core::ptr::copy_nonoverlapping;
-use x86::bits64::paging::{BASE_PAGE_SIZE, PAddr, VAddr};
-use x86_64::instructions::interrupts::without_interrupts;
-use crate::hooks::inline::{InlineHook, InlineHookType};
-use crate::hooks::addresses::PhysicalAddress;
+use {
+    crate::windows::hooks::{
+        addresses::PhysicalAddress,
+        ept::inline::{InlineHook, InlineHookType},
+    },
+    alloc::boxed::Box,
+    core::ptr::copy_nonoverlapping,
+    x86::bits64::paging::{PAddr, VAddr, BASE_PAGE_SIZE},
+    x86_64::instructions::interrupts::without_interrupts,
+};
 
 /// Enum representing different types of hooks that can be applied.
 pub enum HookType {
@@ -60,7 +64,11 @@ impl Hook {
     /// # Example
     ///
     /// `hook_function(original_va, hook_handler, hook_type)`
-    pub fn hook_function(original_va: u64, hook_handler: *const (), hook_type: InlineHookType) -> Option<Self> {
+    pub fn hook_function(
+        original_va: u64,
+        hook_handler: *const (),
+        hook_type: InlineHookType,
+    ) -> Option<Self> {
         let original_pa = PhysicalAddress::from_va(original_va);
 
         // Copy the page where the function resides to prevent modifying the original page.
@@ -84,7 +92,8 @@ impl Hook {
         log::debug!("Shadow PA: {:#x}", shadow_pa.as_u64());
 
         // Create an inline hook at the new address in the copied page.
-        let inline_hook = InlineHook::new(original_va, Some(shadow_va), hook_handler as _, hook_type)?;
+        let inline_hook =
+            InlineHook::new(original_va, Some(shadow_va), hook_handler as _, hook_type)?;
 
         Some(Self {
             original_va,
@@ -153,7 +162,13 @@ impl Hook {
 
         // Perform the memory copy operation without interruptions.
         without_interrupts(|| {
-            unsafe { copy_nonoverlapping(original_pa.as_u64() as *mut u64, shadow_page.as_mut_ptr() as _, BASE_PAGE_SIZE) };
+            unsafe {
+                copy_nonoverlapping(
+                    original_pa.as_u64() as *mut u64,
+                    shadow_page.as_mut_ptr() as _,
+                    BASE_PAGE_SIZE,
+                )
+            };
         });
 
         Some(unsafe { shadow_page.assume_init() })

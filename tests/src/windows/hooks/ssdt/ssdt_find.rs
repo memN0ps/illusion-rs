@@ -1,17 +1,39 @@
-use {
-    hypervisor::error::HypervisorError,
-    alloc::vec::Vec,
-    crate::hooks::ssdt::ssdt_info::Sysinfo,
-};
+//! This module provides the functionality to locate the System Service Descriptor Table (SSDT)
+//! within the Windows kernel. The SSDT is critical for intercepting system calls, allowing for
+//! both monitoring and modification. This capability is particularly useful in the development
+//! of security tools, hypervisors, and other low-level system utilities. By identifying the
+//! addresses of the NT and Win32k tables, this module enables further manipulation of system
+//! behavior at a granular level.
+//!
 
+use {alloc::vec::Vec, hypervisor::error::HypervisorError};
+
+/// Represents the addresses of the SSDT tables for NT and Win32k system calls.
 pub struct SsdtFind {
+    /// The address of the NT table within the SSDT.
     pub nt_table: *const u64,
+
+    /// The address of the Win32k table within the SSDT.
     pub win32k_table: *const u64,
 }
 
 impl SsdtFind {
-    pub fn find_ssdt() -> Result<Self, HypervisorError> {
-        let (kernel_base, kernel_size) = Self::get_kernel_base()?;
+    /// Locates the SSDT based on a given kernel base and size.
+    ///
+    /// This function scans the kernel memory for specific patterns to find the SSDT addresses.
+    /// It leverages known structures within the Windows kernel to pinpoint the exact location
+    /// of the NT and Win32k service descriptor tables.
+    ///
+    /// # Arguments
+    ///
+    /// * `kernel_base` - The base address of the kernel in memory.
+    /// * `kernel_size` - The size of the kernel memory space.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(SsdtFind)` - An `SsdtFind` struct containing the addresses of the NT and Win32k tables.
+    /// * `Err(HypervisorError)` - An error occurred during the scanning process.
+    pub fn find_ssdt(kernel_base: *const u8, kernel_size: usize) -> Result<Self, HypervisorError> {
         log::debug!("Kernel base address: {:p}", kernel_base);
         log::debug!("Kernel size: {}", kernel_size);
 
@@ -27,19 +49,20 @@ impl SsdtFind {
            14042ba64  4c8d15555e9d00     lea     r10, [rel KeServiceDescriptorTable]
            14042ba6b  4c8d1d8e368f00     lea     r11, [rel KeServiceDescriptorTableShadow]
         */
+
+        // Pattern to identify the KiServiceSystemStart in the kernel memory.
         let ki_service_system_start_pattern = "8B F8 C1 EF 07 83 E7 20 25 FF 0F 00 00";
         let signature_size = 13;
 
-        // Read Windows Kernel (ntoskrnl.exe) from memory
-        let ntoskrnl_data =
-            unsafe { core::slice::from_raw_parts(kernel_base as *const u8, kernel_size as usize) };
+        // Create a slice from the Windows kernel (ntoskrnl.exe) base address for the specified size.
+        let ntoskrnl_data = unsafe { core::slice::from_raw_parts(kernel_base, kernel_size) };
 
-        // Find the KiServiceSystemStart signature
+        // Find the starting offset of the KiServiceSystemStart pattern within the kernel data.
         let offset = Self::pattern_scan(ntoskrnl_data, ki_service_system_start_pattern)?
             .ok_or(HypervisorError::PatternNotFound)?;
 
-        // Calculate the address of KiServiceSystemStart using .add(),
-        // which is, `14042ba57  8bf8               mov     edi, eax` in this case.
+        // Calculate the starting address of KiServiceSystemStart based on the offset.
+        // That is: `14042ba57  8bf8               mov     edi, eax` in this case.
         let ki_service_system_start = unsafe { kernel_base.add(offset) };
         log::info!(
             "KiServiceSystemStart address: {:p}",
@@ -79,22 +102,16 @@ impl SsdtFind {
         })
     }
 
-    /// Gets the base address and size of the kernel module.
+    /// Converts a pattern string into a vector of bytes, supporting wildcards.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - A string representing the byte pattern to convert, with spaces separating bytes.
     ///
     /// # Returns
     ///
-    /// A tuple with the base address and size of the kernel module.
-    pub fn get_kernel_base() -> Result<(*mut u8, u32), HypervisorError> {
-        let mut sys_info = Sysinfo::new()?;
-
-        let (kernel_base, kernel_size) = sys_info
-            .get_module_base("ntoskrnl.exe\0")
-            .ok_or(HypervisorError::GetKernelBaseFailed)?;
-
-        Ok((kernel_base as _, kernel_size))
-    }
-
-    /// Convert a combo pattern to bytes without wildcards
+    /// * `Ok(Vec<Option<u8>>)` - A vector where each element represents a byte from the pattern. None values represent wildcards where any byte is acceptable.
+    /// * `Err(HypervisorError)` - An error occurred during the conversion, likely due to an invalid hex value.
     pub fn get_bytes_as_hex(pattern: &str) -> Result<Vec<Option<u8>>, HypervisorError> {
         let mut pattern_bytes = Vec::new();
 
@@ -112,10 +129,28 @@ impl SsdtFind {
         Ok(pattern_bytes)
     }
 
-    /// Pattern or Signature scan a region of memory
+    /// Searches for a given pattern within a block of data and returns the start index if found.
+    ///
+    /// This function implements a simple pattern matching algorithm to scan a region of memory
+    /// for a specific byte pattern, supporting wildcards. It's useful for locating specific
+    /// instructions or data structures within a binary blob by their binary signatures.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The block of data to search within.
+    /// * `pattern` - The byte pattern to search for, expressed as a space-separated string of hex values.
+    ///   Wildcards are represented by "?".
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(usize))` - The starting index within `data` where the pattern was found.
+    /// * `Ok(None)` - The pattern was not found within `data`.
+    /// * `Err(HypervisorError)` - An error occurred during pattern conversion or search.
     pub fn pattern_scan(data: &[u8], pattern: &str) -> Result<Option<usize>, HypervisorError> {
         let pattern_bytes = Self::get_bytes_as_hex(pattern)?;
 
+        // Iterate over the data in windows of size equal to the pattern length,
+        // checking if each window matches the pattern.
         let offset = data.windows(pattern_bytes.len()).position(|window| {
             window
                 .iter()
