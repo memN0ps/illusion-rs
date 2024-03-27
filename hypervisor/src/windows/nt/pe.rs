@@ -32,33 +32,38 @@ pub unsafe fn get_nt_headers(module_base: *mut u8) -> Option<PIMAGE_NT_HEADERS64
 }
 
 /// Get the address of an export by hash
-pub unsafe fn get_export_by_hash(module_base: *mut u8, export_hash: u32) -> Option<*mut u8> {
-    let nt_headers = get_nt_headers(module_base)?;
-    let export_directory = (module_base as usize
+pub unsafe fn get_export_by_hash(
+    module_base_pa: *mut u8,
+    module_base_va: *mut u8,
+    export_hash: u32,
+) -> Option<*mut u8> {
+    let nt_headers = get_nt_headers(module_base_pa)?;
+    let export_directory = (module_base_pa as usize
         + (*nt_headers).OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT as usize]
             .VirtualAddress as usize) as PIMAGE_EXPORT_DIRECTORY;
 
     let names = from_raw_parts(
-        (module_base as usize + (*export_directory).AddressOfNames as usize) as *const u32,
+        (module_base_pa as usize + (*export_directory).AddressOfNames as usize) as *const u32,
         (*export_directory).NumberOfNames as _,
     );
     let functions = from_raw_parts(
-        (module_base as usize + (*export_directory).AddressOfFunctions as usize) as *const u32,
+        (module_base_pa as usize + (*export_directory).AddressOfFunctions as usize) as *const u32,
         (*export_directory).NumberOfFunctions as _,
     );
     let ordinals = from_raw_parts(
-        (module_base as usize + (*export_directory).AddressOfNameOrdinals as usize) as *const u16,
+        (module_base_pa as usize + (*export_directory).AddressOfNameOrdinals as usize)
+            as *const u16,
         (*export_directory).NumberOfNames as _,
     );
 
     for i in 0..(*export_directory).NumberOfNames {
-        let name_addr = (module_base as usize + names[i as usize] as usize) as *const i8;
+        let name_addr = (module_base_pa as usize + names[i as usize] as usize) as *const i8;
         let name_len = get_cstr_len(name_addr as _);
         let name_slice: &[u8] = from_raw_parts(name_addr as _, name_len);
 
         if export_hash == dbj2_hash(name_slice) {
             let ordinal = ordinals[i as usize] as usize;
-            return Some((module_base as usize + functions[ordinal] as usize) as *mut u8);
+            return Some((module_base_va as usize + functions[ordinal] as usize) as *mut u8);
         }
     }
 

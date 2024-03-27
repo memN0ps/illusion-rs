@@ -5,6 +5,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            addresses::PhysicalAddress,
             bitmap::{MsrAccessType, MsrOperation},
             hooks::hook::{Hook, HookType},
             hooks::inline::InlineHookType,
@@ -39,9 +40,15 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
     let guest_cr3 = PageTables::get_guest_cr3();
 
     // Get the base address of ntoskrnl.exe.
-    let ntoskrnl_base = get_image_base_address(msr_value, guest_cr3)
+    let ntoskrnl_base_va = get_image_base_address(msr_value, guest_cr3)
         .ok_or(HypervisorError::FailedToGetImageBaseAddress)?;
-    log::trace!("ntoskrnl.exe base address: {:#x}", ntoskrnl_base);
+    log::trace!("ntoskrnl.exe base address: {:#x}", ntoskrnl_base_va);
+
+    let ntoskrnl_base_pa = PhysicalAddress::pa_from_va(ntoskrnl_base_va);
+    log::trace!(
+        "ntoskrnl.exe base physical address: {:#x}",
+        ntoskrnl_base_pa
+    );
 
     // Unhook the MSR_IA32_LSTAR register.
     unsafe {
@@ -55,7 +62,12 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
 
     // Get the address of the MmIsAddressValid function in ntoskrnl.exe.
     let mm_is_address_valid_va = unsafe {
-        get_export_by_hash(ntoskrnl_base as _, dbj2_hash("MmIsAddressValid".as_bytes())).unwrap()
+        get_export_by_hash(
+            ntoskrnl_base_pa as _,
+            ntoskrnl_base_va as _,
+            dbj2_hash("MmIsAddressValid".as_bytes()),
+        )
+        .unwrap()
     };
     log::trace!(
         "MmIsAddressValid address: {:#x}",
@@ -72,14 +84,14 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
     log::trace!("MmIsAddressValid hook installed");
 
     // Get the size of ntoskrnl.exe.
-    let kernel_size = unsafe { get_size_of_image(ntoskrnl_base as _).unwrap() };
+    let kernel_size = unsafe { get_size_of_image(ntoskrnl_base_pa as _).unwrap() };
     log::trace!("ntoskrnl.exe size: {:#x}", kernel_size);
 
     // Find the address of the NtCreateFile function in the SSDT.
     let ssdt_nt_create_file_addy = SsdtHook::find_ssdt_function_address(
         0x0055,
         false,
-        ntoskrnl_base as _,
+        ntoskrnl_base_pa as _,
         kernel_size as usize,
     )?;
     log::trace!(
@@ -129,6 +141,8 @@ fn test_create_ept_hook(
     hook_type: InlineHookType,
     original_function: &AtomicPtr<u64>,
 ) -> Result<Hook, HypervisorError> {
+    log::trace!("Creating EPT hook for function at {:#x}", original_va);
+
     let hook = Hook::hook_function(original_va, hook_handler, hook_type)
         .ok_or(HypervisorError::HookError)?;
 
