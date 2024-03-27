@@ -11,9 +11,9 @@ use {
         error::HypervisorError,
         intel::{
             bitmap::MsrAccessType,
-            capture::GuestRegisters,
             events::EventInjection,
-            support::{get_image_base_address, rdmsr, wrmsr},
+            support::{rdmsr, wrmsr},
+            vm::Vm,
             vmexit::ExitType,
         },
     },
@@ -40,7 +40,7 @@ use {
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: RDMSR—Read From Model Specific Register or WRMSR—Write to Model Specific Register
 /// and Table C-1. Basic Exit Reasons 31 and 32.
 pub fn handle_msr_access(
-    guest_registers: &mut GuestRegisters,
+    vm: &mut Vm,
     access_type: MsrAccessType,
 ) -> Result<ExitType, HypervisorError> {
     log::debug!("Handling MSR VM exit...");
@@ -54,8 +54,8 @@ pub fn handle_msr_access(
 
     const VMX_LOCK_BIT: u64 = 1 << 0;
 
-    let msr_id = guest_registers.rcx as u32;
-    let msr_value = (guest_registers.rdx << 32) | (guest_registers.rax & MSR_MASK_LOW);
+    let msr_id = vm.guest_registers.rcx as u32;
+    let msr_value = (vm.guest_registers.rdx << 32) | (vm.guest_registers.rax & MSR_MASK_LOW);
 
     // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks).
     // Credits: https://mellownight.github.io/AetherVisor
@@ -79,7 +79,7 @@ pub fn handle_msr_access(
                 msr::IA32_LSTAR => {
                     log::trace!("IA32_LSTAR read attempted with MSR value: {:#x}", msr_value);
                     // This won't be 0 here because we intercept and populate it during MsrAccessType::Write on IA32_LSTAR which is set during the initial phase when ntoskrnl.exe
-                    guest_registers.original_lstar
+                    vm.guest_registers.original_lstar
                 }
 
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
@@ -94,8 +94,8 @@ pub fn handle_msr_access(
                 _ => rdmsr(msr_id),
             };
 
-            guest_registers.rax = result_value & MSR_MASK_LOW;
-            guest_registers.rdx = result_value >> 32;
+            vm.guest_registers.rax = result_value & MSR_MASK_LOW;
+            vm.guest_registers.rdx = result_value >> 32;
         }
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR {
@@ -105,37 +105,36 @@ pub fn handle_msr_access(
                 );
                 log::trace!(
                     "GuestRegisters Original LSTAR value: {:#x}",
-                    guest_registers.original_lstar
+                    vm.guest_registers.original_lstar
                 );
                 log::trace!(
                     "GuestRegisters Hook LSTAR value: {:#x}",
-                    guest_registers.hook_lstar
+                    vm.guest_registers.hook_lstar
                 );
 
-                let ntoskrnl_base = get_image_base_address(msr_value)
-                    .ok_or(HypervisorError::FailedToGetImageBaseAddress)?;
-                log::trace!("ntoskrnl.exe base address: {:#x}", ntoskrnl_base);
+                #[cfg(feature = "test-windows-uefi-hooks")]
+                crate::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
-                if guest_registers.original_lstar == 0 {
-                    guest_registers.original_lstar = msr_value;
+                if vm.guest_registers.original_lstar == 0 {
+                    vm.guest_registers.original_lstar = msr_value;
                     // Optionally set a hook LSTAR value here. For now, let's assume we simply store the original value.
                     // This is a placeholder for where you would set your hook.
-                    guest_registers.hook_lstar = guest_registers.original_lstar;
+                    vm.guest_registers.hook_lstar = vm.guest_registers.original_lstar;
                     // This should eventually be replaced with an actual hook address.
                 }
 
                 // If the guest attempts to write back the original LSTAR value we provided,
                 // it could be part of an integrity check. In such a case, we allow the write to go through
                 // but actually write our hook again to maintain control.
-                if msr_value == guest_registers.original_lstar {
+                if msr_value == vm.guest_registers.original_lstar {
                     // Write the hook LSTAR value if it's set, otherwise write the original value.
                     // This check is necessary in case the hook_lstar is not yet implemented or set to 0.
-                    let value_to_write = if guest_registers.hook_lstar != 0 {
-                        guest_registers.hook_lstar
+                    let value_to_write = if vm.guest_registers.hook_lstar != 0 {
+                        vm.guest_registers.hook_lstar
                     } else {
-                        guest_registers.original_lstar
+                        vm.guest_registers.original_lstar
                     };
 
                     wrmsr(msr_id, value_to_write);
