@@ -10,6 +10,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            bitmap::MsrAccessType,
             capture::GuestRegisters,
             events::EventInjection,
             support::{get_image_base_address, rdmsr, wrmsr},
@@ -18,14 +19,6 @@ use {
     },
     x86::msr,
 };
-
-/// Enum representing the type of MSR access.
-///
-/// There are two types of MSR access: reading from an MSR and writing to an MSR.
-pub enum MsrAccessType {
-    Read,
-    Write,
-}
 
 /// Handles MSR access based on the provided access type.
 ///

@@ -1,5 +1,24 @@
-use alloc::boxed::Box;
-use bitfield::BitMut;
+use {alloc::boxed::Box, bitfield::BitMut};
+
+/// Enum representing the type of MSR access.
+///
+/// There are two types of MSR access: reading from an MSR and writing to an MSR.
+pub enum MsrAccessType {
+    /// Read access to an MSR.
+    Read,
+
+    /// Write access to an MSR.
+    Write,
+}
+
+/// Specifies the type of MSR operation: either to hook (mask) or Unhook (unmask).
+pub enum MsrOperation {
+    /// Mask the MSR to intercept the operation.
+    Hook,
+
+    /// Unmask the MSR to allow the operation.
+    Unhook,
+}
 
 /// Represents the MSR Bitmap structure used in VMX.
 ///
@@ -50,32 +69,33 @@ impl MsrBitmap {
         msr_bitmap
     }
 
-    /// Masks a specific MSR for interception on read or write operations.
+    /// Modifies the interception for a specific MSR based on the specified operation and access type.
     ///
     /// # Arguments
     ///
-    /// * `msr` - The MSR to intercept.
-    /// * `is_write` - Specifies whether to intercept write operations. If `false`, read operations are intercepted.
-    ///
-    /// # Example
-    ///
-    /// * Enable VM-exit on read operations to LSTAR
-    /// `msr_bitmap.mask(IA32_LSTAR, false); // 'false' indicates a read operation`
-    //
-    /// * Enable VM-exit on write operations to LSTAR
-    /// `msr_bitmap.mask(IA32_LSTAR, true); // 'true' indicates a write operation`
-    pub fn mask(&mut self, msr: u32, is_write: bool) {
+    /// * `msr` - The MSR to modify.
+    /// * `access` - Specifies the access type read or write for the MSR operation.
+    /// * `operation` - Specifies the operation hook (mask) or unhook (unmask) to perform on the MSR.
+    pub fn modify_msr_interception(
+        &mut self,
+        msr: u32,
+        access: MsrAccessType,
+        operation: MsrOperation,
+    ) {
         let msr_low = msr & 0x1FFF;
         let msr_index = (msr_low >> 3) as usize;
         let msr_bit = (msr_low & 7) as u8;
 
-        let bitmap_section = match (msr >= 0xC000_0000, is_write) {
-            (true, true) => &mut self.write_high_msrs,
-            (true, false) => &mut self.read_high_msrs,
-            (false, true) => &mut self.write_low_msrs,
-            (false, false) => &mut self.read_low_msrs,
+        let bitmap_section = match (msr >= 0xC000_0000, access) {
+            (true, MsrAccessType::Write) => &mut self.write_high_msrs,
+            (true, MsrAccessType::Read) => &mut self.read_high_msrs,
+            (false, MsrAccessType::Write) => &mut self.write_low_msrs,
+            (false, MsrAccessType::Read) => &mut self.read_low_msrs,
         };
 
-        bitmap_section[msr_index].set_bit(msr_bit as usize, true);
+        match operation {
+            MsrOperation::Hook => bitmap_section[msr_index].set_bit(msr_bit as usize, true),
+            MsrOperation::Unhook => bitmap_section[msr_index].set_bit(msr_bit as usize, false),
+        }
     }
 }

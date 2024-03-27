@@ -2,13 +2,16 @@
 //! Extended Page Tables (EPT) and Model-Specific Register (MSR) bitmaps.
 //! Includes support for primary and optional secondary EPTs.
 
-use x86::msr;
 use {
     crate::{
         error::HypervisorError,
-        intel::{bitmap::MsrBitmap, ept::Ept},
+        intel::{
+            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
+            ept::Ept,
+        },
     },
     alloc::boxed::Box,
+    x86::msr,
 };
 
 /// Represents shared data structures for hypervisor operations.
@@ -57,9 +60,12 @@ impl SharedData {
         let mut msr_bitmap = MsrBitmap::new();
 
         // Intercept read and write operations for the IA32_LSTAR MSR.
-        // The value of 'true' indicates a write operation` and 'false' indicates a read operation
-        msr_bitmap.mask(msr::IA32_LSTAR, false);
-        msr_bitmap.mask(msr::IA32_LSTAR, true);
+        // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Read, MsrOperation::Hook);
+        msr_bitmap.modify_msr_interception(
+            msr::IA32_LSTAR,
+            MsrAccessType::Write,
+            MsrOperation::Hook,
+        );
 
         Ok(Box::new(Self {
             msr_bitmap,

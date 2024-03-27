@@ -8,6 +8,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            bitmap::MsrAccessType,
             capture::GuestRegisters,
             shared::SharedData,
             support::{vmread, vmwrite},
@@ -22,7 +23,7 @@ use {
                 invd::handle_invd,
                 invept::handle_invept,
                 invvpid::handle_invvpid,
-                msr::{handle_msr_access, MsrAccessType},
+                msr::handle_msr_access,
                 rdtsc::handle_rdtsc,
                 sipi::handle_sipi_signal,
                 xsetbv::handle_xsetbv,
