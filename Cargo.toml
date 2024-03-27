@@ -4,7 +4,6 @@ resolver = "2"
 members = [
     "uefi",
     "hypervisor",
-    "kernel",
 ]
 
 [profile.release]
