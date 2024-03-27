@@ -15,6 +15,7 @@ use {
         windows::{
             nt::{
                 functions::get_image_base_address,
+                pe::{dbj2_hash, get_export_by_hash, get_size_of_image},
                 types::{
                     FILE_ACCESS_RIGHTS, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE, HANDLE,
                     IO_STATUS_BLOCK, NTCREATEFILE_CREATE_DISPOSITION, NTCREATEFILE_CREATE_OPTIONS,
@@ -34,14 +35,15 @@ use {
 };
 
 pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), HypervisorError> {
-    // Get the guest CR3 value to use for translating guest virtual addresses.
+    // Get the guest CR3 value.
     let guest_cr3 = PageTables::get_guest_cr3();
 
+    // Get the base address of ntoskrnl.exe.
     let ntoskrnl_base = get_image_base_address(msr_value, guest_cr3)
         .ok_or(HypervisorError::FailedToGetImageBaseAddress)?;
     log::trace!("ntoskrnl.exe base address: {:#x}", ntoskrnl_base);
 
-    // Unhook (unmask) MSR now that we have the base address of ntoskrnl.exe.
+    // Unhook the MSR_IA32_LSTAR register.
     unsafe {
         vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
             msr::IA32_LSTAR,
@@ -49,30 +51,63 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
             MsrOperation::Unhook,
         );
     }
+    log::trace!("Unhooked MSR_IA32_LSTAR");
 
-    // Parse ntoskrnl.exe to get function address and test hook here:
+    // Get the address of the MmIsAddressValid function in ntoskrnl.exe.
+    let mm_is_address_valid_va = unsafe {
+        get_export_by_hash(ntoskrnl_base as _, dbj2_hash("MmIsAddressValid".as_bytes())).unwrap()
+    };
+    log::trace!(
+        "MmIsAddressValid address: {:#x}",
+        mm_is_address_valid_va as u64
+    );
 
-    let api_number = 0;
-    let get_from_win32k = false;
-    let kernel_base = ntoskrnl_base as *const u8;
-    let kernel_size = 0;
-
-    let ssdt_nt_create_file_addy = SsdtHook::find_ssdt_function_address(
-        api_number,
-        get_from_win32k,
-        kernel_base,
-        kernel_size,
+    // Create a hook for the MmIsAddressValid function.
+    let test_mm_is_address_valid_hook = test_create_ept_hook(
+        mm_is_address_valid_va as u64,
+        test_mm_is_address_valid as *const (),
+        InlineHookType::Jmp,
+        &MM_IS_ADDRESS_VALID_ORIGINAL,
     )?;
+    log::trace!("MmIsAddressValid hook installed");
 
+    // Get the size of ntoskrnl.exe.
+    let kernel_size = unsafe { get_size_of_image(ntoskrnl_base as _).unwrap() };
+    log::trace!("ntoskrnl.exe size: {:#x}", kernel_size);
+
+    // Find the address of the NtCreateFile function in the SSDT.
+    let ssdt_nt_create_file_addy = SsdtHook::find_ssdt_function_address(
+        0x0055,
+        false,
+        ntoskrnl_base as _,
+        kernel_size as usize,
+    )?;
+    log::trace!(
+        "NtCreateFile address: {:#x}",
+        ssdt_nt_create_file_addy.function_address as u64
+    );
+
+    // Create a hook for the NtCreateFile function.
     let test_nt_create_file_hook = test_create_ept_hook(
         ssdt_nt_create_file_addy.function_address as u64,
         test_nt_create_file as *const (),
         InlineHookType::Jmp,
+        &NT_CREATE_FILE_ORIGINAL,
     )?;
+    log::trace!("NtCreateFile hook installed");
 
-    let hook_manager = HookManager::new(vec![test_nt_create_file_hook]);
+    // Create a hook manager with the hooks we want to install.
+    let hook_manager = HookManager::new(vec![
+        test_mm_is_address_valid_hook,
+        test_nt_create_file_hook,
+    ]);
+    log::trace!("Hook manager created");
 
+    // Set the hook manager in the shared data.
     unsafe { vm.shared_data.as_mut().hook_manager = Some(hook_manager) };
+    log::trace!("Hook manager set in shared data");
+
+    log::info!("Windows kernel hooks installed successfully");
 
     Ok(())
 }
@@ -92,14 +127,13 @@ fn test_create_ept_hook(
     original_va: u64,
     hook_handler: *const (),
     hook_type: InlineHookType,
+    original_function: &AtomicPtr<u64>,
 ) -> Result<Hook, HypervisorError> {
-    // Example 1: Normal EPT Hook MmIsAddressValid
-
     let hook = Hook::hook_function(original_va, hook_handler, hook_type)
         .ok_or(HypervisorError::HookError)?;
 
     if let HookType::Function { ref inline_hook } = hook.hook_type {
-        MM_IS_ADDRESS_VALID_ORIGINAL.store(inline_hook.trampoline_address(), Ordering::Relaxed);
+        original_function.store(inline_hook.trampoline_address(), Ordering::Relaxed);
     }
 
     Ok(hook)

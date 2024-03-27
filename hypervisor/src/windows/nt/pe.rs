@@ -65,6 +65,12 @@ pub unsafe fn get_export_by_hash(module_base: *mut u8, export_hash: u32) -> Opti
     return None;
 }
 
+/// Get the size of an image
+pub unsafe fn get_size_of_image(module_base: *mut u8) -> Option<u32> {
+    let nt_headers = get_nt_headers(module_base as _)?;
+    Some((*nt_headers).OptionalHeader.SizeOfImage)
+}
+
 /// Get the length of a C String
 pub unsafe fn get_cstr_len(pointer: *const u8) -> usize {
     let mut tmp: u64 = pointer as u64;
