@@ -65,6 +65,12 @@ impl InlineHook {
         hook_handler: u64,
         hook_type: InlineHookType,
     ) -> Option<Self> {
+        trace!(
+            "Creating inline hook for function at {:#X} with handler at {:#X}",
+            original_va,
+            hook_handler
+        );
+
         // Generate the appropriate trampoline based on the hook type.
         let trampoline = match hook_type {
             InlineHookType::Jmp => {
@@ -101,6 +107,8 @@ impl InlineHook {
         original_va: u64,
         required_size: usize,
     ) -> Result<Box<[u8]>, HypervisorError> {
+        trace!("Generating trampoline for function at {:#X}", original_va);
+
         // Attempt to read the original code from the target address.
         let target_bytes = unsafe {
             core::slice::from_raw_parts(
@@ -111,6 +119,8 @@ impl InlineHook {
 
         trace!("Original code:");
         Self::disassemble(target_bytes, original_va);
+
+        trace!("Creating a decoder for the target address");
 
         // Decode the instructions at the target address to ensure we can safely relocate them.
         let original_code: Vec<u8> = target_bytes.to_vec();
@@ -124,6 +134,8 @@ impl InlineHook {
         // Collect enough instructions to relocate, ensuring space for a JMP.
         let mut total_bytes = 0;
         let mut instructions_to_relocate: Vec<Instruction> = Vec::new();
+
+        trace!("Decoding instructions");
 
         // Decode instructions until we have enough space for our JMP
         for instr in &mut decoder {
@@ -157,6 +169,8 @@ impl InlineHook {
             };
         }
 
+        trace!("Decoded {:#x} bytes", total_bytes);
+
         // Ensure we have collected enough bytes to place our hook.
         if total_bytes < required_size {
             return Err(HypervisorError::NotEnoughBytes);
@@ -167,6 +181,8 @@ impl InlineHook {
             return Err(HypervisorError::NoInstructions);
         }
 
+        trace!("Creating JMP instruction to jump back to the original code");
+
         // Append a JMP instruction to jump back to the original code after executing the hook.
         let jmp_back_instruction = Self::create_jmp_instruction(original_va + total_bytes as u64);
 
@@ -175,11 +191,15 @@ impl InlineHook {
         // Allocate new memory and initialize for the trampoline and encode the instructions.
         let mut trampoline = Box::new_uninit_slice(instructions_to_relocate.len());
 
+        trace!("Relocating instructions to trampoline");
+
         // Encode the relocated instructions, fixing any relative addresses as needed.
         let block =
             InstructionBlock::new(&instructions_to_relocate, trampoline.as_mut_ptr() as u64);
         let encoded =
             BlockEncoder::encode(decoder.bitness(), block, BlockEncoderOptions::NONE)?.code_buffer;
+
+        trace!("Relocated instructions to trampoline");
 
         // Copy the encoded bytes
         unsafe {
@@ -189,6 +209,8 @@ impl InlineHook {
                 encoded.len(),
             )
         };
+
+        trace!("Trampoline created");
 
         let trampoline = unsafe { trampoline.assume_init() };
 

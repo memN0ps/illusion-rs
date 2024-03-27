@@ -69,6 +69,8 @@ impl Hook {
         hook_handler: *const (),
         hook_type: InlineHookType,
     ) -> Option<Self> {
+        log::trace!("Hook Function Called");
+
         let original_pa = PhysicalAddress::from_va(original_va);
 
         // Copy the page where the function resides to prevent modifying the original page.
@@ -151,6 +153,7 @@ impl Hook {
     ///
     /// * `Option<Box<[u8]>>` - A boxed slice containing the copied page data.
     fn copy_page(original_va: u64) -> Option<Box<[u8]>> {
+        log::trace!("Copy Page Called");
         let original_pa = PAddr::from(original_va).align_down_to_base_page();
 
         if original_pa.is_zero() {
@@ -158,7 +161,14 @@ impl Hook {
             return None;
         }
 
+        log::trace!("Allocating memory for shadow page");
         let mut shadow_page = Box::new_uninit_slice(BASE_PAGE_SIZE);
+
+        log::trace!(
+            "Copying page at from {:#x} to {:#x}",
+            original_pa.as_u64(),
+            shadow_page.as_ptr() as u64
+        );
 
         // Perform the memory copy operation without interruptions.
         without_interrupts(|| {
@@ -170,6 +180,8 @@ impl Hook {
                 )
             };
         });
+
+        log::trace!("Page copied successfully");
 
         Some(unsafe { shadow_page.assume_init() })
     }
