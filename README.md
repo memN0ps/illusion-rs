@@ -39,17 +39,8 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Building the Project
 
-Development:
-
-```
-cargo build --target x86_64-unknown-uefi --profile dev
-```
-
-Release: 
-
-```
-cargo build --target x86_64-unknown-uefi --profile release
-```
+- Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
+- Release: `cargo build --target x86_64-unknown-uefi --profile release`.
 
 ## Acknowledgments, References, and Motivation
 
