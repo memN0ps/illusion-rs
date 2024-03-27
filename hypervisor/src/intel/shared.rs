@@ -8,6 +8,7 @@ use {
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             ept::Ept,
+            hooks::manager::HookManager,
         },
     },
     alloc::boxed::Box,
@@ -34,6 +35,9 @@ pub struct SharedData {
 
     /// The secondary EPTP (Extended Page Tables Pointer) for the VM.
     pub secondary_eptp: u64,
+
+    /// The hook manager.
+    pub hook_manager: Option<Box<HookManager>>,
 }
 
 impl SharedData {
@@ -61,6 +65,7 @@ impl SharedData {
 
         // Intercept read and write operations for the IA32_LSTAR MSR.
         // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Read, MsrOperation::Hook);
+        #[cfg(feature = "test-windows-uefi-hooks")]
         msr_bitmap.modify_msr_interception(
             msr::IA32_LSTAR,
             MsrAccessType::Write,
@@ -73,6 +78,7 @@ impl SharedData {
             primary_eptp,
             secondary_ept,
             secondary_eptp,
+            hook_manager: None,
         }))
     }
 }

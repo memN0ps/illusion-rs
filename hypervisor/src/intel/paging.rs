@@ -5,6 +5,8 @@
 //! Credits to the work by Satoshi in their 'Hello-VT-rp' project for assistance and a clear implementation of this Paging Structure:
 //! https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/paging_structures.rs
 
+use crate::intel::support::vmread;
+use x86::vmx::vmcs;
 use {
     crate::error::HypervisorError,
     bitfield::bitfield,
@@ -134,6 +136,15 @@ impl PageTables {
         let page_entry = unsafe { *current_paging.add((virtual_address >> 12) & 0x1FF) };
 
         Some((page_entry & ADDRESS_MASK) | (virtual_address & 0xFFF))
+    }
+
+    /// Gets the guest CR3 value from the VMCS.
+    ///
+    /// # Returns
+    ///
+    /// * The guest CR3 value from the VMCS.
+    pub fn get_guest_cr3() -> u64 {
+        vmread(vmcs::guest::CR3)
     }
 
     /// Gets the physical address of the PML4 table, ensuring it is 4KB aligned.

@@ -1,9 +1,11 @@
+pub mod addresses;
 pub mod bitmap;
 pub mod capture;
 pub mod controls;
 pub mod descriptor;
 pub mod ept;
 pub mod events;
+pub mod hooks;
 pub mod invept;
 pub mod invvpid;
 pub mod mtrr;

@@ -7,8 +7,7 @@ edition = "2021"
 
 [features]
 default = []
-#secondary-ept = [] # If this feature is enabled, two nested page tables will be created.
-#shellcode-hook = [] # Enables unstable inline hooks (currently not recommended)
+test-windows-uefi-hooks = [] # If this feature is enabled, we will test the Windows UEFI hooks in the hypervisor at runtime upon booting Windows from the hypervisor.
 
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
