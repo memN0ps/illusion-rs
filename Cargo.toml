@@ -2,9 +2,9 @@
 resolver = "2"
 
 members = [
-    "driver",
+    "uefi",
     "hypervisor",
-    "tests",
+    "kernel",
 ]
 
 [profile.release]
