@@ -42,6 +42,7 @@ impl InlineHook {
         hook_type: InlineHookType,
     ) -> Self {
         trace!("Constructing new inline hook");
+        trace!("Hook Type: {:?}", hook_type);
 
         Self {
             original_address,
@@ -54,15 +55,14 @@ impl InlineHook {
 
     /// Creates a trampoline to store the stolen bytes and resumes execution flow, then calls the detour function.
     pub fn trampoline_hook64(&mut self) {
-        trace!(
-            "Creating trampoline hook for address: {:#x}",
-            self.original_address as usize
-        );
+        trace!("Hook Type: {:?}", self.hook_type);
+
+        trace!("Creating trampoline with address: {:#x}", self.trampoline.as_ptr() as usize);
 
         // Trampoline: Store the bytes that are to be stolen in the trampoline so we can resume execution flow and jump to them later
         unsafe {
             copy_nonoverlapping(
-                self.original_address,
+                self.shadow_copy_address,
                 self.trampoline.as_mut_ptr(),
                 JMP_SIZE,
             )
@@ -101,15 +101,12 @@ impl InlineHook {
                 JMP_SIZE,
             );
         }
-
-        trace!("Calling Detour64");
-
-        // Perform the actual hook
-        self.detour64();
     }
 
     /// Performs a detour or hook, from source to the destination function.
-    fn detour64(&mut self) {
+    pub fn detour64(&mut self) {
+        trace!("Hook Type: {:?}", self.hook_type);
+
         match self.hook_type {
             InlineHookType::Jmp => {
                 // 14 bytes for x86_64 for the inline hook
@@ -152,7 +149,7 @@ impl InlineHook {
                     copy_nonoverlapping(
                         int3_shellcode.as_ptr(),
                         self.shadow_copy_address,
-                        JMP_SIZE,
+                        INT3_SIZE,
                     );
                 }
             }

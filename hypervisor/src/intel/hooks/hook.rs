@@ -180,6 +180,7 @@ impl Hook {
         hook_type: InlineHookType,
     ) -> Option<()> {
         trace!("Hook Function Called");
+        trace!("Hook Type: {:?}", hook_type);
         debug!("Hook Handler: {:#x}", hook_handler as u64);
 
         // Cast the original physical address to a PAddr.
@@ -208,12 +209,20 @@ impl Hook {
             PAddr::from(shadow_page_pa + original_function_pa.base_page_offset());
         debug!("Shadow Function PA: {:#x}", shadow_function_pa);
 
-        let inline_hook = InlineHook::new(
+        let mut inline_hook = InlineHook::new(
             original_function_pa.as_u64() as _,
             shadow_function_pa.as_u64() as _,
             hook_handler as _,
             hook_type,
         );
+
+        // Create a trampoline hook for the original function.
+        trace!("Calling Trampoline Hook");
+        inline_hook.trampoline_hook64();
+
+        // Perform the actual hook
+        trace!("Calling Detour64");
+        inline_hook.detour64();
 
         // Set the hook properties.
         self.original_function_pa = original_function_pa;
