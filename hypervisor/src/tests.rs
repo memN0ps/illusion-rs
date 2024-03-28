@@ -151,13 +151,16 @@ fn test_create_ept_hook(
 ) -> Result<(), HypervisorError> {
     log::trace!("Creating EPT hook for function at {:#x}", original_va);
 
-    for hook in unsafe { &mut vm.shared_data.as_mut().hook_manager } {
-        hook.hook_function_uefi(original_pa, hook_handler, hook_type)
-            .ok_or(HypervisorError::HookError)?;
+    // keep track of the hook index
+    let hook = unsafe { &mut vm.shared_data.as_mut().hook_manager }
+        .get_mut(0)
+        .unwrap();
 
-        if let HookType::Function { ref inline_hook } = hook.hook_type {
-            original_function.store(inline_hook.trampoline_address(), Ordering::Relaxed);
-        }
+    hook.hook_function_uefi(original_pa, hook_handler, hook_type)
+        .ok_or(HypervisorError::HookError)?;
+
+    if let HookType::Function { ref inline_hook } = hook.hook_type {
+        original_function.store(inline_hook.trampoline_address(), Ordering::Relaxed);
     }
 
     Ok(())

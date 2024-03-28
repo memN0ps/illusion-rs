@@ -114,10 +114,6 @@ impl Hook {
             return Err(HypervisorError::EptPtTableIndexExhausted);
         }
 
-        if let HookType::Function { inline_hook } = &mut self.hook_type {
-            inline_hook.enable()?;
-        }
-
         let original_page = self
             .original_function_pa
             .align_down_to_large_page()
@@ -198,15 +194,15 @@ impl Hook {
 
         debug!("Original Function PA: {:#x}", original_function_pa.as_u64());
         debug!("Shadow Page PA: {:#x}", shadow_page_pa);
-        debug!("Shadow Function VA: {:#x}", shadow_function_pa);
+        debug!("Shadow Function PA: {:#x}", shadow_function_pa);
         debug!("Hook Handler: {:#x}", hook_handler as u64);
 
         let inline_hook = InlineHook::new(
-            original_function_pa.as_u64(),
-            Some(shadow_function_pa.as_u64()),
+            original_function_pa.as_u64() as _,
+            shadow_function_pa.as_u64() as _,
             hook_handler as _,
             hook_type,
-        )?;
+        );
 
         // Set the hook properties.
         self.original_function_pa = original_function_pa;

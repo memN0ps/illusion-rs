@@ -164,9 +164,8 @@ pub enum HypervisorError {
     #[error("Invalid PT index")]
     InvalidPtIndex,
 
-    #[error("Failed to encode instructions")]
-    EncodingFailed(#[from] iced_x86::IcedError),
-
+    // #[error("Failed to encode instructions")]
+    // EncodingFailed(#[from] iced_x86::IcedError),
     #[error("EPT PT table index exhausted")]
     EptPtTableIndexExhausted,
 
