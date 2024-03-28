@@ -44,6 +44,12 @@ pub struct Hook {
     pub original_function_pa: PAddr,
 
     /// Virtual address where the hook is placed.
+    pub original_page_va: VAddr,
+
+    /// Physical address where the hook is placed.
+    pub original_page_pa: PAddr,
+
+    /// Virtual address where the hook is placed.
     pub shadow_function_va: VAddr,
 
     /// Physical address of the hook.
@@ -76,6 +82,8 @@ impl Hook {
             pt_table_index,
             original_function_va: VAddr::zero(),
             original_function_pa: PAddr::zero(),
+            original_page_va: VAddr::zero(),
+            original_page_pa: PAddr::zero(),
             shadow_function_va: VAddr::zero(),
             shadow_function_pa: PAddr::zero(),
             shadow_page,
@@ -172,30 +180,33 @@ impl Hook {
         hook_type: InlineHookType,
     ) -> Option<()> {
         trace!("Hook Function Called");
+        debug!("Hook Handler: {:#x}", hook_handler as u64);
 
         // Cast the original physical address to a PAddr.
         let original_function_pa = PAddr::from(original_function_pa);
+        debug!("Original Function PA: {:#x}", original_function_pa.as_u64());
+
+        // Align the original function address to the base page size.
+        let original_page_pa = original_function_pa.align_down_to_base_page();
+        trace!("Original Page PA: {:#x}", original_page_pa.as_u64());
+
+        // Get the physical address of the shadow page.
+        let shadow_page_pa = PAddr::from(addr_of_mut!(self.shadow_page) as *mut u64 as u64);
+        debug!("Shadow Page PA: {:#x}", shadow_page_pa);
 
         // Copy the original page to the pre-allocated shadow page.
         unsafe {
             copy_nonoverlapping(
-                original_function_pa.as_u64() as *mut u64,
-                addr_of_mut!(self.shadow_page) as *mut u64,
+                original_page_pa.as_u64() as *mut u64,
+                shadow_page_pa.as_u64() as *mut u64,
                 BASE_PAGE_SIZE,
             )
         };
 
-        // Get the physical address of the shadow page.
-        let shadow_page_pa = PAddr::from(addr_of_mut!(self.shadow_page) as *mut u64 as u64);
-
         // Calculate the address of the function within the copied page.
         let shadow_function_pa =
             PAddr::from(shadow_page_pa + original_function_pa.base_page_offset());
-
-        debug!("Original Function PA: {:#x}", original_function_pa.as_u64());
-        debug!("Shadow Page PA: {:#x}", shadow_page_pa);
         debug!("Shadow Function PA: {:#x}", shadow_function_pa);
-        debug!("Hook Handler: {:#x}", hook_handler as u64);
 
         let inline_hook = InlineHook::new(
             original_function_pa.as_u64() as _,
@@ -206,6 +217,7 @@ impl Hook {
 
         // Set the hook properties.
         self.original_function_pa = original_function_pa;
+        self.original_page_pa = original_page_pa;
         self.shadow_page_pa = shadow_page_pa;
         self.shadow_function_pa = shadow_function_pa;
         self.hook_handler = hook_handler;
