@@ -65,7 +65,7 @@ impl InlineHook {
         // Trampoline: Store the bytes that are to be stolen in the trampoline so we can resume execution flow and jump to them later
         unsafe {
             copy_nonoverlapping(
-                self.shadow_copy_address,
+                self.original_address,
                 self.trampoline.as_mut_ptr(),
                 JMP_SIZE,
             )
