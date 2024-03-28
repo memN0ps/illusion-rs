@@ -57,7 +57,10 @@ impl InlineHook {
     pub fn trampoline_hook64(&mut self) {
         trace!("Hook Type: {:?}", self.hook_type);
 
-        trace!("Creating trampoline with address: {:#x}", self.trampoline.as_ptr() as usize);
+        trace!(
+            "Creating trampoline with address: {:#x}",
+            self.trampoline.as_ptr() as usize
+        );
 
         // Trampoline: Store the bytes that are to be stolen in the trampoline so we can resume execution flow and jump to them later
         unsafe {
