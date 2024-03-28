@@ -7,9 +7,8 @@ use {
         intel::{
             addresses::PhysicalAddress,
             bitmap::{MsrAccessType, MsrOperation},
-            hooks::hook::{Hook, HookType},
+            hooks::hook::HookType,
             hooks::inline::InlineHookType,
-            hooks::manager::HookManager,
             paging::PageTables,
             vm::Vm,
         },
@@ -26,7 +25,6 @@ use {
             ssdt::ssdt_hook::SsdtHook,
         },
     },
-    alloc::vec,
     core::{
         ffi::c_void,
         mem, ptr,
@@ -74,15 +72,26 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
         mm_is_address_valid_va as u64
     );
 
+    // Get the physical address of the MmIsAddressValid function.
+    let mm_is_address_valid_pa = PhysicalAddress::pa_from_va(mm_is_address_valid_va as _);
+    log::trace!(
+        "MmIsAddressValid physical address: {:#x}",
+        mm_is_address_valid_pa
+    );
+
     // Create a hook for the MmIsAddressValid function.
-    let test_mm_is_address_valid_hook = test_create_ept_hook(
+    test_create_ept_hook(
+        vm,
         mm_is_address_valid_va as u64,
+        mm_is_address_valid_pa,
         test_mm_is_address_valid as *const (),
         InlineHookType::Jmp,
         &MM_IS_ADDRESS_VALID_ORIGINAL,
     )?;
+
     log::trace!("MmIsAddressValid hook installed");
 
+    /* NtCreateFile Hook
     // Get the size of ntoskrnl.exe.
     let kernel_size = unsafe { get_size_of_image(ntoskrnl_base_pa as _).unwrap() };
     log::trace!("ntoskrnl.exe size: {:#x}", kernel_size);
@@ -114,10 +123,7 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
         test_nt_create_file_hook,
     ]);
     log::trace!("Hook manager created");
-
-    // Set the hook manager in the shared data.
-    unsafe { vm.shared_data.as_mut().hook_manager = Some(hook_manager) };
-    log::trace!("Hook manager set in shared data");
+    */
 
     log::info!("Windows kernel hooks installed successfully");
 
@@ -136,21 +142,25 @@ pub fn test_windows_kernel_ept_hooks(vm: &mut Vm, msr_value: u64) -> Result<(), 
 ///
 /// Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
 fn test_create_ept_hook(
+    vm: &mut Vm,
     original_va: u64,
+    original_pa: u64,
     hook_handler: *const (),
     hook_type: InlineHookType,
     original_function: &AtomicPtr<u64>,
-) -> Result<Hook, HypervisorError> {
+) -> Result<(), HypervisorError> {
     log::trace!("Creating EPT hook for function at {:#x}", original_va);
 
-    let hook = Hook::hook_function(original_va, hook_handler, hook_type)
-        .ok_or(HypervisorError::HookError)?;
+    for hook in unsafe { &mut vm.shared_data.as_mut().hook_manager } {
+        hook.hook_function_uefi(original_pa, hook_handler, hook_type)
+            .ok_or(HypervisorError::HookError)?;
 
-    if let HookType::Function { ref inline_hook } = hook.hook_type {
-        original_function.store(inline_hook.trampoline_address(), Ordering::Relaxed);
+        if let HookType::Function { ref inline_hook } = hook.hook_type {
+            original_function.store(inline_hook.trampoline_address(), Ordering::Relaxed);
+        }
     }
 
-    Ok(hook)
+    Ok(())
 }
 
 /// A global atomic pointer to hold the original `mm_is_address_valid` function.

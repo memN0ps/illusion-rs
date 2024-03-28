@@ -1,12 +1,22 @@
+//! This module provides functionalities for creating and managing hooks in a hypervisor environment.
+//! It includes support for function hooks and page hooks, allowing manipulation and monitoring
+//! of system behavior at a low level. The module is designed for use in scenarios requiring direct
+//! interaction with system internals, such as in kernel and hypervisor development.
+
 use {
-    crate::intel::{
-        addresses::PhysicalAddress,
-        hooks::inline::{InlineHook, InlineHookType},
+    crate::{
+        error::HypervisorError,
+        intel::{
+            ept::{AccessType, Ept, PT_INDEX_MAX},
+            hooks::inline::{InlineHook, InlineHookType},
+            page::Page,
+        },
     },
     alloc::boxed::Box,
-    core::ptr::copy_nonoverlapping,
+    core::intrinsics::copy_nonoverlapping,
+    core::ptr::addr_of_mut,
+    log::*,
     x86::bits64::paging::{PAddr, VAddr, BASE_PAGE_SIZE},
-    x86_64::instructions::interrupts::without_interrupts,
 };
 
 /// Enum representing different types of hooks that can be applied.
@@ -18,186 +28,193 @@ pub enum HookType {
     Page,
 }
 
-/// Represents a hook in the system, either on a function or a page.
+/// Manages the lifecycle and control of various hooks.
+///
+/// `Hook` is a container for multiple hooks and provides an interface
+/// to enable or disable these hooks as a group. It's primarily responsible for
+/// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
 pub struct Hook {
+    /// The index of the page table entry in the EPT, to keep track of the hooks.
+    pub pt_table_index: usize,
+
     /// Original virtual address of the target function or page.
-    pub original_va: u64,
+    pub original_function_va: VAddr,
 
     /// Original physical address of the target function or page.
-    pub original_pa: PhysicalAddress,
+    pub original_function_pa: PAddr,
 
     /// Virtual address where the hook is placed.
-    pub shadow_va: u64,
+    pub shadow_function_va: VAddr,
 
     /// Physical address of the hook.
-    pub shadow_pa: PhysicalAddress,
+    pub shadow_function_pa: PAddr,
 
     /// Contents of the original page where the hook is placed.
-    pub shadow_page: Box<[u8]>,
+    pub shadow_page: Box<Page>,
 
     /// Virtual address of the page containing the hook.
-    pub shadow_page_va: u64,
+    pub shadow_page_va: VAddr,
 
     /// Physical address of the page containing the hook.
-    pub shadow_page_pa: PhysicalAddress,
+    pub shadow_page_pa: PAddr,
 
     /// Type of the hook (Function or Page).
     pub hook_type: HookType,
+
+    /// Handler function to be called when the hook is triggered.
+    pub hook_handler: *const (),
 }
 
 impl Hook {
-    /// Creates a hook on a function by its pointer.
-    ///
-    /// This function sets up a hook directly using the function's pointer. It copies the page where the function resides,
-    /// installs a hook on that page, and then returns a `Hook` struct representing this setup.
+    /// Constructs a new `Hook` with a given set of hooks.
     ///
     /// # Arguments
     ///
-    /// * `original_va` - The virtual address of the function to be hooked.
-    /// * `hook_handler` - The handler function to be called when the hooked function is executed.
-    /// * `hook_type` - The type of hook to be installed.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<Self>` - An instance of `Hook` if successful, or `None` if an error occurred.
-    ///
-    /// # Example
-    ///
-    /// `hook_function(original_va, hook_handler, hook_type)`
-    pub fn hook_function(
-        original_va: u64,
-        hook_handler: *const (),
-        hook_type: InlineHookType,
-    ) -> Option<Self> {
-        log::trace!("Hook Function Called");
-
-        let original_pa = PhysicalAddress::from_va(original_va);
-
-        // Copy the page where the function resides to prevent modifying the original page.
-        let shadow_page = Self::copy_page(original_va)?;
-        let shadow_page_va = shadow_page.as_ptr() as *mut u64 as u64;
-        let shadow_page_pa = PhysicalAddress::from_va(shadow_page_va);
-
-        // Calculate the virtual and physical address of the function in the copied page.
-        let shadow_va = Self::address_in_page(shadow_page_va, original_va);
-        let shadow_pa = PhysicalAddress::from_va(shadow_va);
-
-        log::debug!("Hook Handler: {:#x}", hook_handler as u64);
-
-        log::debug!("Original VA: {:#x}", original_va);
-        log::debug!("Original PA: {:#x}", original_pa.as_u64());
-
-        log::debug!("Shadow Page VA: {:#x}", shadow_page_va);
-        log::debug!("Shadow Page PA: {:#x}", shadow_page_pa.as_u64());
-
-        log::debug!("Shadow VA: {:#x}", shadow_va);
-        log::debug!("Shadow PA: {:#x}", shadow_pa.as_u64());
-
-        // Create an inline hook at the new address in the copied page.
-        let inline_hook =
-            InlineHook::new(original_va, Some(shadow_va), hook_handler as _, hook_type)?;
-
-        Some(Self {
-            original_va,
-            original_pa,
-            shadow_va,
-            shadow_pa,
+    /// * `hooks` - A vector of `Hook` instances to be managed.
+    pub fn new(shadow_page: Box<Page>, pt_table_index: usize) -> Box<Self> {
+        let hooks = Self {
+            pt_table_index,
+            original_function_va: VAddr::zero(),
+            original_function_pa: PAddr::zero(),
+            shadow_function_va: VAddr::zero(),
+            shadow_function_pa: PAddr::zero(),
             shadow_page,
-            shadow_page_va,
-            shadow_page_pa,
-            hook_type: HookType::Function { inline_hook },
-        })
-    }
-
-    /// Creates a hook on a specific page.
-    ///
-    /// This function sets up a hook on a specific memory page, allowing for monitoring or altering the page's content.
-    ///
-    /// # Arguments
-    ///
-    /// * `original_va` - The virtual address of the page to be hooked.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<Self>` - An instance of `Hook` if successful, or `None` if an error occurred.
-    pub fn hook_page(original_va: u64) -> Option<Self> {
-        let original_pa = PhysicalAddress::from_va(original_va);
-
-        // Copy the target page for hooking.
-        let shadow_page = Self::copy_page(original_va)?;
-        let shadow_page_va = shadow_page.as_ptr() as *mut u64 as u64;
-        let shadow_page_pa = PhysicalAddress::from_va(shadow_page_va);
-
-        // In case of a page hook, the virtual and physical addresses are the same as the copied page.
-        Some(Self {
-            original_va,
-            original_pa,
-            shadow_page_va,
-            shadow_page_pa,
-            shadow_va: shadow_page_va,
-            shadow_pa: shadow_page_pa,
-            shadow_page,
+            shadow_page_va: VAddr::zero(),
+            shadow_page_pa: PAddr::zero(),
             hook_type: HookType::Page,
-        })
+            hook_handler: core::ptr::null(),
+        };
+        Box::new(hooks)
     }
 
-    /// Creates a copy of a page in memory.
+    /// Enables all the hooks managed by the `Hook`.
     ///
-    /// This function copies the contents of a page in memory to a new location.
+    /// It sets the necessary permissions on the primary and secondary Extended Page Tables (EPTs)
+    /// to intercept execution and data access at specific memory locations. This function is
+    /// particularly used to switch between primary and secondary EPTs when executing hooked functions.
     ///
     /// # Arguments
     ///
-    /// * `original_va` - The virtual address of the page to be copied.
+    /// * `primary_ept` - A mutable reference to the primary EPT, typically representing the normal memory view.
+    /// * `secondary_ept` - A mutable reference to the secondary EPT, typically representing the altered memory view for hooks.
     ///
     /// # Returns
     ///
-    /// * `Option<Box<[u8]>>` - A boxed slice containing the copied page data.
-    fn copy_page(original_va: u64) -> Option<Box<[u8]>> {
-        log::trace!("Copy Page Called");
-        let original_pa = PAddr::from(original_va).align_down_to_base_page();
+    /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
+    pub fn enable_hooks(
+        &mut self,
+        primary_ept: &mut Box<Ept>,
+        secondary_ept: &mut Box<Ept>,
+    ) -> Result<(), HypervisorError> {
+        // Increment the page table index for each hook. Should not be 0 as it's reserved.
+        self.pt_table_index += 1;
 
-        if original_pa.is_zero() {
-            log::error!("Invalid page address: {:#x}", original_va);
-            return None;
+        // If the page table index exceeds the maximum allowed, return an error.
+        if self.pt_table_index >= PT_INDEX_MAX {
+            return Err(HypervisorError::EptPtTableIndexExhausted);
         }
 
-        log::trace!("Allocating memory for shadow page");
-        let mut shadow_page = Box::new_uninit_slice(BASE_PAGE_SIZE);
+        if let HookType::Function { inline_hook } = &mut self.hook_type {
+            inline_hook.enable()?;
+        }
 
-        log::trace!(
-            "Copying page at from {:#x} to {:#x}",
-            original_pa.as_u64(),
-            shadow_page.as_ptr() as u64
+        let original_page = self
+            .original_function_pa
+            .align_down_to_large_page()
+            .as_u64();
+        let hooked_copy_page = self.shadow_function_pa.align_down_to_large_page().as_u64();
+
+        debug!(
+            "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
+            original_page
         );
+        primary_ept.split_2mb_to_4kb(original_page, self.pt_table_index)?;
 
-        // Perform the memory copy operation without interruptions.
-        without_interrupts(|| {
-            unsafe {
-                copy_nonoverlapping(
-                    original_pa.as_u64() as *mut u64,
-                    shadow_page.as_mut_ptr() as _,
-                    BASE_PAGE_SIZE,
-                )
-            };
-        });
+        debug!(
+            "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
+            hooked_copy_page
+        );
+        secondary_ept.split_2mb_to_4kb(original_page, self.pt_table_index)?;
 
-        log::trace!("Page copied successfully");
+        // Align addresses to their base page sizes for accurate permission modification.
+        let original_page = self.original_function_pa.align_down_to_base_page().as_u64();
+        let hooked_copy_page = self.shadow_function_pa.align_down_to_base_page().as_u64();
 
-        Some(unsafe { shadow_page.assume_init() })
+        // Modify the page permission in the primary EPT to ReadWrite for the original page.
+        debug!(
+            "Changing permissions for page to Read-Write (RW) only: {:#x}",
+            original_page
+        );
+        primary_ept.modify_page_permissions(
+            original_page,
+            AccessType::READ_WRITE,
+            self.pt_table_index,
+        )?;
+
+        // Modify the page permission in the secondary EPT to Execute for the original page.
+        debug!(
+            "Changing permissions for hook page to Execute (X) only: {:#x}",
+            hooked_copy_page
+        );
+        secondary_ept.modify_page_permissions(
+            original_page,
+            AccessType::EXECUTE,
+            self.pt_table_index,
+        )?;
+
+        // Map the original page to the hooked page in the secondary EPT.
+        debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", original_page, hooked_copy_page);
+        secondary_ept.remap_gpa_to_hpa(original_page, hooked_copy_page, self.pt_table_index)?;
+
+        Ok(())
     }
 
-    /// Calculates the address of a function within the copied page.
-    ///
-    /// # Arguments
-    ///
-    /// * `shadow_page_va` - The virtual address of the copied page.
-    /// * `original_va` - The virtual address of the original function.
-    ///
-    /// # Returns
-    ///
-    /// * `u64` - The adjusted address of the function within the new page.
-    fn address_in_page(shadow_page_va: u64, original_va: u64) -> u64 {
-        let base_offset = VAddr::from(original_va).base_page_offset();
-        shadow_page_va + base_offset
+    pub fn hook_function_uefi(
+        &mut self,
+        original_function_pa: u64,
+        hook_handler: *const (),
+        hook_type: InlineHookType,
+    ) -> Option<()> {
+        trace!("Hook Function Called");
+
+        // Cast the original physical address to a PAddr.
+        let original_function_pa = PAddr::from(original_function_pa);
+
+        // Copy the original page to the pre-allocated shadow page.
+        unsafe {
+            copy_nonoverlapping(
+                original_function_pa.as_u64() as *mut u64,
+                addr_of_mut!(self.shadow_page) as *mut u64,
+                BASE_PAGE_SIZE,
+            )
+        };
+
+        // Get the physical address of the shadow page.
+        let shadow_page_pa = PAddr::from(addr_of_mut!(self.shadow_page) as *mut u64 as u64);
+
+        // Calculate the address of the function within the copied page.
+        let shadow_function_pa =
+            PAddr::from(shadow_page_pa + original_function_pa.base_page_offset());
+
+        debug!("Original Function PA: {:#x}", original_function_pa.as_u64());
+        debug!("Shadow Page PA: {:#x}", shadow_page_pa);
+        debug!("Shadow Function VA: {:#x}", shadow_function_pa);
+        debug!("Hook Handler: {:#x}", hook_handler as u64);
+
+        let inline_hook = InlineHook::new(
+            original_function_pa.as_u64(),
+            Some(shadow_function_pa.as_u64()),
+            hook_handler as _,
+            hook_type,
+        )?;
+
+        // Set the hook properties.
+        self.original_function_pa = original_function_pa;
+        self.shadow_page_pa = shadow_page_pa;
+        self.shadow_function_pa = shadow_function_pa;
+        self.hook_handler = hook_handler;
+        self.hook_type = HookType::Function { inline_hook };
+
+        Some(())
     }
 }

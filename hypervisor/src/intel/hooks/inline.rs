@@ -20,6 +20,7 @@ pub const JMP_SHELLCODE_LEN: usize = 14;
 pub const BP_SHELLCODE_LEN: usize = 1;
 
 /// Types of inline hooks that can be created by this library.
+#[derive(Debug, Copy, Clone)]
 pub enum InlineHookType {
     /// Jump-based inline hook, which redirects execution flow to a custom handler.
     Jmp,

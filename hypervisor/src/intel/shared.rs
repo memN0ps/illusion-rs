@@ -7,11 +7,14 @@ use {
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
-            ept::Ept,
-            hooks::manager::HookManager,
+            ept::{Ept, PT_INDEX_MAX},
+            hooks::hook::Hook,
+            page::Page,
+            vm::box_zeroed,
         },
     },
     alloc::boxed::Box,
+    alloc::vec::Vec,
     x86::msr,
 };
 
@@ -37,7 +40,7 @@ pub struct SharedData {
     pub secondary_eptp: u64,
 
     /// The hook manager.
-    pub hook_manager: Option<Box<HookManager>>,
+    pub hook_manager: Vec<Box<Hook>>,
 }
 
 impl SharedData {
@@ -72,13 +75,27 @@ impl SharedData {
             MsrOperation::Hook,
         );
 
+        let mut hook_manager = Vec::new();
+
+        // Pre-Allocated buffer for hooks with PT_INDEX_MAX entries.
+        for pt_table_index in 1..PT_INDEX_MAX {
+            // Create a pre-allocated shadow page for the hook.
+            let shadow_page = unsafe { box_zeroed::<Page>() };
+
+            // Create a new hook and push it to the hook manager.
+            let hook = Hook::new(shadow_page, pt_table_index);
+
+            // Save the hook in the hook manager.
+            hook_manager.push(hook);
+        }
+
         Ok(Box::new(Self {
             msr_bitmap,
             primary_ept,
             primary_eptp,
             secondary_ept,
             secondary_eptp,
-            hook_manager: None,
+            hook_manager,
         }))
     }
 }
