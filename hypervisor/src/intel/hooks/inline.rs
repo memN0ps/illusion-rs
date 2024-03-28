@@ -20,10 +20,10 @@ pub enum InlineHookType {
 /// Represents an inline hook, which can be used to redirect execution flow to a custom handler.
 pub struct InlineHook {
     /// The original address of the function to be hooked.
-    pub original_address: *mut u8,
+    pub original_function_pa: *mut u8,
 
-    /// The shadow copy address where the hook will be placed.
-    pub shadow_copy_address: *mut u8,
+    /// The shadow copy address of the function to be hooked.
+    pub shadow_function_pa: *mut u8,
 
     /// The handler function to be called when the hook is triggered.
     pub hook_handler: *mut u8,
@@ -31,13 +31,14 @@ pub struct InlineHook {
     /// The type of inline hook to be created.
     pub hook_type: InlineHookType,
 
+    /// The trampoline used to store the stolen bytes and resume execution flow.
     pub trampoline: [u8; JMP_SIZE],
 }
 
 impl InlineHook {
     pub fn new(
-        original_address: *mut u8,
-        shadow_copy_address: *mut u8,
+        original_function_pa: *mut u8,
+        shadow_function_pa: *mut u8,
         hook_handler: *mut u8,
         hook_type: InlineHookType,
     ) -> Self {
@@ -45,8 +46,8 @@ impl InlineHook {
         trace!("Hook Type: {:?}", hook_type);
 
         Self {
-            original_address,
-            shadow_copy_address,
+            original_function_pa,
+            shadow_function_pa,
             hook_handler,
             hook_type,
             trampoline: [0; JMP_SIZE],
@@ -65,7 +66,7 @@ impl InlineHook {
         // Trampoline: Store the bytes that are to be stolen in the trampoline so we can resume execution flow and jump to them later
         unsafe {
             copy_nonoverlapping(
-                self.original_address,
+                self.original_function_pa,
                 self.trampoline.as_mut_ptr(),
                 JMP_SIZE,
             )
@@ -83,7 +84,7 @@ impl InlineHook {
         // The address to jump to is the original address + the size of the stolen bytes (instruction after the overwritten bytes)
         unsafe {
             copy_nonoverlapping(
-                ((&((self.original_address as usize) + JMP_SIZE)) as *const usize) as *mut u8,
+                ((&((self.original_function_pa as usize) + JMP_SIZE)) as *const usize) as *mut u8,
                 jmp_bytes.as_mut_ptr().offset(6),
                 8,
             );
@@ -104,6 +105,8 @@ impl InlineHook {
                 JMP_SIZE,
             );
         }
+
+        trace!("The trampoline has been installed successfully at: {:#x}", self.trampoline.as_ptr() as u64);
     }
 
     /// Performs a detour or hook, from source to the destination function.
@@ -133,12 +136,12 @@ impl InlineHook {
 
                 trace!(
                     "Copying jmp bytes to shadow copy address: {:#x?}",
-                    self.shadow_copy_address
+                    self.shadow_function_pa
                 );
 
                 // Hook the original function and place a jmp <hook handler>
                 unsafe {
-                    copy_nonoverlapping(jmp_shellcode.as_ptr(), self.shadow_copy_address, JMP_SIZE);
+                    copy_nonoverlapping(jmp_shellcode.as_ptr(), self.shadow_function_pa, JMP_SIZE);
                 }
             }
             InlineHookType::Breakpoint => {
@@ -151,12 +154,12 @@ impl InlineHook {
                 unsafe {
                     copy_nonoverlapping(
                         int3_shellcode.as_ptr(),
-                        self.shadow_copy_address,
+                        self.shadow_function_pa,
                         INT3_SIZE,
                     );
                 }
             }
-        };
+        }
 
         trace!("The hook has been installed successfully");
     }
