@@ -3,7 +3,8 @@ resolver = "2"
 
 members = [
     "driver",
-    "hypervisor",
+    "hypervisor", 
+    "loader",
 ]
 
 [profile.release]
