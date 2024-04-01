@@ -34,4 +34,5 @@ pub fn inject_guest_agent_task(vm: &mut Vm, command_number: u64) -> Result<(), H
 extern "C" fn guest_agent_entry_point() {
     // Hook installation logic here
     // test_windows_kernel_ept_hooks();
+    debug!("Guest agent entry point called!");
 }
