@@ -4,13 +4,13 @@
 
 use {
     crate::{
+        allocate::{allocate_stack_space, box_zeroed},
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             ept::{Ept, PT_INDEX_MAX},
             hooks::hook::Hook,
             page::Page,
-            vm::box_zeroed,
         },
     },
     alloc::boxed::Box,
@@ -41,6 +41,9 @@ pub struct SharedData {
 
     /// The hook manager.
     pub hook_manager: Vec<Box<Hook>>,
+
+    /// The guest agent stack.
+    pub guest_agent_stack: u64,
 }
 
 impl SharedData {
@@ -76,6 +79,9 @@ impl SharedData {
             MsrOperation::Hook,
         );
 
+        // Allocate stack space for the guest agent.
+        let guest_agent_stack = allocate_stack_space(0x10);
+
         let mut hook_manager = Vec::new();
 
         // Pre-Allocated buffer for hooks with PT_INDEX_MAX entries.
@@ -97,6 +103,7 @@ impl SharedData {
             secondary_ept,
             secondary_eptp,
             hook_manager,
+            guest_agent_stack,
         }))
     }
 }

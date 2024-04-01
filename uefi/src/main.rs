@@ -12,14 +12,14 @@ extern crate alloc;
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
     hypervisor::{
-        intel::{ept::Ept, vm::box_zeroed},
+        allocate::box_zeroed,
+        intel::ept::Ept,
         logger::{self, SerialPort},
     },
     log::*,
     uefi::prelude::*,
 };
 
-//pub mod hooks;
 pub mod processor;
 pub mod relocation;
 pub mod virtualize;

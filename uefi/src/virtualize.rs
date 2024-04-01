@@ -4,10 +4,10 @@
 //! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
 
 use {
-    alloc::alloc::{alloc_zeroed, handle_alloc_error},
-    core::{alloc::Layout, arch::global_asm},
+    core::arch::global_asm,
     hypervisor::{
-        intel::{capture::GuestRegisters, page::Page, shared::SharedData},
+        allocate::allocate_stack_space,
+        intel::{capture::GuestRegisters, shared::SharedData},
         vmm::start_hypervisor,
     },
     log::debug,
@@ -20,21 +20,15 @@ use {
 /// * `guest_registers` - The guest registers to use for the hypervisor.
 /// * `shared_data` - The shared data to use for the hypervisor.
 pub fn virtualize_system(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
-    // Allocate separate stack space. This is never freed.
-    let layout = Layout::array::<Page>(0x10).unwrap();
-    let stack = unsafe { alloc_zeroed(layout) };
-    if stack.is_null() {
-        handle_alloc_error(layout);
-    }
-    let stack_base = stack as u64 + layout.size() as u64 - 0x10;
-    debug!("Stack range: {:#x?}", stack as u64..stack_base);
+    debug!("Allocating stack space for host");
+    let host_stack = allocate_stack_space(0x10);
 
     unsafe {
         switch_stack(
             guest_registers,
             shared_data as *mut _ as *mut u8,
             start_hypervisor as usize,
-            stack_base,
+            host_stack,
         )
     };
 }
@@ -45,7 +39,7 @@ extern "efiapi" {
         guest_registers: &GuestRegisters,
         shared_data: *mut u8,
         landing_code: usize,
-        stack_base: u64,
+        host_stack: u64,
     ) -> !;
 }
 
