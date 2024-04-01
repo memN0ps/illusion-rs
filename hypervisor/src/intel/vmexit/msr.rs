@@ -113,7 +113,7 @@ pub fn handle_msr_access(
                 );
 
                 #[cfg(feature = "test-windows-uefi-hooks")]
-                crate::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
+                crate::windows::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.

@@ -16,6 +16,5 @@ extern crate static_assertions;
 pub mod error;
 pub mod intel;
 pub mod logger;
-pub mod tests;
 pub mod vmm;
 pub mod windows;
