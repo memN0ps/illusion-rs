@@ -4,6 +4,7 @@
 //! Credits:
 //! https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
 //! https://mellownight.github.io/AetherVisor
+//! https://github.com/tandasat/MiniVisorPkg/issues/4#issuecomment-664030968
 //! jessiep_
 
 use {
@@ -112,9 +113,6 @@ pub fn handle_msr_access(
                     vm.guest_registers.hook_lstar
                 );
 
-                #[cfg(feature = "test-windows-uefi-hooks")]
-                crate::windows::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
-
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
                 if vm.guest_registers.original_lstar == 0 {
@@ -139,6 +137,22 @@ pub fn handle_msr_access(
 
                     wrmsr(msr_id, value_to_write);
                 }
+            } else if msr_id == msr::IA32_GS_BASE {
+                // Credits: https://github.com/tandasat/MiniVisorPkg/issues/4#issuecomment-664030968
+                //
+                // Write to this MSR happens at KiSystemStartup for each processor.
+                // We intercept this only once that occurs on the BSP as a trigger
+                // point to initialize the guest agent. We do not emulate this
+                // operation and instead, make the guest retry after returning from
+                // the guest agent. At the 2nd try, VM-exit no longer occurs.
+                //
+                // Note that is place is too early to debug the guest agent. Move to
+                // later such as KeInitAmd64SpecificState for this. This place was
+                // chosen so that none of PatchGuard context is initialized.
+                //
+                log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
+                #[cfg(feature = "test-windows-uefi-hooks")]
+                crate::windows::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
                 // If the guest writes any other value (which would typically only happen if the guest is attempting to modify the syscall mechanism itself),

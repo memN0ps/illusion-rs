@@ -68,9 +68,10 @@ impl SharedData {
 
         // Intercept read and write operations for the IA32_LSTAR MSR.
         // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Read, MsrOperation::Hook);
+        // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
         #[cfg(feature = "test-windows-uefi-hooks")]
         msr_bitmap.modify_msr_interception(
-            msr::IA32_LSTAR,
+            msr::IA32_GS_BASE,
             MsrAccessType::Write,
             MsrOperation::Hook,
         );
