@@ -106,7 +106,10 @@ impl InlineHook {
             );
         }
 
-        trace!("The trampoline has been installed successfully at: {:#x}", self.trampoline.as_ptr() as u64);
+        trace!(
+            "The trampoline has been installed successfully at: {:#x}",
+            self.trampoline.as_ptr() as u64
+        );
     }
 
     /// Performs a detour or hook, from source to the destination function.
