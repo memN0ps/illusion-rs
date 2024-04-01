@@ -22,9 +22,10 @@ pub fn inject_guest_agent_task(vm: &mut Vm, command_number: u64) -> Result<(), H
     vm.host_guest_agent_context.rip = vm.guest_registers.rip;
     vm.host_guest_agent_context.rsp = vm.guest_registers.rsp;
     vm.host_guest_agent_context.command_number = command_number;
+    let guest_agent_stack = unsafe { vm.shared_data.as_mut().guest_agent_stack };
 
     vmwrite(vmcs::guest::RIP, guest_agent_entry_point as u64);
-    //vmwrite(vmcs::guest::RSP, guest_agent_stack as u64);
+    vmwrite(vmcs::guest::RSP, guest_agent_stack);
 
     Ok(())
 }
