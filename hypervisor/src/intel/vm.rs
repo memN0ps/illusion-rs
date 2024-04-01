@@ -49,6 +49,9 @@ pub struct Vm {
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
 
+    /// State of guest agent that's to be used for hooks.
+    pub host_guest_agent_context: GuestRegisters,
+
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
 
@@ -93,6 +96,7 @@ impl Vm {
             host_descriptor: Descriptors::new_for_host(),
             guest_descriptor: Descriptors::new_from_current(),
             guest_registers: guest_registers.clone(),
+            host_guest_agent_context: GuestRegisters::default(),
             has_launched: false,
             shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
         })

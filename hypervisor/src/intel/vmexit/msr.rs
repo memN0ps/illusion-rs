@@ -152,7 +152,10 @@ pub fn handle_msr_access(
                 //
                 log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
                 #[cfg(feature = "test-windows-uefi-hooks")]
-                crate::windows::tests::test_windows_kernel_ept_hooks(vm, msr_value)?;
+                crate::windows::agent::inject_guest_agent_task(vm, msr_value)?;
+
+                // Return to the guest agent to initialize the hooks.
+                return Ok(ExitType::Continue);
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
                 // If the guest writes any other value (which would typically only happen if the guest is attempting to modify the syscall mechanism itself),
