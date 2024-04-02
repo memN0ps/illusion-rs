@@ -2,8 +2,9 @@
 resolver = "2"
 
 members = [
-    "uefi",
     "hypervisor",
+    "loader",
+    "uefi",
 ]
 
 [profile.release]
