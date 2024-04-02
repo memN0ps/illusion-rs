@@ -150,9 +150,19 @@ pub fn handle_msr_access(
                 // later such as KeInitAmd64SpecificState for this. This place was
                 // chosen so that none of PatchGuard context is initialized.
                 //
-                log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
                 #[cfg(feature = "test-windows-uefi-hooks")]
-                crate::windows::agent::inject_guest_agent_task(vm, msr_value)?;
+                {
+                    log::trace!("Unhooking MSR_IA32_GS_BASE.");
+                    unsafe {
+                        vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
+                            msr::IA32_GS_BASE,
+                            MsrAccessType::Write,
+                            crate::intel::bitmap::MsrOperation::Unhook,
+                        )
+                    };
+                    log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
+                    crate::windows::guest::inject_guest_agent_task(vm, msr_value)?;
+                }
 
                 // Return to the guest agent to initialize the hooks.
                 return Ok(ExitType::Continue);
