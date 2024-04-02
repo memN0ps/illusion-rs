@@ -7,7 +7,7 @@ use {
         allocate::{allocate_stack_space, box_zeroed},
         error::HypervisorError,
         intel::{
-            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
+            bitmap::MsrBitmap,
             ept::{Ept, PT_INDEX_MAX},
             hooks::hook::Hook,
             page::Page,
@@ -15,7 +15,6 @@ use {
     },
     alloc::boxed::Box,
     alloc::vec::Vec,
-    x86::msr,
 };
 
 /// Represents shared data structures for hypervisor operations.
@@ -67,16 +66,18 @@ impl SharedData {
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
         let secondary_eptp = secondary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
+        #[allow(unused_mut)]
         let mut msr_bitmap = MsrBitmap::new();
 
-        // Intercept read and write operations for the IA32_LSTAR MSR.
-        // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Read, MsrOperation::Hook);
-        // msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
         #[cfg(feature = "test-windows-uefi-hooks")]
+        // Intercept read and write operations for the IA32_LSTAR MSR.
+        // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Read, crate::intel::bitmap::MsrOperation::Hook);
+        // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Hook);
+        // Intercept write operations for the IA32_GS_BASE MSR.
         msr_bitmap.modify_msr_interception(
-            msr::IA32_GS_BASE,
-            MsrAccessType::Write,
-            MsrOperation::Hook,
+            x86::msr::IA32_GS_BASE,
+            crate::intel::bitmap::MsrAccessType::Write,
+            crate::intel::bitmap::MsrOperation::Hook,
         );
 
         // Allocate stack space for the guest agent.

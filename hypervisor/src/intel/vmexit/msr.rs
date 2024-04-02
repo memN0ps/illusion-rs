@@ -161,7 +161,10 @@ pub fn handle_msr_access(
                         )
                     };
                     log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
-                    crate::windows::guest::inject_guest_agent_task(vm, msr_value)?;
+                    crate::intel::vmexit::vmcall::inject_guest_agent_task(
+                        vm,
+                        crate::windows::guest::command::GuestAgentCommand::Initialize as _,
+                    )?;
                 }
 
                 // Return to the guest agent to initialize the hooks.

@@ -29,6 +29,15 @@ pub type NTCREATEFILE_CREATE_DISPOSITION = u32;
 pub type NTCREATEFILE_CREATE_OPTIONS = u32;
 
 #[repr(C)]
+pub struct WindowsKTrapFrame {
+    pub reserved1: [u64; 45],
+    pub rip: u64,
+    pub reserved2: [u64; 2],
+    pub rsp: u64,
+    pub reserved3: u64,
+}
+
+#[repr(C)]
 pub struct OBJECT_ATTRIBUTES {
     pub Length: u32,
     pub RootDirectory: HANDLE,

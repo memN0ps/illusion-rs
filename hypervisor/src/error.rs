@@ -174,4 +174,7 @@ pub enum HypervisorError {
 
     #[error("Unknown VMCALL command")]
     UnknownVmcallCommand,
+
+    #[error("Unknown guest agent command")]
+    UnknownGuestAgentCommand,
 }
