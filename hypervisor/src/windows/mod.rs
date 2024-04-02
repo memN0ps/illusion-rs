@@ -1,4 +1,3 @@
-pub mod agent;
+pub mod guest;
 pub mod nt;
 pub mod ssdt;
-pub mod tests;
