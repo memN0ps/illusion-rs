@@ -171,4 +171,7 @@ pub enum HypervisorError {
 
     #[error("Failed to get image base address")]
     FailedToGetImageBaseAddress,
+
+    #[error("Unknown VMCALL command")]
+    UnknownVmcallCommand,
 }

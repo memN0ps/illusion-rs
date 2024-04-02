@@ -9,6 +9,7 @@ pub mod invvpid;
 pub mod msr;
 pub mod rdtsc;
 pub mod sipi;
+pub mod vmcall;
 pub mod xsetbv;
 
 /// Represents the type of VM exit.

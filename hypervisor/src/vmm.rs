@@ -26,6 +26,7 @@ use {
                 msr::handle_msr_access,
                 rdtsc::handle_rdtsc,
                 sipi::handle_sipi_signal,
+                vmcall::handle_vmcall,
                 xsetbv::handle_xsetbv,
                 ExitType,
             },
@@ -94,7 +95,6 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
                 // Grouping multiple exit reasons that are handled by the same function
                 VmxBasicExitReason::Getsec
-                | VmxBasicExitReason::Vmcall
                 | VmxBasicExitReason::Vmclear
                 | VmxBasicExitReason::Vmlaunch
                 | VmxBasicExitReason::Vmptrld
@@ -110,6 +110,9 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
                     .expect("Failed to handle WRMSR"),
                 VmxBasicExitReason::Invd => handle_invd(&mut vm.guest_registers),
                 VmxBasicExitReason::Rdtsc => handle_rdtsc(&mut vm.guest_registers),
+                VmxBasicExitReason::Vmcall => {
+                    handle_vmcall(&mut vm).expect("Failed to handle VMCALL")
+                }
                 VmxBasicExitReason::EptViolation => handle_ept_violation(&mut vm),
                 VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(),
                 VmxBasicExitReason::Invept => handle_invept(),
