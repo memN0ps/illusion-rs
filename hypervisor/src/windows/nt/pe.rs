@@ -174,9 +174,9 @@ pub fn dbj2_hash(buffer: &[u8]) -> u32 {
 /// # Credits
 ///
 /// To Jessie (jessiep_) and Satoshi: https://gist.github.com/tandasat/bf0189952f113518f75c4f008c1e8d04#file-guestagent-c-L134-L161
-pub unsafe fn get_image_base_address(star_va: u64) -> Option<u64> {
+pub unsafe fn get_image_base_address(start_va: u64) -> Option<u64> {
     // Align the start address down to the nearest page boundary.
-    let mut guest_va = star_va & !0xFFF;
+    let mut guest_va = start_va & !0xFFF;
 
     loop {
         // Attempt to read the potential DOS signature at the current address.
