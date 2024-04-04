@@ -111,6 +111,13 @@ pub fn restore_guest_context(vm: &mut Vm) -> Result<(), HypervisorError> {
     trace!("Returning from the guest agent.");
 
     // Restore the original guest RIP and RSP values.
+    vm.guest_registers.rip = vm.host_guest_agent_context.original_guest_rip;
+    vm.guest_registers.rsp = vm.host_guest_agent_context.original_guest_rsp;
+
+    // Restore the original guest RAX value.
+    vm.guest_registers.rax = vm.host_guest_agent_context.original_guest_rax;
+
+    // Restore the original guest RIP and RSP values.
     vmwrite(
         vmcs::guest::RIP,
         vm.host_guest_agent_context.original_guest_rip,
@@ -119,9 +126,6 @@ pub fn restore_guest_context(vm: &mut Vm) -> Result<(), HypervisorError> {
         vmcs::guest::RSP,
         vm.host_guest_agent_context.original_guest_rsp,
     );
-
-    // Restore the original guest RAX value.
-    vm.guest_registers.rax = vm.host_guest_agent_context.original_guest_rax;
 
     Ok(())
 }
