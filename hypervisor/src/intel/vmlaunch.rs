@@ -32,9 +32,11 @@ extern "efiapi" {
 
 global_asm!(
     r#"
-// Definitions to simulate PUSHAQ and POPAQ for 64-bit mode, as these instructions
-// are unavailable. These macros facilitate the saving and restoring of all
-// general-purpose registers, ensuring the preservation of execution context.
+// The `launch_vm` function is the main entry point for launching or resuming a VM using VMX operations.
+
+// Macro to save all general-purpose registers onto the stack.
+// This is essential for preserving the execution context before performing operations
+// that might alter the register state, ensuring a safe restoration later.
 
 .macro PUSHAQ
     push    rax
@@ -53,6 +55,10 @@ global_asm!(
     push    r14
     push    r15
 .endm
+
+// Macro to restore all general-purpose registers from the stack.
+// It reverses the operation of PUSHAQ, reinstating the original register state
+// to resume execution seamlessly with the correct context.
 
 .macro POPAQ
     pop     r15
@@ -89,6 +95,25 @@ global_asm!(
 .set registers_r13, 0x60
 .set registers_r14, 0x68
 .set registers_r15, 0x70
+.set registers_rip, 0x78
+.set registers_rsp, 0x80
+.set registers_rflags, 0x88
+.set registers_xmm0, 0x90
+.set registers_xmm1, 0xA0
+.set registers_xmm2, 0xB0
+.set registers_xmm3, 0xC0
+.set registers_xmm4, 0xD0
+.set registers_xmm5, 0xE0
+.set registers_xmm6, 0xF0
+.set registers_xmm7, 0x100
+.set registers_xmm8, 0x110
+.set registers_xmm9, 0x120
+.set registers_xmm10, 0x130
+.set registers_xmm11, 0x140
+.set registers_xmm12, 0x150
+.set registers_xmm13, 0x160
+.set registers_xmm14, 0x170
+.set registers_xmm15, 0x180
 
 // The main entry point for launching or resuming a VM using VMX operations.
 .global launch_vm
@@ -96,7 +121,7 @@ launch_vm:
     // Intentional breakpoint for debugging.
     xchg    bx, bx
 
-    // Save host state by pushing all general-purpose registers onto the stack.
+    // Saves all general-purpose registers to the stack to preserve the host's execution context.
     PUSHAQ
 
     // Prepare the execution context by storing `registers` (guest state) and
@@ -119,6 +144,25 @@ launch_vm:
     mov     r10, [r15 + registers_r10]
     mov     r11, [r15 + registers_r11]
     mov     r12, [r15 + registers_r12]
+
+    // Load guest general-purpose and XMM registers from the `registers` structure.
+    // This prepares the CPU state for guest execution, including floating-point and SIMD state.
+    movdqa  xmm0, [r15 + registers_xmm0]
+    movdqa  xmm1, [r15 + registers_xmm1]
+    movdqa  xmm2, [r15 + registers_xmm2]
+    movdqa  xmm3, [r15 + registers_xmm3]
+    movdqa  xmm4, [r15 + registers_xmm4]
+    movdqa  xmm5, [r15 + registers_xmm5]
+    movdqa  xmm6, [r15 + registers_xmm6]
+    movdqa  xmm7, [r15 + registers_xmm7]
+    movdqa  xmm8, [r15 + registers_xmm8]
+    movdqa  xmm9, [r15 + registers_xmm9]
+    movdqa  xmm10, [r15 + registers_xmm10]
+    movdqa  xmm11, [r15 + registers_xmm11]
+    movdqa  xmm12, [r15 + registers_xmm12]
+    movdqa  xmm13, [r15 + registers_xmm13]
+    movdqa  xmm14, [r15 + registers_xmm14]
+    movdqa  xmm15, [r15 + registers_xmm15]
 
     // Determine whether to perform a VM launch or resume based on the `launched` flag.
     test    r14, r14
@@ -168,12 +212,34 @@ launch_vm:
     mov     [r15 + registers_r12], r12
     mov     [r15 + registers_r13], r13
     mov     [r15 + registers_r14], r14
+
+    // Upon VM-exit, save the guest's XMM registers to the `registers` structure.
+    // This captures the guest's floating-point and SIMD state at the time of the VM-exit.
+    movdqa  [r15 + registers_xmm0], xmm0
+    movdqa  [r15 + registers_xmm1], xmm1
+    movdqa  [r15 + registers_xmm2], xmm2
+    movdqa  [r15 + registers_xmm3], xmm3
+    movdqa  [r15 + registers_xmm4], xmm4
+    movdqa  [r15 + registers_xmm5], xmm5
+    movdqa  [r15 + registers_xmm6], xmm6
+    movdqa  [r15 + registers_xmm7], xmm7
+    movdqa  [r15 + registers_xmm8], xmm8
+    movdqa  [r15 + registers_xmm9], xmm9
+    movdqa  [r15 + registers_xmm10], xmm10
+    movdqa  [r15 + registers_xmm11], xmm11
+    movdqa  [r15 + registers_xmm12], xmm12
+    movdqa  [r15 + registers_xmm13], xmm13
+    movdqa  [r15 + registers_xmm14], xmm14
+    movdqa  [r15 + registers_xmm15], xmm15
+
     mov     rax, [rsp]  // Retrieve original guest R15 from the stack.
     mov     [r15 + registers_r15], rax
 
 .Exit:
     // Finalize the VM-exit sequence by adjusting the stack and restoring the host state.
     pop     rax
+
+    // Restores all general-purpose registers from the stack, returning to the host's original execution context.
     POPAQ
 
     // Return the rflags value to indicate the result of the VM operation.
