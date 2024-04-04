@@ -1,39 +1,79 @@
-//! Provides functionality for launching a virtual machine (VM) using VMX operations.
+//! Provides functionality for launching and managing a virtual machine (VM) using VMX operations.
 //!
-//! Includes an assembly implementation for the `launch_vm` function that handles
-//! the transition of CPU execution state to and from a guest VM. This operation
-//! is crucial for hypervisor development, facilitating the execution of guest code
-//! within an isolated environment.
+//! This module includes an assembly implementation of the `launch_vm` function. This function is
+//! critical for hypervisor development as it facilitates the execution of guest code within an
+//! isolated environment, enabling the transition of CPU execution state to and from a guest VM.
+//!
 //! Credits: Satoshi's Hypervisor-101 in Rust: https://github.com/tandasat/Hypervisor-101-in-Rust/blob/main/hypervisor/src/hardware_vt/vmx_run_vm.S
 
 use {crate::intel::capture::GuestRegisters, core::arch::global_asm};
 
 extern "efiapi" {
-    /// Launches or resumes a virtual machine (VM) using the VMX operation.
+    /// Launches or resumes a virtual machine (VM) using VMX operations.
     ///
-    /// This function transitions the CPU to execute the guest VM code until a VM-exit occurs.
-    /// It manages the saving and restoring of both host and guest registers, ensuring the
-    /// correct execution state is maintained across VM-entries and VM-exits.
+    /// This function performs the critical task of transitioning the CPU's execution state
+    /// to the guest VM code. It is responsible for saving and restoring host and guest registers,
+    /// ensuring a correct and secure execution state is maintained across VM entries and exits.
     ///
     /// # Arguments
     ///
-    /// * `registers` - A mutable reference to a `GuestRegisters` struct containing the initial
-    /// or current state of guest registers to be loaded for the VM execution.
-    ///
-    /// * `launched` - A flag indicating whether the VM has been launched (1) or not (0). Determines
-    /// whether to execute `vmlaunch` or `vmresume`.
+    /// * `registers` - A mutable reference to the `GuestRegisters` struct, containing the
+    ///   initial or current state of the guest registers for VM execution.
+    /// * `launched` - A boolean flag (as u64) indicating whether the VM has previously been launched.
+    ///   A value of 1 signifies that the VM has been launched, whereas 0 indicates it has not.
+    ///   This determines whether to execute a `vmlaunch` or `vmresume`.
     ///
     /// # Returns
     ///
-    /// Returns a 64-bit value representing the RFlags for indications of failure from the `launch_vm` function.
+    /// A 64-bit value representing the RFlags, providing indications of failure or success
+    /// from the `launch_vm` function.
     pub fn launch_vm(registers: &mut GuestRegisters, launched: u64) -> u64;
 }
 
 global_asm!(
     r#"
-// The module containing the `launch_vm` function.
+// Definitions to simulate PUSHAQ and POPAQ for 64-bit mode, as these instructions
+// are unavailable. These macros facilitate the saving and restoring of all
+// general-purpose registers, ensuring the preservation of execution context.
 
-// Offsets to each field in the GuestRegisters struct.
+.macro PUSHAQ
+    push    rax
+    push    rcx
+    push    rdx
+    push    rbx
+    push    rbp
+    push    rsi
+    push    rdi
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+    push    r12
+    push    r13
+    push    r14
+    push    r15
+.endm
+
+.macro POPAQ
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rdi
+    pop     rsi
+    pop     rbp
+    pop     rbx
+    pop     rdx
+    pop     rcx
+    pop     rax
+.endm
+
+// Offsets for each field in the GuestRegisters struct. These offsets are used
+// to facilitate the direct manipulation of guest register values stored in memory.
 .set registers_rax, 0x0
 .set registers_rbx, 0x8
 .set registers_rcx, 0x10
@@ -50,59 +90,23 @@ global_asm!(
 .set registers_r14, 0x68
 .set registers_r15, 0x70
 
-// Runs the guest until VM-exit occurs.
-//
-// This function works as follows:
-// 1. saves host general purpose register values to stack.
-// 2. loads guest general purpose register values from `GuestRegisters`.
-// 3. executes the VMLAUNCH or VMRESUME instruction that
-//     1. saves host register values to the VMCS.
-//     2. loads guest register values from the VMCS.
-//     3. starts running code in VMX non-root operation until VM-exit.
-// 4. on VM-exit, the processor
-//     1. saves guest register values to the VMCS.
-//     2. loads host register values from the VMCS. Some registers are reset to
-//        hard-coded values. For example, interrupts are always disabled.
-//     3. updates VM-exit information fields in VMCS to record causes of VM-exit.
-//     4. starts running code in the VMX root operation.
-// 5. saves guest general purpose register values to `GuestRegisters`.
-// 6. loads host general purpose register values from stack.
-//
-// On VM-exit, the processor comes back to this function (at "VmExit") because
-// the host RIP is configured so.
-//
-// Note that state switch implemented here is not complete, and some register
-// values are "leaked" to the other side, for example, XMM registers.
-//
-// extern "efiapi" fn launch_vm(registers: &mut GuestRegisters, launched: u64) -> u64;
+// The main entry point for launching or resuming a VM using VMX operations.
 .global launch_vm
 launch_vm:
+    // Intentional breakpoint for debugging.
     xchg    bx, bx
 
-    // Save current (host) general purpose registers onto stack.
-    push    rax
-    push    rcx
-    push    rdx
-    push    rbx
-    push    rbp
-    push    rsi
-    push    rdi
-    push    r8
-    push    r9
-    push    r10
-    push    r11
-    push    r12
-    push    r13
-    push    r14
-    push    r15
+    // Save host state by pushing all general-purpose registers onto the stack.
+    PUSHAQ
 
-    // Copy `registers` and `launched` for using them. Also, save
-    // `registers` at the top of stack so that after VM-exit, we can find it.
-    mov     r15, rcx    // r15 <= `registers`
-    mov     r14, rdx    // r14 <= `launched`
-    push    rcx         // [rsp] <= `registers`
+    // Prepare the execution context by storing `registers` (guest state) and
+    // the `launched` flag onto the stack for later retrieval.
+    mov     r15, rcx    // Load address of `registers` into r15.
+    mov     r14, rdx    // Load `launched` flag into r14.
+    push    rcx         // Save `registers` on the stack for post-VM-exit retrieval.
 
-    // Restore guest general purpose registers from `registers`.
+    // Load guest general-purpose registers from the `registers` structure.
+    // This setup prepares the guest state for execution.
     mov     rax, [r15 + registers_rax]
     mov     rbx, [r15 + registers_rbx]
     mov     rcx, [r15 + registers_rcx]
@@ -110,18 +114,17 @@ launch_vm:
     mov     rdi, [r15 + registers_rdi]
     mov     rsi, [r15 + registers_rsi]
     mov     rbp, [r15 + registers_rbp]
-    mov      r8, [r15 + registers_r8]
-    mov      r9, [r15 + registers_r9]
+    mov     r8,  [r15 + registers_r8]
+    mov     r9,  [r15 + registers_r9]
     mov     r10, [r15 + registers_r10]
     mov     r11, [r15 + registers_r11]
     mov     r12, [r15 + registers_r12]
 
-    // If `launched` is false, go to Launch.
+    // Determine whether to perform a VM launch or resume based on the `launched` flag.
     test    r14, r14
     je      .Launch
 
-    // Otherwise, restore the rest of the guest general purpose registers and
-    // run the guest until VM-exit occurs.
+    // Resume guest execution. This path is taken if the VM has previously been launched.
     mov     r13, [r15 + registers_r13]
     mov     r14, [r15 + registers_r14]
     mov     r15, [r15 + registers_r15]
@@ -129,9 +132,8 @@ launch_vm:
     jmp     .VmEntryFailure
 
 .Launch:
-    // The VM has never launched with the current VMCS. Configure the host RSP
-    // and RIP first. Then, restore the rest of guest general purpose registers
-    // and run the guest until VM-exit occurs.
+    // Initial VM launch sequence. This path configures the host and guest states
+    // for a first-time VM execution.
     xchg    bx, bx
     mov     r14, 0x6C14 // VMCS_HOST_RSP
     vmwrite r14, rsp
@@ -144,14 +146,14 @@ launch_vm:
     vmlaunch
 
 .VmEntryFailure:
-    // VMLAUNCH or VMRESUME failed. If it were successful, VM-exit should have
-    // led to "VmExit" not here.
+    // Handle VM launch or resume failure. Execution reaches here if either operation fails.
     jmp     .Exit
 
 .VmExit:
-    // VM-exit occurred. Save current (guest) general purpose registers.
+    // VM-exit handling. This block is responsible for saving the guest state upon exit
+    // and preparing for transition back to host execution.
     xchg    bx, bx
-    xchg    r15, [rsp]  // r15 <= `registers` / [rsp] <= guest r15
+    xchg    r15, [rsp]  // Swap guest R15 with `registers` pointer on the stack.
     mov     [r15 + registers_rax], rax
     mov     [r15 + registers_rbx], rbx
     mov     [r15 + registers_rcx], rcx
@@ -166,31 +168,15 @@ launch_vm:
     mov     [r15 + registers_r12], r12
     mov     [r15 + registers_r13], r13
     mov     [r15 + registers_r14], r14
-    mov     rax, [rsp]  // rax <= guest R15
+    mov     rax, [rsp]  // Retrieve original guest R15 from the stack.
     mov     [r15 + registers_r15], rax
 
 .Exit:
-    // Adjust the stack pointer.
+    // Finalize the VM-exit sequence by adjusting the stack and restoring the host state.
     pop     rax
+    POPAQ
 
-    // Restore host general purpose registers from stack.
-    pop     r15
-    pop     r14
-    pop     r13
-    pop     r12
-    pop     r11
-    pop     r10
-    pop     r9
-    pop     r8
-    pop     rdi
-    pop     rsi
-    pop     rbp
-    pop     rbx
-    pop     rdx
-    pop     rcx
-    pop     rax
-
-    // Return the rflags value.
+    // Return the rflags value to indicate the result of the VM operation.
     pushfq
     pop     rax
     ret
