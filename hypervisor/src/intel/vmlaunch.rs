@@ -4,7 +4,10 @@
 //! critical for hypervisor development as it facilitates the execution of guest code within an
 //! isolated environment, enabling the transition of CPU execution state to and from a guest VM.
 //!
-//! Credits: Satoshi's Hypervisor-101 in Rust: https://github.com/tandasat/Hypervisor-101-in-Rust/blob/main/hypervisor/src/hardware_vt/vmx_run_vm.S
+//! Credits to Satoshi, Daax, and Drew for their valuable contributions and code snippets.
+//! Satoshi's Hypervisor-101 in Rust: https://github.com/tandasat/Hypervisor-101-in-Rust/blob/main/hypervisor/src/hardware_vt/vmx_run_vm.S
+//! Daax: https://github.com/daaximus
+//! Drew: https://github.com/drew-gpf
 
 use {crate::intel::capture::GuestRegisters, core::arch::global_asm};
 
@@ -78,6 +81,57 @@ global_asm!(
     pop     rax
 .endm
 
+// Macro to save all XMM registers onto the stack.
+// Allocates stack space to preserve the state of all 16 XMM registers.
+// This step is crucial for maintaining the floating-point and SIMD execution context.
+
+.macro SAVE_XMM
+    sub rsp, 0x100
+
+    movaps xmmword ptr [rsp], xmm0
+    movaps xmmword ptr [rsp + 0x10], xmm1
+    movaps xmmword ptr [rsp + 0x20], xmm2
+    movaps xmmword ptr [rsp + 0x30], xmm3
+    movaps xmmword ptr [rsp + 0x40], xmm4
+    movaps xmmword ptr [rsp + 0x50], xmm5
+    movaps xmmword ptr [rsp + 0x60], xmm6
+    movaps xmmword ptr [rsp + 0x70], xmm7
+    movaps xmmword ptr [rsp + 0x80], xmm8
+    movaps xmmword ptr [rsp + 0x90], xmm9
+    movaps xmmword ptr [rsp + 0xA0], xmm10
+    movaps xmmword ptr [rsp + 0xB0], xmm11
+    movaps xmmword ptr [rsp + 0xC0], xmm12
+    movaps xmmword ptr [rsp + 0xD0], xmm13
+    movaps xmmword ptr [rsp + 0xE0], xmm14
+    movaps xmmword ptr [rsp + 0xF0], xmm15
+.endm
+
+// Macro to restore all XMM registers from the stack.
+// Reverses the operation of SAVE_XMM by reloading the state of all 16 XMM registers
+// and deallocating the previously used stack space. This restoration is key to resuming
+// host or guest execution with the correct floating-point and SIMD context.
+
+.macro RESTORE_XMM
+movaps xmm0, xmmword ptr [rsp]
+    movaps xmm1, xmmword ptr [rsp + 0x10]
+    movaps xmm2, xmmword ptr [rsp + 0x20]
+    movaps xmm3, xmmword ptr [rsp + 0x30]
+    movaps xmm4, xmmword ptr [rsp + 0x40]
+    movaps xmm5, xmmword ptr [rsp + 0x50]
+    movaps xmm6, xmmword ptr [rsp + 0x60]
+    movaps xmm7, xmmword ptr [rsp + 0x70]
+    movaps xmm8, xmmword ptr [rsp + 0x80]
+    movaps xmm9, xmmword ptr [rsp + 0x90]
+    movaps xmm10, xmmword ptr [rsp + 0xA0]
+    movaps xmm11, xmmword ptr [rsp + 0xB0]
+    movaps xmm12, xmmword ptr [rsp + 0xC0]
+    movaps xmm13, xmmword ptr [rsp + 0xD0]
+    movaps xmm14, xmmword ptr [rsp + 0xE0]
+    movaps xmm15, xmmword ptr [rsp + 0xF0]
+
+    add rsp, 0x100
+.endm
+
 // Offsets for each field in the GuestRegisters struct. These offsets are used
 // to facilitate the direct manipulation of guest register values stored in memory.
 .set registers_rax, 0x0
@@ -123,6 +177,9 @@ launch_vm:
 
     // Saves all general-purpose registers to the stack to preserve the host's execution context.
     PUSHAQ
+
+    // SAVE_XMM: Saves all XMM registers to the stack, ensuring the floating-point and SIMD state is preserved.
+    SAVE_XMM
 
     // Prepare the execution context by storing `registers` (guest state) and
     // the `launched` flag onto the stack for later retrieval.
@@ -238,6 +295,9 @@ launch_vm:
 .Exit:
     // Finalize the VM-exit sequence by adjusting the stack and restoring the host state.
     pop     rax
+
+    // Restores all XMM registers from the stack, reinstating the host's floating-point and SIMD state.
+    RESTORE_XMM
 
     // Restores all general-purpose registers from the stack, returning to the host's original execution context.
     POPAQ
