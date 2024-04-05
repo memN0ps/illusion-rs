@@ -10,6 +10,8 @@ use {
             addresses::PhysicalAddress,
             ept::{AccessType, Ept, PT_INDEX_MAX},
             hooks::inline::{InlineHook, InlineHookType},
+            invept::invept_all_contexts,
+            invvpid::invvpid_all_contexts,
             page::Page,
             vm::Vm,
         },
@@ -168,10 +170,14 @@ impl EptHook {
         primary_ept: &mut Box<Ept>,
         secondary_ept: &mut Box<Ept>,
     ) -> Result<(), HypervisorError> {
+        trace!("Enabling hooks");
+
         // If the page table index exceeds the maximum allowed, return an error.
         if self.pt_table_index >= PT_INDEX_MAX {
             return Err(HypervisorError::EptPtTableIndexExhausted);
         }
+
+        trace!("Page Table Index: {}", self.pt_table_index);
 
         // Align the original function address to the large page size.
         let original_large_page = self
@@ -227,6 +233,12 @@ impl EptHook {
         // Map the original page to the hooked shadow page in the secondary EPT.
         debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", original_page, shadow_page);
         secondary_ept.remap_gpa_to_hpa(original_page, shadow_page, self.pt_table_index)?;
+
+        // Invalidate the EPT cache for all contexts.
+        invept_all_contexts();
+
+        // Invalidate the VPID cache for all contexts.
+        invvpid_all_contexts();
 
         Ok(())
     }
