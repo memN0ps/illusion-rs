@@ -55,7 +55,6 @@ pub struct GuestRegisters {
     pub rip: u64,
     pub rsp: u64,
     pub rflags: u64,
-    // XMM registers (each represented as two u64 for 16-byte alignment)
     pub xmm0: M128A,
     pub xmm1: M128A,
     pub xmm2: M128A,
@@ -226,22 +225,22 @@ capture_registers:
     mov     [rcx + registers_rip], rax
 
     // Capture XMM registers.
-    movdqa  [rcx + registers_xmm0], xmm0
-    movdqa  [rcx + registers_xmm1], xmm1
-    movdqa  [rcx + registers_xmm2], xmm2
-    movdqa  [rcx + registers_xmm3], xmm3
-    movdqa  [rcx + registers_xmm4], xmm4
-    movdqa  [rcx + registers_xmm5], xmm5
-    movdqa  [rcx + registers_xmm6], xmm6
-    movdqa  [rcx + registers_xmm7], xmm7
-    movdqa  [rcx + registers_xmm8], xmm8
-    movdqa  [rcx + registers_xmm9], xmm9
-    movdqa  [rcx + registers_xmm10], xmm10
-    movdqa  [rcx + registers_xmm11], xmm11
-    movdqa  [rcx + registers_xmm12], xmm12
-    movdqa  [rcx + registers_xmm13], xmm13
-    movdqa  [rcx + registers_xmm14], xmm14
-    movdqa  [rcx + registers_xmm15], xmm15
+    movaps  [rcx + registers_xmm0], xmm0
+    movaps  [rcx + registers_xmm1], xmm1
+    movaps  [rcx + registers_xmm2], xmm2
+    movaps  [rcx + registers_xmm3], xmm3
+    movaps  [rcx + registers_xmm4], xmm4
+    movaps  [rcx + registers_xmm5], xmm5
+    movaps  [rcx + registers_xmm6], xmm6
+    movaps  [rcx + registers_xmm7], xmm7
+    movaps  [rcx + registers_xmm8], xmm8
+    movaps  [rcx + registers_xmm9], xmm9
+    movaps  [rcx + registers_xmm10], xmm10
+    movaps  [rcx + registers_xmm11], xmm11
+    movaps  [rcx + registers_xmm12], xmm12
+    movaps  [rcx + registers_xmm13], xmm13
+    movaps  [rcx + registers_xmm14], xmm14
+    movaps  [rcx + registers_xmm15], xmm15
 
     // Return false to indicate that the processor is not virtualized currently.
     xor rax, rax

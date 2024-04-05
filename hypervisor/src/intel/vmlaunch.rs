@@ -204,22 +204,22 @@ launch_vm:
 
     // Load guest general-purpose and XMM registers from the `registers` structure.
     // This prepares the CPU state for guest execution, including floating-point and SIMD state.
-    movdqa  xmm0, [r15 + registers_xmm0]
-    movdqa  xmm1, [r15 + registers_xmm1]
-    movdqa  xmm2, [r15 + registers_xmm2]
-    movdqa  xmm3, [r15 + registers_xmm3]
-    movdqa  xmm4, [r15 + registers_xmm4]
-    movdqa  xmm5, [r15 + registers_xmm5]
-    movdqa  xmm6, [r15 + registers_xmm6]
-    movdqa  xmm7, [r15 + registers_xmm7]
-    movdqa  xmm8, [r15 + registers_xmm8]
-    movdqa  xmm9, [r15 + registers_xmm9]
-    movdqa  xmm10, [r15 + registers_xmm10]
-    movdqa  xmm11, [r15 + registers_xmm11]
-    movdqa  xmm12, [r15 + registers_xmm12]
-    movdqa  xmm13, [r15 + registers_xmm13]
-    movdqa  xmm14, [r15 + registers_xmm14]
-    movdqa  xmm15, [r15 + registers_xmm15]
+    movaps  xmm0, [r15 + registers_xmm0]
+    movaps  xmm1, [r15 + registers_xmm1]
+    movaps  xmm2, [r15 + registers_xmm2]
+    movaps  xmm3, [r15 + registers_xmm3]
+    movaps  xmm4, [r15 + registers_xmm4]
+    movaps  xmm5, [r15 + registers_xmm5]
+    movaps  xmm6, [r15 + registers_xmm6]
+    movaps  xmm7, [r15 + registers_xmm7]
+    movaps  xmm8, [r15 + registers_xmm8]
+    movaps  xmm9, [r15 + registers_xmm9]
+    movaps  xmm10, [r15 + registers_xmm10]
+    movaps  xmm11, [r15 + registers_xmm11]
+    movaps  xmm12, [r15 + registers_xmm12]
+    movaps  xmm13, [r15 + registers_xmm13]
+    movaps  xmm14, [r15 + registers_xmm14]
+    movaps  xmm15, [r15 + registers_xmm15]
 
     // Determine whether to perform a VM launch or resume based on the `launched` flag.
     test    r14, r14
@@ -272,22 +272,22 @@ launch_vm:
 
     // Upon VM-exit, save the guest's XMM registers to the `registers` structure.
     // This captures the guest's floating-point and SIMD state at the time of the VM-exit.
-    movdqa  [r15 + registers_xmm0], xmm0
-    movdqa  [r15 + registers_xmm1], xmm1
-    movdqa  [r15 + registers_xmm2], xmm2
-    movdqa  [r15 + registers_xmm3], xmm3
-    movdqa  [r15 + registers_xmm4], xmm4
-    movdqa  [r15 + registers_xmm5], xmm5
-    movdqa  [r15 + registers_xmm6], xmm6
-    movdqa  [r15 + registers_xmm7], xmm7
-    movdqa  [r15 + registers_xmm8], xmm8
-    movdqa  [r15 + registers_xmm9], xmm9
-    movdqa  [r15 + registers_xmm10], xmm10
-    movdqa  [r15 + registers_xmm11], xmm11
-    movdqa  [r15 + registers_xmm12], xmm12
-    movdqa  [r15 + registers_xmm13], xmm13
-    movdqa  [r15 + registers_xmm14], xmm14
-    movdqa  [r15 + registers_xmm15], xmm15
+    movaps  [r15 + registers_xmm0], xmm0
+    movaps  [r15 + registers_xmm1], xmm1
+    movaps  [r15 + registers_xmm2], xmm2
+    movaps  [r15 + registers_xmm3], xmm3
+    movaps  [r15 + registers_xmm4], xmm4
+    movaps  [r15 + registers_xmm5], xmm5
+    movaps  [r15 + registers_xmm6], xmm6
+    movaps  [r15 + registers_xmm7], xmm7
+    movaps  [r15 + registers_xmm8], xmm8
+    movaps  [r15 + registers_xmm9], xmm9
+    movaps  [r15 + registers_xmm10], xmm10
+    movaps  [r15 + registers_xmm11], xmm11
+    movaps  [r15 + registers_xmm12], xmm12
+    movaps  [r15 + registers_xmm13], xmm13
+    movaps  [r15 + registers_xmm14], xmm14
+    movaps  [r15 + registers_xmm15], xmm15
 
     mov     rax, [rsp]  // Retrieve original guest R15 from the stack.
     mov     [r15 + registers_r15], rax
