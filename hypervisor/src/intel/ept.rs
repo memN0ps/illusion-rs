@@ -135,7 +135,7 @@ impl Ept {
         guest_pa: u64,
         pt_table_index: usize,
     ) -> Result<(), HypervisorError> {
-        trace!("Splitting 2mb page into 4kb pages: {:x}", guest_pa);
+        trace!("Splitting 2mb page into 4kb pages: {:#x}", guest_pa);
 
         // Ensure the PT index is valid.
         if pt_table_index == 0 || pt_table_index >= self.pt.len() {
@@ -206,7 +206,7 @@ impl Ept {
         access_type: AccessType,
         pt_table_index: usize,
     ) -> Result<(), HypervisorError> {
-        trace!("Modifying permissions for GPA {:x}", guest_pa);
+        trace!("Modifying permissions for GPA {:#x}", guest_pa);
 
         // Ensure the PT index is valid.
         if pt_table_index == 0 || pt_table_index >= self.pt.len() {
@@ -266,7 +266,7 @@ impl Ept {
         host_pa: u64,
         pt_table_index: usize,
     ) -> Result<(), HypervisorError> {
-        trace!("Remapping GPA {:x} to HPA {:x}", guest_pa, host_pa);
+        trace!("Remapping GPA {:#x} to HPA {:#x}", guest_pa, host_pa);
 
         // Ensure the PT index is valid.
         if pt_table_index == 0 || pt_table_index >= self.pt.len() {
@@ -305,7 +305,7 @@ impl Ept {
         // Update the PTE to point to the new HPA
         pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);
         trace!(
-            "Updated PTE for GPA {:x} to point to HPA {:x}",
+            "Updated PTE for GPA {:#x} to point to HPA {:#x}",
             guest_pa,
             host_pa
         );

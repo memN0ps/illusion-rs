@@ -149,6 +149,12 @@ pub enum HypervisorError {
     #[error("Failed to get kernel base")]
     GetKernelBaseFailed,
 
+    #[error("Failed to get kernel size")]
+    FailedToGetKernelSize,
+
+    #[error("Failed to get export hash")]
+    FailedToGetExport,
+
     #[error("Failed to parse hexadecimal string")]
     HexParseError,
 
@@ -164,8 +170,6 @@ pub enum HypervisorError {
     #[error("Invalid PT index")]
     InvalidPtIndex,
 
-    // #[error("Failed to encode instructions")]
-    // EncodingFailed(#[from] iced_x86::IcedError),
     #[error("EPT PT table index exhausted")]
     EptPtTableIndexExhausted,
 
@@ -177,4 +181,13 @@ pub enum HypervisorError {
 
     #[error("Unknown guest agent command")]
     UnknownGuestAgentCommand,
+
+    #[error("Out of hooks")]
+    OutOfHooks,
+
+    #[error("Failed to get current hook index")]
+    FailedToGetCurrentHookIndex,
+
+    #[error("Too many hooks")]
+    TooManyHooks,
 }

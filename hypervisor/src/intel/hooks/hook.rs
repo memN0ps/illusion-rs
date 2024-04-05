@@ -7,9 +7,11 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            addresses::PhysicalAddress,
             ept::{AccessType, Ept, PT_INDEX_MAX},
             hooks::inline::{InlineHook, InlineHookType},
             page::Page,
+            vm::Vm,
         },
     },
     alloc::boxed::Box,
@@ -33,7 +35,7 @@ pub enum HookType {
 /// `Hook` is a container for multiple hooks and provides an interface
 /// to enable or disable these hooks as a group. It's primarily responsible for
 /// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
-pub struct Hook {
+pub struct EptHook {
     /// The index of the page table entry in the EPT, to keep track of the hooks.
     pub pt_table_index: usize,
 
@@ -71,7 +73,7 @@ pub struct Hook {
     pub hook_handler: *const (),
 }
 
-impl Hook {
+impl EptHook {
     /// Constructs a new `Hook` with a given set of hooks.
     ///
     /// # Arguments
@@ -95,6 +97,58 @@ impl Hook {
         Box::new(hooks)
     }
 
+    /// Installs an EPT hook for a function.
+    ///
+    /// # Arguments
+    ///
+    /// * original_va - The virtual address of the function to be hooked.
+    /// * hook_handler - The handler function to be called when the hooked function is executed.
+    /// * hook_type - The type of hook to be installed.
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
+    pub fn ept_hook(
+        vm: &mut Vm,
+        original_va: u64,
+        hook_handler: *const (),
+        hook_type: InlineHookType,
+    ) -> Result<(), HypervisorError> {
+        trace!("Creating an EPT hook for function at {:#x}", original_va);
+
+        // Get the shared data from the VM.
+        let shared_data = unsafe { vm.shared_data.as_mut() };
+
+        // Ensure the index is within bounds
+        if shared_data.current_hook_index >= shared_data.hook_manager.len() {
+            return Err(HypervisorError::OutOfHooks);
+        }
+
+        // Access the current hook based on `current_hook_index`
+        let hook = shared_data
+            .hook_manager
+            .get_mut(shared_data.current_hook_index)
+            .ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
+
+        // Increment the hook index for the next hook.
+        shared_data.current_hook_index += 1;
+
+        // Setups the hook for the function.
+        hook.setup_function_hook(original_va, hook_handler, hook_type)
+            .ok_or(HypervisorError::HookError)?;
+
+        // Get the primary and secondary EPTs.
+        let primary_ept = &mut shared_data.primary_ept;
+        let secondary_ept = &mut shared_data.secondary_ept;
+
+        // Enable the hook by setting the necessary permissions on the primary and secondary EPTs.
+        hook.enable_hooks(primary_ept, secondary_ept)?;
+
+        trace!("EPT hook created successfully");
+
+        Ok(())
+    }
+
     /// Enables all the hooks managed by the `Hook`.
     ///
     /// It sets the necessary permissions on the primary and secondary Extended Page Tables (EPTs)
@@ -114,35 +168,39 @@ impl Hook {
         primary_ept: &mut Box<Ept>,
         secondary_ept: &mut Box<Ept>,
     ) -> Result<(), HypervisorError> {
-        // Increment the page table index for each hook. Should not be 0 as it's reserved.
-        self.pt_table_index += 1;
-
         // If the page table index exceeds the maximum allowed, return an error.
         if self.pt_table_index >= PT_INDEX_MAX {
             return Err(HypervisorError::EptPtTableIndexExhausted);
         }
 
-        let original_page = self
+        // Align the original function address to the large page size.
+        let original_large_page = self
             .original_function_pa
             .align_down_to_large_page()
             .as_u64();
-        let hooked_copy_page = self.shadow_function_pa.align_down_to_large_page().as_u64();
 
+        // Align the shadow function address to the large page size.
+        let shadow_large_page = self.shadow_function_pa.align_down_to_large_page().as_u64();
+
+        // Split the original page 2MB page into 4KB pages for the primary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
-            original_page
+            original_large_page
         );
-        primary_ept.split_2mb_to_4kb(original_page, self.pt_table_index)?;
+        primary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
 
+        // Split the shadow page 2MB page into 4KB pages for the secondary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
-            hooked_copy_page
+            shadow_large_page
         );
-        secondary_ept.split_2mb_to_4kb(original_page, self.pt_table_index)?;
+        secondary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
 
-        // Align addresses to their base page sizes for accurate permission modification.
+        // Align the original function address to the base page size.
         let original_page = self.original_function_pa.align_down_to_base_page().as_u64();
-        let hooked_copy_page = self.shadow_function_pa.align_down_to_base_page().as_u64();
+
+        // Align the shadow function address to the base page size.
+        let shadow_page = self.shadow_function_pa.align_down_to_base_page().as_u64();
 
         // Modify the page permission in the primary EPT to ReadWrite for the original page.
         debug!(
@@ -155,10 +213,10 @@ impl Hook {
             self.pt_table_index,
         )?;
 
-        // Modify the page permission in the secondary EPT to Execute for the original page.
+        // Modify the page permission in the secondary EPT to Execute-only for the original page.
         debug!(
             "Changing permissions for hook page to Execute (X) only: {:#x}",
-            hooked_copy_page
+            shadow_page
         );
         secondary_ept.modify_page_permissions(
             original_page,
@@ -166,16 +224,16 @@ impl Hook {
             self.pt_table_index,
         )?;
 
-        // Map the original page to the hooked page in the secondary EPT.
-        debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", original_page, hooked_copy_page);
-        secondary_ept.remap_gpa_to_hpa(original_page, hooked_copy_page, self.pt_table_index)?;
+        // Map the original page to the hooked shadow page in the secondary EPT.
+        debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", original_page, shadow_page);
+        secondary_ept.remap_gpa_to_hpa(original_page, shadow_page, self.pt_table_index)?;
 
         Ok(())
     }
 
-    pub fn hook_function_uefi(
+    pub fn setup_function_hook(
         &mut self,
-        original_function_pa: u64,
+        original_function_va: u64,
         hook_handler: *const (),
         hook_type: InlineHookType,
     ) -> Option<()> {
@@ -183,8 +241,8 @@ impl Hook {
         trace!("Hook Type: {:?}", hook_type);
         debug!("Hook Handler: {:#x}", hook_handler as u64);
 
-        // Cast the original physical address to a PAddr.
-        let original_function_pa = PAddr::from(original_function_pa);
+        // Cast the original virtual address to a physical address using Guest CR3.
+        let original_function_pa = PAddr::from(PhysicalAddress::pa_from_va(original_function_va));
         debug!("Original Function PA: {:#x}", original_function_pa.as_u64());
 
         // Align the original function address to the base page size.
@@ -209,16 +267,7 @@ impl Hook {
             PAddr::from(shadow_page_pa + original_function_pa.base_page_offset());
         debug!("Shadow Function PA: {:#x}", shadow_function_pa);
 
-        let mut inline_hook = InlineHook::new(
-            original_function_pa.as_u64() as _,
-            shadow_function_pa.as_u64() as _,
-            hook_handler as _,
-            hook_type,
-        );
-
-        // Create a trampoline hook for the original function.
-        trace!("Calling Trampoline Hook");
-        inline_hook.trampoline_hook64();
+        let mut inline_hook = InlineHook::new(shadow_function_pa.as_u64() as _, hook_type);
 
         // Perform the actual hook
         trace!("Calling Detour64");

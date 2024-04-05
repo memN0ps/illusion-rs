@@ -48,6 +48,32 @@ impl PhysicalAddress {
         let guest_cr3 = PageTables::get_guest_cr3();
         PageTables::translate_guest_virtual_to_physical(guest_cr3 as usize, va as _).unwrap() as u64
     }
+
+    /// Reads a value of a specified type from guest memory at the provided virtual address, ensuring safety by internal validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_cr3` - The base address of the guest's page table hierarchy.
+    /// * `guest_va` - The guest virtual address from which to read.
+    ///
+    /// # Returns
+    ///
+    /// * Returns an `Option<T>` which is `Some(value)` if the read is successful and safe, or `None` if the address cannot be translated or if safety conditions are not met.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type of the value to read. This can be any type that implements the `Copy` trait and has a size that can be read atomically.
+    ///
+    /// # Credits
+    /// Credits to Jessie (jessiep_) for the initial concept.
+    pub fn read_guest_memory<T: Copy>(guest_cr3: usize, guest_va: usize) -> Option<T> {
+        // Safety justification:
+        // The translation function ensures that the physical address is valid and maps to a real physical memory location.
+        // The dereference is only performed if the translation succeeds, and it's constrained to types that are Copy, implying they can be safely duplicated and do not manage resources that require manual cleanup.
+        // Still, the caller must ensure that reading from this specific address does not violate any safety contracts.
+        let pa = PageTables::translate_guest_virtual_to_physical(guest_cr3, guest_va)?;
+        unsafe { Some(*(pa as *const T)) }
+    }
 }
 
 impl const Deref for PhysicalAddress {

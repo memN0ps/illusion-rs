@@ -9,7 +9,7 @@ use {
         intel::{
             bitmap::MsrBitmap,
             ept::{Ept, PT_INDEX_MAX},
-            hooks::hook::Hook,
+            hooks::hook::EptHook,
             page::Page,
         },
     },
@@ -39,7 +39,10 @@ pub struct SharedData {
     pub secondary_eptp: u64,
 
     /// The hook manager.
-    pub hook_manager: Vec<Box<Hook>>,
+    pub hook_manager: Vec<Box<EptHook>>,
+
+    /// The current hook index.
+    pub current_hook_index: usize,
 }
 
 impl SharedData {
@@ -87,7 +90,7 @@ impl SharedData {
             let shadow_page = unsafe { box_zeroed::<Page>() };
 
             // Create a new hook and push it to the hook manager.
-            let hook = Hook::new(shadow_page, pt_table_index);
+            let hook = EptHook::new(shadow_page, pt_table_index);
 
             // Save the hook in the hook manager.
             hook_manager.push(hook);
@@ -100,6 +103,7 @@ impl SharedData {
             secondary_ept,
             secondary_eptp,
             hook_manager,
+            current_hook_index: 0,
         }))
     }
 }

@@ -113,6 +113,32 @@ pub fn handle_msr_access(
                     vm.guest_registers.hook_lstar
                 );
 
+                #[cfg(feature = "test-windows-uefi-hooks")]
+                {
+                    log::trace!("Unhooking MSR_IA32_LSTAR.");
+                    unsafe {
+                        vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
+                            msr::IA32_LSTAR,
+                            MsrAccessType::Write,
+                            crate::intel::bitmap::MsrOperation::Unhook,
+                        )
+                    };
+                    log::trace!("Unhooked MSR_IA32_LSTAR");
+
+                    let mut kernel_hook = crate::windows::kernel::KernelHook::new(msr_value)?;
+
+                    // Setup a named function hook (example: MmIsAddressValid)
+                    kernel_hook.setup_kernel_inline_hook(
+                        vm,
+                        "MmIsAddressValid",
+                        crate::windows::functions::test_mm_is_address_valid as _,
+                        crate::intel::hooks::inline::InlineHookType::Vmcall,
+                    )?;
+
+                    // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
+                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, crate::windows::functions::test_nt_create_file as _, crate::intel::hooks::inline::InlineHookType::Vmcall, )?;
+                }
+
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
                 if vm.guest_registers.original_lstar == 0 {
