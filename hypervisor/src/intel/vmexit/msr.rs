@@ -160,11 +160,7 @@ pub fn handle_msr_access(
                             crate::intel::bitmap::MsrOperation::Unhook,
                         )
                     };
-                    log::trace!("KiSystemStartup being executed. Initializing the guest agent.");
-                    crate::intel::vmexit::vmcall::inject_guest_agent_task(
-                        vm,
-                        crate::windows::guest::command::GuestAgentCommand::Initialize as _,
-                    )?;
+                    log::trace!("KiSystemStartup being executed...");
                 }
 
                 // Return to the guest agent to initialize the hooks.

@@ -4,7 +4,7 @@
 
 use {
     crate::{
-        allocate::{allocate_stack_space, box_zeroed},
+        allocate::box_zeroed,
         error::HypervisorError,
         intel::{
             bitmap::MsrBitmap,
@@ -40,9 +40,6 @@ pub struct SharedData {
 
     /// The hook manager.
     pub hook_manager: Vec<Box<Hook>>,
-
-    /// The guest agent stack.
-    pub guest_agent_stack: u64,
 }
 
 impl SharedData {
@@ -70,18 +67,17 @@ impl SharedData {
         let mut msr_bitmap = MsrBitmap::new();
 
         #[cfg(feature = "test-windows-uefi-hooks")]
-        // Intercept read and write operations for the IA32_LSTAR MSR.
-        // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Read, crate::intel::bitmap::MsrOperation::Hook);
-        // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Hook);
-        // Intercept write operations for the IA32_GS_BASE MSR.
-        msr_bitmap.modify_msr_interception(
-            x86::msr::IA32_GS_BASE,
-            crate::intel::bitmap::MsrAccessType::Write,
-            crate::intel::bitmap::MsrOperation::Hook,
-        );
-
-        // Allocate stack space for the guest agent.
-        let guest_agent_stack = allocate_stack_space(0x10);
+        {
+            // Intercept read and write operations for the IA32_LSTAR MSR.
+            // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Read, crate::intel::bitmap::MsrOperation::Hook);
+            msr_bitmap.modify_msr_interception(
+                x86::msr::IA32_LSTAR,
+                crate::intel::bitmap::MsrAccessType::Write,
+                crate::intel::bitmap::MsrOperation::Hook,
+            );
+            // Intercept write operations for the IA32_GS_BASE MSR.
+            // msr_bitmap.modify_msr_interception(x86::msr::IA32_GS_BASE, crate::intel::bitmap::MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Hook);
+        }
 
         let mut hook_manager = Vec::new();
 
@@ -104,7 +100,6 @@ impl SharedData {
             secondary_ept,
             secondary_eptp,
             hook_manager,
-            guest_agent_stack,
         }))
     }
 }
