@@ -172,9 +172,6 @@ movaps xmm0, xmmword ptr [rsp]
 // The main entry point for launching or resuming a VM using VMX operations.
 .global launch_vm
 launch_vm:
-    // Intentional breakpoint for debugging.
-    xchg    bx, bx
-
     // Saves all general-purpose registers to the stack to preserve the host's execution context.
     PUSHAQ
 
@@ -235,7 +232,6 @@ launch_vm:
 .Launch:
     // Initial VM launch sequence. This path configures the host and guest states
     // for a first-time VM execution.
-    xchg    bx, bx
     mov     r14, 0x6C14 // VMCS_HOST_RSP
     vmwrite r14, rsp
     lea     r13, [rip + .VmExit]
@@ -253,7 +249,6 @@ launch_vm:
 .VmExit:
     // VM-exit handling. This block is responsible for saving the guest state upon exit
     // and preparing for transition back to host execution.
-    xchg    bx, bx
     xchg    r15, [rsp]  // Swap guest R15 with `registers` pointer on the stack.
     mov     [r15 + registers_rax], rax
     mov     [r15 + registers_rbx], rbx
