@@ -176,12 +176,12 @@ impl EptHook {
     ) -> Result<(), HypervisorError> {
         trace!("Enabling hooks");
 
+        trace!("Page Table Index: {}", self.pt_table_index);
+
         // If the page table index exceeds the maximum allowed, return an error.
         if self.pt_table_index >= PT_INDEX_MAX {
             return Err(HypervisorError::EptPtTableIndexExhausted);
         }
-
-        trace!("Page Table Index: {}", self.pt_table_index);
 
         // Align the original function address to the large page size.
         let original_large_page = self
