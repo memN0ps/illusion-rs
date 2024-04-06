@@ -160,9 +160,6 @@ impl Ept {
         // Get the memory type of the large page, before we unmap (reset) it.
         let memory_type = pde.memory_type();
 
-        // Unmap the 2MB page by resetting the page directory entry.
-        Self::unmap_2mb(pde);
-
         // Map the unmapped physical memory to 4KB pages.
         for (i, pte) in &mut self.pt[pt_table_index].0.entries.iter_mut().enumerate() {
             let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
