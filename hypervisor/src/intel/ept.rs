@@ -160,8 +160,14 @@ impl Ept {
         // Get the memory type of the large page, before we unmap (reset) it.
         let memory_type = pde.memory_type();
 
+        // Zero out the PD entry to ensure it's clean.
+        *pde = Entry(0);
+
         // Map the unmapped physical memory to 4KB pages.
         for (i, pte) in &mut self.pt[pt_table_index].0.entries.iter_mut().enumerate() {
+            // Zero out the PT entry to ensure it's clean.
+            *pte = Entry(0);
+
             let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
             pte.set_readable(true);
             pte.set_writable(true);
@@ -308,43 +314,6 @@ impl Ept {
         );
 
         Ok(())
-    }
-
-    /// Unmaps a 2MB page by clearing the corresponding page directory entry.
-    ///
-    /// This function clears the entry, effectively removing any mapping for the 2MB page.
-    /// It's used when transitioning a region of memory from a single large page to multiple smaller pages or simply freeing the page.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry`: Mutable reference to the page directory entry to unmap.
-    pub fn unmap_2mb(entry: &mut Entry) {
-        if !entry.readable() {
-            // The page is already not present; no action needed.
-            return;
-        }
-
-        // Unmap the large page and clear the flags
-        entry.set_readable(false);
-        entry.set_writable(false);
-        entry.set_executable(false);
-        entry.set_memory_type(0);
-        entry.set_large(false);
-        entry.set_pfn(0); // Reset the Page Frame Number
-    }
-
-    /// Unmaps a 4KB page, typically involved in deconstructing finer-grained page tables.
-    ///
-    /// This function wraps the unmap_2mb function, as the actual unmap logic is similar.
-    /// It's used for unmap operations specifically targeting 4KB pages.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry`: Mutable reference to the page directory entry of the 4KB page to unmap.
-    #[allow(dead_code)]
-    fn unmap_4kb(entry: &mut Entry) {
-        // Delegate to the unmap_2mb function as the unmap logic is the same.
-        Self::unmap_2mb(entry);
     }
 
     /// Creates an Extended Page Table Pointer (EPTP) with a Write-Back memory type and a 4-level page walk.
