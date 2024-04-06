@@ -114,7 +114,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
                     handle_vmcall(&mut vm).expect("Failed to handle VMCALL")
                 }
                 VmxBasicExitReason::EptViolation => handle_ept_violation(&mut vm),
-                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(),
+                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(&mut vm),
                 VmxBasicExitReason::Invept => handle_invept(),
                 VmxBasicExitReason::Invvpid => handle_invvpid(),
                 VmxBasicExitReason::Xsetbv => handle_xsetbv(&mut vm.guest_registers),

@@ -1,8 +1,12 @@
 use {
-    crate::intel::{
-        invept::invept_all_contexts, support::vmread, support::vmwrite, vm::Vm,
-        vmerror::EptViolationExitQualification, vmexit::ExitType,
+    crate::{
+        error::HypervisorError,
+        intel::{
+            invept::invept_all_contexts, support::vmread, support::vmwrite, vm::Vm,
+            vmerror::EptViolationExitQualification, vmexit::ExitType,
+        },
     },
+    log::*,
     x86::vmx::vmcs,
 };
 
@@ -11,23 +15,23 @@ use {
 /// Table 28-7. Exit Qualification for EPT Violations
 #[rustfmt::skip]
 pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
-    log::debug!("Handling EPT Violation VM exit...");
+    debug!("Handling EPT Violation VM exit...");
 
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
-    log::debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
+    debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
 
     // Translate the page from a physical address to virtual so we can read its memory.
     //let va = PhysicalAddress::va_from_pa(guest_physical_address);
-    //log::debug!("EPT Violation: Guest Virtual Address: {:#x}", va);
+    //debug!("EPT Violation: Guest Virtual Address: {:#x}", va);
 
     // Log the detailed information about the EPT violation
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
-    log::debug!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
+    debug!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
 
     // If the page is Read/Write, then we need to swap it to the secondary EPTP
     if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
-        //log::trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
+        //trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
         // Change to the secondary EPTP and invalidate the EPT cache.
         // The hooked page that is Execute-Only will be executed from the secondary EPTP.
         // if Read or Write occurs on that page, then a vmexit will occur
@@ -50,7 +54,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
         //invept_single_context(primary_eptp);
     }
 
-    log::debug!("EPT Violation handled successfully!");
+    debug!("EPT Violation handled successfully!");
 
     // Do not increment RIP, since we want it to execute the same instruction again.
     ExitType::Continue
@@ -74,14 +78,39 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
 ///
 /// Reference: 29.3.3.1 EPT Misconfigurations
 #[rustfmt::skip]
-pub fn handle_ept_misconfiguration() -> ExitType {
-    log::debug!("Handling EPT Misconfiguration VM exit...");
+pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
+    debug!("Handling EPT Misconfiguration VM exit...");
 
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
     // Log the critical error information.
-    log::trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+
+    // Get the shared data from the VM.
+    let shared_data = unsafe { vm.shared_data.as_mut() };
+
+    // We minus 1 from the current hook index to get the current hook index because the current hook index is incremented when the hook was placed in `ept_hook`.
+    trace!("Current Hook Index: {:#x}", shared_data.current_hook_index - 1);
+
+    // Access the current hook based on `current_hook_index`
+    let hook = shared_data
+        .hook_manager
+        .get_mut(shared_data.current_hook_index - 1)
+        .ok_or(HypervisorError::FailedToGetCurrentHookIndex).unwrap();
+
+    //trace!("Hook Index {:#x}", shared_data.current_hook_index);
+
+    // Get the primary and secondary EPTs.
+    let primary_ept = &mut shared_data.primary_ept;
+    let secondary_ept = &mut shared_data.secondary_ept;
+
+    trace!("Dumping Primary EPT entries for guest physical address: {:#x}", guest_physical_address);
+    primary_ept.dump_ept_entries(guest_physical_address, hook.pt_table_index);
+
+    trace!("Dumping Secondary EPT entries for guest physical address: {:#x}", guest_physical_address);
+    secondary_ept.dump_ept_entries(guest_physical_address, hook.pt_table_index);
+
 
     // Trigger a breakpoint exception to halt execution for debugging.
     // Continuing after this point is unsafe due to the potential for system instability.
