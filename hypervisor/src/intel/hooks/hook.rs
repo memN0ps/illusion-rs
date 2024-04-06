@@ -132,8 +132,12 @@ impl EptHook {
             .get_mut(shared_data.current_hook_index)
             .ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
 
+        trace!("Hook Index: {}", shared_data.current_hook_index);
+
         // Increment the hook index for the next hook.
         shared_data.current_hook_index += 1;
+
+        trace!("Hook Index Incremented: {}", shared_data.current_hook_index);
 
         // Setups the hook for the function.
         hook.setup_function_hook(original_va, hook_handler, hook_type)
