@@ -189,9 +189,6 @@ impl EptHook {
             .align_down_to_large_page()
             .as_u64();
 
-        // Align the shadow function address to the large page size.
-        let shadow_large_page = self.shadow_function_pa.align_down_to_large_page().as_u64();
-
         // Split the original page 2MB page into 4KB pages for the primary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
@@ -199,10 +196,10 @@ impl EptHook {
         );
         primary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
 
-        // Split the shadow page 2MB page into 4KB pages for the secondary EPT.
+        // Split the original page 2MB page into 4KB pages for the secondary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
-            shadow_large_page
+            original_large_page
         );
         secondary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
 
