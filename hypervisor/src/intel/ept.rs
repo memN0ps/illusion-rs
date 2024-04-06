@@ -163,6 +163,8 @@ impl Ept {
         // Zero out the PD entry to ensure it's clean.
         *pde = Entry(0);
 
+        trace!("Dumping EPT entries while splitting......");
+
         // Map the unmapped physical memory to 4KB pages.
         for (i, pte) in &mut self.pt[pt_table_index].0.entries.iter_mut().enumerate() {
             // Zero out the PT entry to ensure it's clean.
@@ -174,6 +176,8 @@ impl Ept {
             pte.set_executable(true);
             pte.set_memory_type(memory_type);
             pte.set_pfn(pa >> BASE_PAGE_SHIFT);
+
+            trace!("PTE at index {}: {:#x?}", i, pte);
         }
 
         // Update the PDE to point to the new page table.
@@ -314,6 +318,21 @@ impl Ept {
         );
 
         Ok(())
+    }
+
+    pub fn dump_ept_entries(&self, guest_pa: u64, pt_table_index: usize) {
+        let guest_pa = VAddr::from(guest_pa);
+        let pdpt_index = pdpt_index(guest_pa);
+        let pd_index = pd_index(guest_pa);
+        let pt_index = pt_index(guest_pa);
+
+        let pde = &self.pd[pdpt_index].0.entries[pd_index];
+        trace!("PDE at index {}: {:#x?}", pd_index, pde);
+
+        if !pde.large() {
+            let pte = &self.pt[pt_table_index].0.entries[pt_index];
+            trace!("PTE at index {}: {:#x?}", pt_index, pte);
+        }
     }
 
     /// Creates an Extended Page Table Pointer (EPTP) with a Write-Back memory type and a 4-level page walk.
