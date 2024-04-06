@@ -106,11 +106,10 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
     let secondary_ept = &mut shared_data.secondary_ept;
 
     trace!("Dumping Primary EPT entries for guest physical address: {:#x}", guest_physical_address);
-    primary_ept.dump_ept_entries(guest_physical_address, hook.pt_table_index);
+    primary_ept.dump_ept_entries(guest_physical_address, hook.pt.as_mut());
 
     trace!("Dumping Secondary EPT entries for guest physical address: {:#x}", guest_physical_address);
-    secondary_ept.dump_ept_entries(guest_physical_address, hook.pt_table_index);
-
+    secondary_ept.dump_ept_entries(guest_physical_address, hook.pt.as_mut());
 
     // Trigger a breakpoint exception to halt execution for debugging.
     // Continuing after this point is unsafe due to the potential for system instability.

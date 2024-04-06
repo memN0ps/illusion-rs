@@ -8,7 +8,7 @@ use {
         error::HypervisorError,
         intel::{
             bitmap::MsrBitmap,
-            ept::{Ept, PT_INDEX_MAX},
+            ept::{Ept, Pt},
             hooks::hook::EptHook,
             page::Page,
         },
@@ -16,6 +16,9 @@ use {
     alloc::boxed::Box,
     alloc::vec::Vec,
 };
+
+/// The maximum number of hooks supported by the hypervisor. Change this value as needed
+pub const MAX_HOOKS: usize = 64;
 
 /// Represents shared data structures for hypervisor operations.
 ///
@@ -84,13 +87,16 @@ impl SharedData {
 
         let mut hook_manager = Vec::new();
 
-        // Pre-Allocated buffer for hooks with PT_INDEX_MAX entries.
-        for pt_table_index in 1..PT_INDEX_MAX {
+        // Pre-Allocated buffers for hooks
+        for _ in 0..MAX_HOOKS {
             // Create a pre-allocated shadow page for the hook.
             let shadow_page = unsafe { box_zeroed::<Page>() };
 
+            // Create a pre-allocated page table for the hook.
+            let pt = unsafe { box_zeroed::<Pt>() };
+
             // Create a new hook and push it to the hook manager.
-            let hook = EptHook::new(shadow_page, pt_table_index);
+            let hook = EptHook::new(shadow_page, pt);
 
             // Save the hook in the hook manager.
             hook_manager.push(hook);

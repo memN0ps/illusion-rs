@@ -8,7 +8,7 @@ use {
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
-            ept::{AccessType, Ept, PT_INDEX_MAX},
+            ept::{AccessType, Ept, Pt},
             hooks::inline::{InlineHook, InlineHookType},
             invept::invept_all_contexts,
             invvpid::invvpid_all_contexts,
@@ -18,7 +18,6 @@ use {
     },
     alloc::boxed::Box,
     core::intrinsics::copy_nonoverlapping,
-    core::ptr::addr_of_mut,
     log::*,
     x86::bits64::paging::{PAddr, VAddr, BASE_PAGE_SIZE},
 };
@@ -34,12 +33,12 @@ pub enum HookType {
 
 /// Manages the lifecycle and control of various hooks.
 ///
-/// `Hook` is a container for multiple hooks and provides an interface
+/// `EptHook` is a container for multiple hooks and provides an interface
 /// to enable or disable these hooks as a group. It's primarily responsible for
 /// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
 pub struct EptHook {
-    /// The index of the page table entry in the EPT, to keep track of the hooks.
-    pub pt_table_index: usize,
+    /// The Page Table (PT) for the hook (Pre-Allocated).
+    pub pt: Box<Pt>,
 
     /// Original virtual address of the target function or page.
     pub original_function_va: VAddr,
@@ -59,7 +58,7 @@ pub struct EptHook {
     /// Physical address of the hook.
     pub shadow_function_pa: PAddr,
 
-    /// Contents of the original page where the hook is placed.
+    /// Contents of the original page where the hook is placed (Pre-Allocated).
     pub shadow_page: Box<Page>,
 
     /// Virtual address of the page containing the hook.
@@ -81,9 +80,9 @@ impl EptHook {
     /// # Arguments
     ///
     /// * `hooks` - A vector of `Hook` instances to be managed.
-    pub fn new(shadow_page: Box<Page>, pt_table_index: usize) -> Box<Self> {
+    pub fn new(shadow_page: Box<Page>, pt: Box<Pt>) -> Box<Self> {
         let hooks = Self {
-            pt_table_index,
+            pt,
             original_function_va: VAddr::zero(),
             original_function_pa: PAddr::zero(),
             original_page_va: VAddr::zero(),
@@ -126,13 +125,16 @@ impl EptHook {
             return Err(HypervisorError::OutOfHooks);
         }
 
+        trace!(
+            "Accessing Hook Manager with hook index: {}",
+            shared_data.current_hook_index
+        );
+
         // Access the current hook based on `current_hook_index`
         let hook = shared_data
             .hook_manager
             .get_mut(shared_data.current_hook_index)
             .ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
-
-        trace!("Hook Index: {}", shared_data.current_hook_index);
 
         // Increment the hook index for the next hook.
         shared_data.current_hook_index += 1;
@@ -176,13 +178,6 @@ impl EptHook {
     ) -> Result<(), HypervisorError> {
         trace!("Enabling hooks");
 
-        trace!("Page Table Index: {}", self.pt_table_index);
-
-        // If the page table index exceeds the maximum allowed, return an error.
-        if self.pt_table_index >= PT_INDEX_MAX {
-            return Err(HypervisorError::EptPtTableIndexExhausted);
-        }
-
         // Align the original function address to the large page size.
         let original_large_page = self
             .original_function_pa
@@ -194,14 +189,14 @@ impl EptHook {
             "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
             original_large_page
         );
-        primary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
+        primary_ept.split_2mb_to_4kb(original_large_page, self.pt.as_mut())?;
 
         // Split the original page 2MB page into 4KB pages for the secondary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
             original_large_page
         );
-        secondary_ept.split_2mb_to_4kb(original_large_page, self.pt_table_index)?;
+        secondary_ept.split_2mb_to_4kb(original_large_page, self.pt.as_mut())?;
 
         // Align the original function address to the base page size.
         let original_page = self.original_function_pa.align_down_to_base_page().as_u64();
@@ -217,7 +212,7 @@ impl EptHook {
         primary_ept.modify_page_permissions(
             original_page,
             AccessType::READ_WRITE,
-            self.pt_table_index,
+            self.pt.as_mut(),
         )?;
 
         // Modify the page permission in the secondary EPT to Execute-only for the original page.
@@ -228,12 +223,12 @@ impl EptHook {
         secondary_ept.modify_page_permissions(
             original_page,
             AccessType::EXECUTE,
-            self.pt_table_index,
+            self.pt.as_mut(),
         )?;
 
         // Map the original page to the hooked shadow page in the secondary EPT.
         debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", original_page, shadow_page);
-        secondary_ept.remap_gpa_to_hpa(original_page, shadow_page, self.pt_table_index)?;
+        secondary_ept.remap_gpa_to_hpa(original_page, shadow_page, self.pt.as_mut())?;
 
         // Invalidate the EPT cache for all contexts.
         invept_all_contexts();
@@ -263,14 +258,15 @@ impl EptHook {
         trace!("Original Page PA: {:#x}", original_page_pa.as_u64());
 
         // Get the physical address of the shadow page.
-        let shadow_page_pa = PAddr::from(addr_of_mut!(self.shadow_page) as *mut u64 as u64);
+        let shadow_page_ptr = self.shadow_page.as_mut_slice().as_mut_ptr();
+        let shadow_page_pa = PAddr::from(shadow_page_ptr as u64);
         debug!("Shadow Page PA: {:#x}", shadow_page_pa);
 
         // Copy the original page to the pre-allocated shadow page.
         unsafe {
             copy_nonoverlapping(
-                original_page_pa.as_u64() as *mut u64,
-                shadow_page_pa.as_u64() as *mut u64,
+                original_page_pa.as_u64() as *mut u8,
+                shadow_page_pa.as_u64() as *mut u8,
                 BASE_PAGE_SIZE,
             )
         };

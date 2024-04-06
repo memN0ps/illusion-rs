@@ -167,12 +167,6 @@ pub enum HypervisorError {
     #[error("Large page remap error")]
     LargePageRemapError,
 
-    #[error("Invalid PT index")]
-    InvalidPtIndex,
-
-    #[error("EPT PT table index exhausted")]
-    EptPtTableIndexExhausted,
-
     #[error("Failed to get image base address")]
     FailedToGetImageBaseAddress,
 
