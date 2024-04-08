@@ -33,24 +33,33 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
     debug!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
 
+    // Handle the EPT violation based on the instruction fetch status and page permissions for memory introspection.
+    // An EPT Violation vmexit occurs when a guest attempts to access a page that its current EPT settings do not permit.
+    // Depending on the type of violation, we switch the EPTP to either the primary or secondary EPTP:
+    // - If the guest attempts to execute from a page that is only permitted for reading and writing, we switch to the secondary EPTP.
+    // - If the guest attempts to read or write to a page that is only executable, we switch to the primary EPTP.
+    // This approach ensures the host's code remains hidden from the guest, preventing improper access to host memory.
     match ept_violation_qualification.instruction_fetch {
-        // If the guest attempted to Read or Write the page, then we need to swap it to the primary EPTP unhooked guest original page, which has RW permissions only.
-        true => {
-            // Change to the primary EPTP and invalidate the EPT cache.
-            // The original page that is Read-Write-Only will be executed from the primary EPTP.
-            // if Execute occurs on that page, then a vmexit will occur
-            // and we can swap the page back to the secondary EPTP, (hooked page) with X permissions.
-            switch_eptp(vm, EptpState::Primary);
-        }
-        // If the guest attempted to Execute the page, then we need to swap it to the secondary EPTP hooked host shadow copy page, which has X permissions only.
+        // When instruction fetch is false, it indicates an attempt to read or write to a page marked as Execute-Only.
+        // Here, we:
+        // - Switch to the primary EPTP,
+        // - Invalidate the EPT cache to refresh permissions, and
+        // - This typically involves a page where:
+        //   Instruction Fetch: false,
+        //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
         false => {
-            //trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
-            // Change to the secondary EPTP and invalidate the EPT cache.
-            // The hooked page that is Execute-Only will be executed from the secondary EPTP.
-            // if Read or Write occurs on that page, then a vmexit will occur
-            // and we can swap the page back to the primary EPTP, (original page) with RW permissions.
+            switch_eptp(vm, EptpState::Primary);
+        },
+        // When instruction fetch is true, it signifies an attempt to execute code from a page marked as Read-Write-Only.
+        // Actions taken include:
+        // - Switching to the secondary EPTP,
+        // - Invalidating the EPT cache, and
+        // - This typically involves a page where:
+        //   Instruction Fetch: true,
+        //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
+        true => {
             switch_eptp(vm, EptpState::Secondary);
-        }
+        },
     };
 
     debug!("EPT Violation handled successfully!");
