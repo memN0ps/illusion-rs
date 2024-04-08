@@ -10,6 +10,13 @@ use {
     x86::vmx::vmcs,
 };
 
+// Define an enum to represent EPTP states
+#[derive(Debug, Clone, Copy)]
+pub enum EptpState {
+    Primary,
+    Secondary,
+}
+
 /// Handle VM exits for EPT violations. Violations are thrown whenever an operation is performed on an EPT entry that does not provide permissions to access that page.
 /// 29.3.3.2 EPT Violations
 /// Table 28-7. Exit Qualification for EPT Violations
@@ -20,44 +27,54 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
     debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
 
-    // Translate the page from a physical address to virtual so we can read its memory.
-    //let va = PhysicalAddress::va_from_pa(guest_physical_address);
-    //debug!("EPT Violation: Guest Virtual Address: {:#x}", va);
-
-    // Log the detailed information about the EPT violation
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
-    debug!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
+    debug!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
 
-    // If the page is Read/Write, then we need to swap it to the secondary EPTP
-    if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
-        //trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
-        // Change to the secondary EPTP and invalidate the EPT cache.
-        // The hooked page that is Execute-Only will be executed from the secondary EPTP.
-        // if Read or Write occurs on that page, then a vmexit will occur
-        // and we can swap the page back to the primary EPTP, (original page) with RW permissions.
-        let secondary_eptp = unsafe { vm.shared_data.as_ref().secondary_eptp };
-        vmwrite(vmcs::control::EPTP_FULL, secondary_eptp);
-        invept_all_contexts();
-        //invept_single_context(secondary_eptp);
-    }
-
-    // If the page is Execute-Only, then we need to swap it back to the primary EPTP
-    if !ept_violation_qualification.readable && !ept_violation_qualification.writable && ept_violation_qualification.executable {
-        // Change to the primary EPTP and invalidate the EPT cache.
-        // The original page that is Read-Write-Only will be executed from the primary EPTP.
-        // if Execute occurs on that page, then a vmexit will occur
-        // and we can swap the page back to the secondary EPTP, (hooked page) with X permissions.
-        let primary_eptp = unsafe { vm.shared_data.as_ref().primary_eptp };
-        vmwrite(vmcs::control::EPTP_FULL, primary_eptp);
-        invept_all_contexts();
-        //invept_single_context(primary_eptp);
-    }
+    match ept_violation_qualification.instruction_fetch {
+        // If the guest attempted to Read or Write the page, then we need to swap it to the primary EPTP unhooked guest original page, which has RW permissions only.
+        true => {
+            // Change to the primary EPTP and invalidate the EPT cache.
+            // The original page that is Read-Write-Only will be executed from the primary EPTP.
+            // if Execute occurs on that page, then a vmexit will occur
+            // and we can swap the page back to the secondary EPTP, (hooked page) with X permissions.
+            switch_eptp(vm, EptpState::Primary);
+        }
+        // If the guest attempted to Execute the page, then we need to swap it to the secondary EPTP hooked host shadow copy page, which has X permissions only.
+        false => {
+            //trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
+            // Change to the secondary EPTP and invalidate the EPT cache.
+            // The hooked page that is Execute-Only will be executed from the secondary EPTP.
+            // if Read or Write occurs on that page, then a vmexit will occur
+            // and we can swap the page back to the primary EPTP, (original page) with RW permissions.
+            switch_eptp(vm, EptpState::Secondary);
+        }
+    };
 
     debug!("EPT Violation handled successfully!");
 
     // Do not increment RIP, since we want it to execute the same instruction again.
     ExitType::Continue
+}
+
+/// Attempts to switch the EPTP state and logs appropriate messages.
+pub fn switch_eptp(vm: &mut Vm, state: EptpState) {
+    let eptp_address = match state {
+        EptpState::Primary => unsafe { vm.shared_data.as_ref().primary_eptp },
+        EptpState::Secondary => unsafe { vm.shared_data.as_ref().secondary_eptp },
+    };
+
+    // Switch to the new EPTP address.
+    vmwrite(vmcs::control::EPTP_FULL, eptp_address);
+
+    // Invalidate EPT caches.
+    invept_all_contexts();
+
+    trace!(
+        "Switched to {:?} EPTP at address: {:#x}",
+        state,
+        eptp_address
+    );
 }
 
 /// Handles an EPT misconfiguration VM exit.

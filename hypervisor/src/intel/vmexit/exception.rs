@@ -42,7 +42,7 @@ pub fn handle_exception(_vm: &mut Vm) -> ExitType {
                 ExceptionInterrupt::PageFault => {
                     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
                     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
-                    log::trace!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
+                    log::trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
                     EventInjection::vmentry_inject_pf(interruption_error_code_value as u32);
                 },
                 ExceptionInterrupt::GeneralProtectionFault => {
