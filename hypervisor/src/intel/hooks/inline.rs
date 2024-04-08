@@ -1,5 +1,7 @@
-use core::ptr::copy_nonoverlapping;
-use log::trace;
+use {
+    core::ptr::copy_nonoverlapping,
+    log::*;
+};
 
 /// Enum to define the types of inline hooks we support.
 #[derive(Debug, Clone, Copy)]
