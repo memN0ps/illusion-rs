@@ -132,11 +132,23 @@ pub fn handle_msr_access(
                         vm,
                         "MmIsAddressValid",
                         crate::windows::functions::test_mm_is_address_valid as _,
-                        crate::intel::hooks::inline::InlineHookType::Vmcall,
+                        crate::intel::hooks::hook::EptHookType::Function(
+                            crate::intel::hooks::inline::InlineHookType::Vmcall,
+                        ),
                     )?;
 
+                    /*
                     // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
-                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, crate::windows::functions::test_nt_create_file as _, crate::intel::hooks::inline::InlineHookType::Vmcall, )?;
+                    kernel_hook.setup_kernel_ssdt_hook(
+                        vm,
+                        0x055,
+                        false,
+                        crate::windows::functions::test_nt_create_file as _,
+                        crate::intel::hooks::hook::EptHookType::Function(
+                            crate::intel::hooks::inline::InlineHookType::Vmcall,
+                        ),
+                    )?;
+                     */
                 }
 
                 // Check if it's the first time we're intercepting a write to LSTAR.

@@ -95,7 +95,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
 
     // Access the current hook based on `current_hook_index`
     let hook = shared_data
-        .hook_manager
+        .ept_hook_manager
         .get_mut(shared_data.current_hook_index - 1)
         .ok_or(HypervisorError::FailedToGetCurrentHookIndex).unwrap();
 

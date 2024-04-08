@@ -2,7 +2,9 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            addresses::PhysicalAddress, hooks::hook::EptHook, hooks::inline::InlineHookType, vm::Vm,
+            addresses::PhysicalAddress,
+            hooks::hook::{EptHook, EptHookType},
+            vm::Vm,
         },
         windows::{
             nt::pe::{dbj2_hash, get_export_by_hash, get_image_base_address, get_size_of_image},
@@ -60,7 +62,7 @@ impl KernelHook {
     /// * `vm` - The virtual machine to install the hook on.
     /// * `function_name` - The name of the function to hook.
     /// * `hook_handler` - The handler to call when the function is invoked.
-    /// * `hook_type` - The type of hook to use.
+    /// * `ept_hook_type` - The type of EPT hook to use.
     ///
     /// # Returns
     ///
@@ -70,7 +72,7 @@ impl KernelHook {
         vm: &mut Vm,
         function_name: &str,
         hook_handler: *const (),
-        hook_type: InlineHookType,
+        ept_hook_type: EptHookType,
     ) -> Result<(), HypervisorError> {
         trace!("Setting up hook for function: {}", function_name);
 
@@ -85,7 +87,7 @@ impl KernelHook {
 
         trace!("Function address: {:#x}", function_va as u64);
 
-        EptHook::ept_hook(vm, function_va as u64, hook_handler, hook_type)?;
+        EptHook::ept_hook(vm, function_va as u64, hook_handler, ept_hook_type)?;
 
         info!("Windows kernel inline hook installed successfully");
 
@@ -100,7 +102,7 @@ impl KernelHook {
     /// * `syscall_number` - The syscall number to hook.
     /// * `get_from_win32k` - Whether to get the function from the Win32k table instead of the NT table.
     /// * `hook_handler` - The handler to call when the syscall is invoked.
-    /// * `hook_type` - The type of hook to use.
+    /// * `ept_hook_type` - The type of EPT hook to use.
     ///
     /// # Returns
     ///
@@ -111,7 +113,7 @@ impl KernelHook {
         syscall_number: i32,
         get_from_win32k: bool,
         hook_handler: *const (),
-        hook_type: InlineHookType,
+        ept_hook_type: EptHookType,
     ) -> Result<(), HypervisorError> {
         trace!("Setting up hook for syscall: {}", syscall_number);
 
@@ -128,7 +130,7 @@ impl KernelHook {
             vm,
             ssdt_hook.function_address as u64,
             hook_handler,
-            hook_type,
+            ept_hook_type,
         )?;
 
         info!("Windows kernel ssdt hook installed successfully");

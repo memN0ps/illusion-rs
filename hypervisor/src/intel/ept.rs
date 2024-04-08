@@ -213,12 +213,12 @@ impl Ept {
         let pde = &mut self.pd[pdpt_index].0.entries[pd_index];
 
         if pde.large() {
-            trace!("Changing the permissions of a 2mb page");
+            trace!("Changing the permissions of a 2MB page");
             pde.set_readable(access_type.contains(AccessType::READ));
             pde.set_writable(access_type.contains(AccessType::WRITE));
             pde.set_executable(access_type.contains(AccessType::EXECUTE));
         } else {
-            trace!("Changing the permissions of a 4kb page");
+            trace!("Changing the permissions of a 4KB page");
             let pte = &mut pt.0.entries[pt_index];
             pte.set_readable(access_type.contains(AccessType::READ));
             pte.set_writable(access_type.contains(AccessType::WRITE));

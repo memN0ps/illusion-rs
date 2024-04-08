@@ -41,8 +41,8 @@ pub struct SharedData {
     /// The secondary EPTP (Extended Page Tables Pointer) for the VM.
     pub secondary_eptp: u64,
 
-    /// The hook manager.
-    pub hook_manager: Vec<Box<EptHook>>,
+    /// The EPT hook manager.
+    pub ept_hook_manager: Vec<Box<EptHook>>,
 
     /// The current hook index.
     pub current_hook_index: usize,
@@ -85,21 +85,21 @@ impl SharedData {
             // msr_bitmap.modify_msr_interception(x86::msr::IA32_GS_BASE, crate::intel::bitmap::MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Hook);
         }
 
-        let mut hook_manager = Vec::new();
+        let mut ept_hook_manager = Vec::new();
 
         // Pre-Allocated buffers for hooks
         for _ in 0..MAX_HOOKS {
             // Create a pre-allocated shadow page for the hook.
-            let shadow_page = unsafe { box_zeroed::<Page>() };
+            let host_shadow_page = unsafe { box_zeroed::<Page>() };
 
             // Create a pre-allocated page table for the hook.
             let pt = unsafe { box_zeroed::<Pt>() };
 
-            // Create a new hook and push it to the hook manager.
-            let hook = EptHook::new(shadow_page, pt);
+            // Create a new ept hook and push it to the hook manager.
+            let ept_hook = EptHook::new(host_shadow_page, pt);
 
             // Save the hook in the hook manager.
-            hook_manager.push(hook);
+            ept_hook_manager.push(ept_hook);
         }
 
         Ok(Box::new(Self {
@@ -108,7 +108,7 @@ impl SharedData {
             primary_eptp,
             secondary_ept,
             secondary_eptp,
-            hook_manager,
+            ept_hook_manager,
             current_hook_index: 0,
         }))
     }
