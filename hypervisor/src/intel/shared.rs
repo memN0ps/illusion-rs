@@ -92,11 +92,18 @@ impl SharedData {
             // Create a pre-allocated shadow page for the hook.
             let host_shadow_page = unsafe { box_zeroed::<Page>() };
 
-            // Create a pre-allocated page table for the hook.
-            let pt = unsafe { box_zeroed::<Pt>() };
+            // Create a pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT.
+            let primary_ept_pre_alloc_pt = unsafe { box_zeroed::<Pt>() };
+
+            // Create a pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the secondary EPT.
+            let secondary_ept_pre_alloc_pt = unsafe { box_zeroed::<Pt>() };
 
             // Create a new ept hook and push it to the hook manager.
-            let ept_hook = EptHook::new(host_shadow_page, pt);
+            let ept_hook = EptHook::new(
+                host_shadow_page,
+                primary_ept_pre_alloc_pt,
+                secondary_ept_pre_alloc_pt,
+            );
 
             // Save the hook in the hook manager.
             ept_hook_manager.push(ept_hook);

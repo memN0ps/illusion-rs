@@ -27,6 +27,8 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
     debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
 
+    dump_primary_and_secondary_ept(vm, guest_physical_address);
+
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
     debug!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
@@ -101,32 +103,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
-    // Log the critical error information.
-    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
-
-    // Get the shared data from the VM.
-    let shared_data = unsafe { vm.shared_data.as_mut() };
-
-    // We minus 1 from the current hook index to get the current hook index because the current hook index is incremented when the hook was placed in `ept_hook`.
-    trace!("Current Hook Index: {:#x}", shared_data.current_hook_index - 1);
-
-    // Access the current hook based on `current_hook_index`
-    let hook = shared_data
-        .ept_hook_manager
-        .get_mut(shared_data.current_hook_index - 1)
-        .ok_or(HypervisorError::FailedToGetCurrentHookIndex).unwrap();
-
-    //trace!("Hook Index {:#x}", shared_data.current_hook_index);
-
-    // Get the primary and secondary EPTs.
-    let primary_ept = &mut shared_data.primary_ept;
-    let secondary_ept = &mut shared_data.secondary_ept;
-
-    trace!("Dumping Primary EPT entries for guest physical address: {:#x}", guest_physical_address);
-    primary_ept.dump_ept_entries(guest_physical_address, hook.pt.as_mut());
-
-    trace!("Dumping Secondary EPT entries for guest physical address: {:#x}", guest_physical_address);
-    secondary_ept.dump_ept_entries(guest_physical_address, hook.pt.as_mut());
+    dump_primary_and_secondary_ept(vm, guest_physical_address);
 
     // Trigger a breakpoint exception to halt execution for debugging.
     // Continuing after this point is unsafe due to the potential for system instability.
@@ -137,4 +114,57 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
 
     // We may chose to exit the hypervisor here instead of triggering a breakpoint exception.
     return ExitType::ExitHypervisor;
+}
+
+/// Dumps the EPT entries for the primary and secondary EPTs at the specified guest physical address.
+///
+/// This function is used for debugging EPT misconfigurations and violations and prints the EPT entries for the primary and secondary EPTs.
+///
+/// # Arguments
+///
+/// * `vm` - The virtual machine instance.
+/// * `guest_physical_address` - The guest physical address that caused the EPT misconfiguration or violation.
+pub fn dump_primary_and_secondary_ept(vm: &mut Vm, guest_physical_address: u64) {
+    // Log the critical error information.
+    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+
+    // Get the shared data from the VM.
+    let shared_data = unsafe { vm.shared_data.as_mut() };
+
+    // We minus 1 from the current hook index to get the current hook index because the current hook index is incremented when the hook was placed in `ept_hook`.
+    trace!(
+        "Current Hook Index: {:#x}",
+        shared_data.current_hook_index - 1
+    );
+
+    // Access the current hook based on `current_hook_index`
+    let hook = shared_data
+        .ept_hook_manager
+        .get_mut(shared_data.current_hook_index - 1)
+        .ok_or(HypervisorError::FailedToGetCurrentHookIndex)
+        .unwrap();
+
+    //trace!("Hook Index {:#x}", shared_data.current_hook_index);
+
+    // Get the primary and secondary EPTs.
+    let primary_ept = &mut shared_data.primary_ept;
+    let secondary_ept = &mut shared_data.secondary_ept;
+
+    trace!(
+        "Dumping Primary EPT entries for guest physical address: {:#x}",
+        guest_physical_address
+    );
+    primary_ept.dump_ept_entries(
+        guest_physical_address,
+        hook.primary_ept_pre_alloc_pt.as_mut(),
+    );
+
+    trace!(
+        "Dumping Secondary EPT entries for guest physical address: {:#x}",
+        guest_physical_address
+    );
+    secondary_ept.dump_ept_entries(
+        guest_physical_address,
+        hook.secondary_ept_pre_alloc_pt.as_mut(),
+    );
 }

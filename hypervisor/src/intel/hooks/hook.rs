@@ -42,8 +42,11 @@ pub enum EptHookType {
 /// to enable or disable these hooks as a group. It's primarily responsible for
 /// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
 pub struct EptHook {
-    /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the primary and secondary EPTs (Pre-Allocated).
-    pub pt: Box<Pt>,
+    /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT (Pre-Allocated).
+    pub primary_ept_pre_alloc_pt: Box<Pt>,
+
+    /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the secondary EPT (Pre-Allocated).
+    pub secondary_ept_pre_alloc_pt: Box<Pt>,
 
     /// Guest physical address of the function or page to be copied.
     pub guest_pa: PAddr,
@@ -78,9 +81,14 @@ impl EptHook {
     /// # Returns
     ///
     /// * `Box<Self>` - The new instance of `EptHook`.
-    pub fn new(host_shadow_page: Box<Page>, pt: Box<Pt>) -> Box<Self> {
+    pub fn new(
+        host_shadow_page: Box<Page>,
+        primary_ept_pre_alloc_pt: Box<Pt>,
+        secondary_ept_pre_alloc_pt: Box<Pt>,
+    ) -> Box<Self> {
         let hooks = Self {
-            pt,
+            primary_ept_pre_alloc_pt,
+            secondary_ept_pre_alloc_pt,
             guest_pa: PAddr::zero(),
             guest_va: VAddr::zero(),
             host_shadow_page,
@@ -190,14 +198,18 @@ impl EptHook {
             "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
             guest_large_page_pa
         );
-        primary_ept.split_2mb_to_4kb(guest_large_page_pa, self.pt.as_mut())?;
+        primary_ept
+            .split_2mb_to_4kb(guest_large_page_pa, self.primary_ept_pre_alloc_pt.as_mut())?;
 
         // Split the guest 2MB page into 4KB pages for the secondary EPT.
         debug!(
             "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
             guest_large_page_pa
         );
-        secondary_ept.split_2mb_to_4kb(guest_large_page_pa, self.pt.as_mut())?;
+        secondary_ept.split_2mb_to_4kb(
+            guest_large_page_pa,
+            self.secondary_ept_pre_alloc_pt.as_mut(),
+        )?;
 
         // Align the guest function or page address to the base page size.
         let guest_page_pa = self.guest_pa.align_down_to_base_page().as_u64();
@@ -210,7 +222,7 @@ impl EptHook {
         primary_ept.modify_page_permissions(
             guest_page_pa,
             AccessType::READ_WRITE,
-            self.pt.as_mut(),
+            self.primary_ept_pre_alloc_pt.as_mut(),
         )?;
 
         // Modify the page permission in the secondary EPT to Execute-only for the guest page.
@@ -221,7 +233,7 @@ impl EptHook {
         secondary_ept.modify_page_permissions(
             guest_page_pa,
             AccessType::EXECUTE,
-            self.pt.as_mut(),
+            self.secondary_ept_pre_alloc_pt.as_mut(),
         )?;
 
         // Align the host shadow function address to the base page size.
@@ -232,7 +244,11 @@ impl EptHook {
 
         // Map the guest page to the hooked host shadow page in the secondary EPT.
         debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", guest_page_pa, host_shadow_page_pa);
-        secondary_ept.remap_gpa_to_hpa(guest_page_pa, host_shadow_page_pa, self.pt.as_mut())?;
+        secondary_ept.remap_gpa_to_hpa(
+            guest_page_pa,
+            host_shadow_page_pa,
+            self.secondary_ept_pre_alloc_pt.as_mut(),
+        )?;
 
         // Invalidate the EPT cache for all contexts.
         invept_all_contexts();
@@ -270,15 +286,17 @@ impl EptHook {
             PAddr::from(PhysicalAddress::pa_from_va(guest_function_va.as_u64()));
         debug!("Guest Function PA: {:#x}", guest_function_pa.as_u64());
 
+        // Align the guest function address to the base page size.
+        let guest_page_pa = guest_function_pa.align_down_to_base_page();
+        debug!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
+
+        // Get the physical address of the pre-allocated host shadow page.
         let host_shadow_page_pa =
             PAddr::from(self.host_shadow_page.as_mut_slice().as_mut_ptr() as u64);
         debug!("Host Shadow Page PA: {:#x}", host_shadow_page_pa);
 
         // Copy the guest page to the pre-allocated host shadow page.
-        Self::unsafe_copy_guest_to_shadow(
-            guest_function_pa.align_down_to_base_page(),
-            host_shadow_page_pa,
-        );
+        Self::unsafe_copy_guest_to_shadow(guest_page_pa, host_shadow_page_pa);
 
         // Calculate the address of the function within the pre-allocated host shadow page.
         let host_shadow_function_pa =
