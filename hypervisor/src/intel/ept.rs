@@ -168,7 +168,7 @@ impl Ept {
         pde.set_readable(true);
         pde.set_writable(true);
         pde.set_executable(true);
-        pde.set_memory_type(memory_type);
+        pde.set_memory_type(0); // Table 29-6. Format of an EPT Page-Directory Entry (PDE) that References an EPT Page Table: 6:3 Reserved (must be 0)
         pde.set_large(false); // This is no longer a large page.
         pde.set_pfn((pt as *mut _ as u64) >> BASE_PAGE_SHIFT);
 
@@ -296,10 +296,26 @@ impl Ept {
         let pd_index = pd_index(guest_pa);
         let pt_index = pt_index(guest_pa);
 
+        // Trace the PDPT entry to access the PD address
+        let pdpte = &self.pdpt.0.entries[pdpt_index];
+        trace!("PDPT at index {}: {:#x?}", pdpt_index, pdpte);
+
+        // Calculate the physical address of the PD table
+        let pd_address = pdpte.pfn() << BASE_PAGE_SHIFT;
+        trace!("PD located at physical address: {:#x}", pd_address);
+
+        // Access the PDE within the PD
         let pde = &self.pd[pdpt_index].0.entries[pd_index];
         trace!("PDE at index {}: {:#x?}", pd_index, pde);
 
-        if !pde.large() {
+        if pde.large() {
+            trace!("This is a large page, no PT involved.");
+        } else {
+            // For non-large pages, calculate the physical address of the PT
+            let pt_address = pde.pfn() << BASE_PAGE_SHIFT;
+            trace!("PT located at physical address: {:#x}", pt_address);
+
+            // Trace the PTE within the PT
             let pte = pt.0.entries[pt_index];
             trace!("PTE at index {}: {:#x?}", pt_index, pte);
         }
