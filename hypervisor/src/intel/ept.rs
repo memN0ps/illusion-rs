@@ -77,9 +77,9 @@ impl Ept {
                     pde.set_readable(true);
                     pde.set_writable(true);
                     pde.set_executable(true);
-                    pde.set_pfn(addr_of!(self.pt) as u64 >> BASE_PAGE_SHIFT); // Use Pt[0] for the first 2MB
+                    pde.set_pfn(addr_of!(self.pt) as u64 >> BASE_PAGE_SHIFT);
 
-                    // Configure PT entries for the first 2MB, respecting MTRR settings, using Pt[0].
+                    // Configure the PT entries for the first 2MB, respecting MTRR settings.
                     for pte in &mut self.pt.0.entries {
                         let memory_type = mtrr
                             .find(pa..pa + BASE_PAGE_SIZE as u64)
