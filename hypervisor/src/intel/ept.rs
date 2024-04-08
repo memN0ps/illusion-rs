@@ -161,7 +161,7 @@ impl Ept {
             pte.set_memory_type(memory_type);
             pte.set_pfn(pa >> BASE_PAGE_SHIFT);
 
-            trace!("PTE at index {}: {:#x?}", i, pte);
+            // trace!("PTE at index {}: {:#x?}", i, pte);
         }
 
         // Update the PDE to point to the new page table.
