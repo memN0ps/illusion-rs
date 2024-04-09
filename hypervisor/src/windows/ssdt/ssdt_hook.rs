@@ -4,10 +4,14 @@
 //! or altering system behavior for specialized purposes such as in the context of hypervisors
 //! or security tools.
 
-use crate::{error::HypervisorError, windows::ssdt::ssdt_find::SsdtFind};
+use {
+    crate::{error::HypervisorError, windows::ssdt::ssdt_find::SsdtFind},
+    log::*,
+};
 
 /// Represents the layout of the System Service Dispatch Table (SSDT).
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 struct SSDTStruct {
     /// Pointer to the service table containing addresses of system call functions.
     p_service_table: *const i32,
@@ -51,9 +55,11 @@ impl SsdtHook {
         kernel_base: *const u8,
         kernel_size: usize,
     ) -> Result<Self, HypervisorError> {
-        log::debug!("Finding SSDT function address");
+        debug!("Finding SSDT function address");
 
         let ssdt = SsdtFind::find_ssdt(kernel_base, kernel_size)?;
+
+        trace!("NT SSDT address: {:?}", ssdt);
 
         // Determine the correct SSDT structure based on whether we are hooking an NT or Win32k function.
         let ssdt = if !get_from_win32k {
@@ -64,13 +70,15 @@ impl SsdtHook {
             unsafe { &*(ssdt.win32k_table as *const SSDTStruct) }
         };
 
+        trace!("SSDT structure: {:?}", ssdt);
+
         let ssdt_base = ssdt.p_service_table as *mut u8;
 
         if ssdt_base.is_null() {
             return Err(HypervisorError::SsdtNotFound);
         }
 
-        log::info!("SSDT base address: {:p}", ssdt_base);
+        info!("SSDT base address: {:p}", ssdt_base);
 
         // Calculate the offset to the target function within the SSDT.
         let offset = unsafe { ssdt.p_service_table.add(api_number as usize).read() as usize >> 4 };
@@ -78,7 +86,7 @@ impl SsdtHook {
         // Compute the function's address by adding its offset to the base address.
         let function_address = unsafe { ssdt_base.add(offset) as *const u8 };
 
-        log::info!("SSDT function address: {:p}", function_address);
+        info!("SSDT function address: {:p}", function_address);
 
         Ok(Self {
             function_address,

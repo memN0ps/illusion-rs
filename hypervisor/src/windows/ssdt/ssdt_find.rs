@@ -6,9 +6,10 @@
 //! behavior at a granular level.
 //!
 
-use {crate::error::HypervisorError, alloc::vec::Vec};
+use {crate::error::HypervisorError, core::cmp::Ordering, log::*};
 
 /// Represents the addresses of the SSDT tables for NT and Win32k system calls.
+#[derive(Debug, Clone, Copy)]
 pub struct SsdtFind {
     /// The address of the NT table within the SSDT.
     pub nt_table: *const u64,
@@ -34,8 +35,8 @@ impl SsdtFind {
     /// * `Ok(SsdtFind)` - An `SsdtFind` struct containing the addresses of the NT and Win32k tables.
     /// * `Err(HypervisorError)` - An error occurred during the scanning process.
     pub fn find_ssdt(kernel_base: *const u8, kernel_size: usize) -> Result<Self, HypervisorError> {
-        log::debug!("Kernel base address: {:p}", kernel_base);
-        log::debug!("Kernel size: {}", kernel_size);
+        debug!("Kernel base address: {:p}", kernel_base);
+        debug!("Kernel size: {}", kernel_size);
 
         /*
            14042ba50  uint64_t KiSystemServiceStart(int64_t arg1, int64_t arg2, uint64_t arg3, int64_t arg4, int32_t arg5 @ rax, uint64_t arg6 @ rbx, int128_t* arg7 @ rbp, uint64_t arg8 @ ssp)
@@ -51,20 +52,22 @@ impl SsdtFind {
         */
 
         // Pattern to identify the KiServiceSystemStart in the kernel memory.
-        let ki_service_system_start_pattern = "8B F8 C1 EF 07 83 E7 20 25 FF 0F 00 00";
+        let ki_service_system_start_pattern = &[
+            0x8B, 0xF8, 0xC1, 0xEF, 0x07, 0x83, 0xE7, 0x20, 0x25, 0xFF, 0x0F, 0x00, 0x00,
+        ];
         let signature_size = 13;
 
         // Create a slice from the Windows kernel (ntoskrnl.exe) base address for the specified size.
         let ntoskrnl_data = unsafe { core::slice::from_raw_parts(kernel_base, kernel_size) };
 
         // Find the starting offset of the KiServiceSystemStart pattern within the kernel data.
-        let offset = Self::pattern_scan(ntoskrnl_data, ki_service_system_start_pattern)?
+        let offset = Self::find_needle(ntoskrnl_data, ki_service_system_start_pattern)
             .ok_or(HypervisorError::PatternNotFound)?;
 
         // Calculate the starting address of KiServiceSystemStart based on the offset.
         // That is: `14042ba57  8bf8               mov     edi, eax` in this case.
         let ki_service_system_start = unsafe { kernel_base.add(offset) };
-        log::info!(
+        info!(
             "KiServiceSystemStart address: {:p}",
             ki_service_system_start
         );
@@ -78,7 +81,7 @@ impl SsdtFind {
         // Reading the 4-byte relative offset for KeServiceDescriptorTableShadow
         let relative_offset = unsafe { *(lea_r11_address.add(3) as *const i32) }; // 3 bytes after the opcode
 
-        log::info!("Relative offset: {:x}", relative_offset);
+        info!("Relative offset: {:x}", relative_offset);
 
         // Compute the absolute address of KeServiceDescriptorTableShadow
         let ke_service_descriptor_table_shadow =
@@ -93,8 +96,8 @@ impl SsdtFind {
         // Win32kTable Address of Win32k Syscall Table
         let win32k_table = unsafe { shadow.offset(0x20) as *const u64 };
 
-        log::info!("NtTable address: {:p}", nt_table);
-        log::info!("Win32kTable address: {:p}", win32k_table);
+        info!("NtTable address: {:p}", nt_table);
+        info!("Win32kTable address: {:p}", win32k_table);
 
         Ok(Self {
             nt_table,
@@ -102,62 +105,35 @@ impl SsdtFind {
         })
     }
 
-    /// Converts a pattern string into a vector of bytes, supporting wildcards.
+    /// Scans a given data slice for a specific pattern.
+    ///
+    /// This function searches for a specific byte pattern within a given data slice. It iterates
     ///
     /// # Arguments
     ///
-    /// * `pattern` - A string representing the byte pattern to convert, with spaces separating bytes.
+    /// * `data` - The data slice to search for the pattern.
+    /// * `pattern` - The byte pattern to search for within the data slice.
     ///
     /// # Returns
     ///
-    /// * `Ok(Vec<Option<u8>>)` - A vector where each element represents a byte from the pattern. None values represent wildcards where any byte is acceptable.
-    /// * `Err(HypervisorError)` - An error occurred during the conversion, likely due to an invalid hex value.
-    pub fn get_bytes_as_hex(pattern: &str) -> Result<Vec<Option<u8>>, HypervisorError> {
-        let mut pattern_bytes = Vec::new();
-
-        for x in pattern.split_whitespace() {
-            match x {
-                "?" => pattern_bytes.push(None),
-                _ => pattern_bytes.push(
-                    u8::from_str_radix(x, 16)
-                        .map(Some)
-                        .map_err(|_| HypervisorError::HexParseError)?,
-                ),
+    /// * `Option<usize>` - The offset of the pattern within the data slice, if found.
+    ///
+    /// # Credits
+    ///
+    /// Thanks to jessiep_ for this function
+    pub fn find_needle(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        match haystack.len().cmp(&needle.len()) {
+            Ordering::Less => None,
+            Ordering::Equal => haystack.eq(needle).then_some(0),
+            Ordering::Greater => {
+                let sub = haystack.len() - needle.len();
+                for i in 0..=sub {
+                    if haystack[i..(i + needle.len())].eq(needle) {
+                        return Some(i);
+                    }
+                }
+                None
             }
         }
-
-        Ok(pattern_bytes)
-    }
-
-    /// Searches for a given pattern within a block of data and returns the start index if found.
-    ///
-    /// This function implements a simple pattern matching algorithm to scan a region of memory
-    /// for a specific byte pattern, supporting wildcards. It's useful for locating specific
-    /// instructions or data structures within a binary blob by their binary signatures.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - The block of data to search within.
-    /// * `pattern` - The byte pattern to search for, expressed as a space-separated string of hex values.
-    ///   Wildcards are represented by "?".
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some(usize))` - The starting index within `data` where the pattern was found.
-    /// * `Ok(None)` - The pattern was not found within `data`.
-    /// * `Err(HypervisorError)` - An error occurred during pattern conversion or search.
-    pub fn pattern_scan(data: &[u8], pattern: &str) -> Result<Option<usize>, HypervisorError> {
-        let pattern_bytes = Self::get_bytes_as_hex(pattern)?;
-
-        // Iterate over the data in windows of size equal to the pattern length,
-        // checking if each window matches the pattern.
-        let offset = data.windows(pattern_bytes.len()).position(|window| {
-            window
-                .iter()
-                .zip(&pattern_bytes)
-                .all(|(byte, pattern_byte)| pattern_byte.map_or(true, |b| *byte == b))
-        });
-
-        Ok(offset)
     }
 }

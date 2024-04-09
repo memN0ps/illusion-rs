@@ -137,7 +137,6 @@ pub fn handle_msr_access(
                         ),
                     )?;
 
-                    /*
                     // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
                     kernel_hook.setup_kernel_ssdt_hook(
                         vm,
@@ -148,7 +147,6 @@ pub fn handle_msr_access(
                             crate::intel::hooks::inline::InlineHookType::Vmcall,
                         ),
                     )?;
-                     */
                 }
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
