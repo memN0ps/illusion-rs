@@ -66,7 +66,7 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Initialize logging with the COM2 port and set the level filter to Trace.
-    logger::init(SerialPort::COM2, LevelFilter::Trace);
+    logger::init(SerialPort::COM1, LevelFilter::Trace);
 
     // Initialize UEFI services.
     uefi_services::init(&mut system_table).unwrap();
