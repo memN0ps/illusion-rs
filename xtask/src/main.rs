@@ -68,7 +68,23 @@ fn start_vm<T: TestVm>(vm: &T, release: bool) -> Result<(), Box<dyn std::error::
     println!("Projects built successfully. Deploying VM...");
     vm.deploy(release)?;
     println!("VM deployed. Running VM...");
-    vm.run()
+    let run_result = vm.run();
+
+    // Check if VM started successfully before running `tail -f`
+    if run_result.is_ok() {
+        println!("VM started successfully. Now monitoring /tmp/debug.txt...");
+        let mut child = Command::new("tail")
+            .args(["-f", "/tmp/debug.txt"])
+            .spawn()
+            .expect("Failed to start tail command");
+
+        // Optionally, wait for the tail command to finish running, which it typically won't unless manually stopped
+        let _ = child.wait().expect("Failed to run tail command");
+    } else {
+        println!("VM failed to start. Not monitoring /tmp/debug.txt.");
+    }
+
+    run_result
 }
 
 /// Trait defining the operations required for VM management.
