@@ -27,7 +27,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
     debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
 
-    dump_primary_and_secondary_ept(vm, guest_physical_address);
+    // dump_primary_and_secondary_ept(vm, guest_physical_address);
 
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
@@ -112,6 +112,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
+    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
     dump_primary_and_secondary_ept(vm, guest_physical_address);
 
     // Trigger a breakpoint exception to halt execution for debugging.
@@ -135,7 +136,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> ExitType {
 /// * `guest_physical_address` - The guest physical address that caused the EPT misconfiguration or violation.
 pub fn dump_primary_and_secondary_ept(vm: &mut Vm, guest_physical_address: u64) {
     // Log the critical error information.
-    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+    trace!("Faulting guest address: {:#x}", guest_physical_address);
 
     // Get the shared data from the VM.
     let shared_data = unsafe { vm.shared_data.as_mut() };
