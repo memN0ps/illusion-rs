@@ -162,7 +162,7 @@ impl Vm {
         let flags = unsafe { launch_vm(&mut self.guest_registers, u64::from(self.has_launched)) };
         Self::vm_succeed(RFlags::from_raw(flags))?;
         self.has_launched = true;
-        trace!("VM-exit occurred!");
+        // trace!("VM-exit occurred!");
 
         // VM-exit occurred. Copy the guest register values from VMCS so that
         // `self.registers` is complete and up to date.

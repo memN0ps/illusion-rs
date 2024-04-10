@@ -80,11 +80,8 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
-            trace!("Handling VM exit reason: {:?}", basic_exit_reason);
-            debug!(
-                "Register state before handling VM exit: {:#x?}",
-                vm.guest_registers
-            );
+            // trace!("Handling VM exit reason: {:?}", basic_exit_reason);
+            // debug!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
 
             let exit_type = match basic_exit_reason {
                 VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
@@ -125,10 +122,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
                 advance_guest_rip(&mut vm.guest_registers);
             }
 
-            debug!(
-                "Register state after handling VM exit: {:#x?}",
-                vm.guest_registers
-            );
+            // debug!("Register state after handling VM exit: {:#x?}", vm.guest_registers);
         } else {
             panic!("Failed to run the VM");
         }
@@ -145,11 +139,11 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 /// - `guest_registers`: A mutable reference to the guest's general-purpose registers.
 #[rustfmt::skip]
 fn advance_guest_rip(guest_registers: &mut GuestRegisters) {
-    trace!("Advancing guest RIP...");
+    // trace!("Advancing guest RIP...");
     let len = vmread(ro::VMEXIT_INSTRUCTION_LEN);
     guest_registers.rip += len;
     vmwrite(guest::RIP, guest_registers.rip);
-    trace!("Guest RIP advanced to: {:#x}", vmread(guest::RIP));
+    // trace!("Guest RIP advanced to: {:#x}", vmread(guest::RIP));
 }
 
 /// Checks if the CPU is supported for hypervisor operation.

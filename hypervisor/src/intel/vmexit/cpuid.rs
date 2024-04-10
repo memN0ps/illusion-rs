@@ -77,7 +77,7 @@ enum FeatureBits {
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual, Table C-1. Basic Exit Reasons 10.
 #[rustfmt::skip]
 pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
-    log::trace!("Handling CPUID VM exit...");
+    // log::trace!("Handling CPUID VM exit...");
 
     let leaf = guest_registers.rax as u32;
     let sub_leaf = guest_registers.rcx as u32;
@@ -85,12 +85,12 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
     // Execute CPUID instruction on the host and retrieve the result
     let mut cpuid_result = cpuid!(leaf, sub_leaf);
 
-    log::trace!("Before modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
+    // log::trace!("Before modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
 
     match leaf {
         // Handle CPUID for standard feature information.
         leaf if leaf == CpuidLeaf::FeatureInformation as u32 => {
-            log::trace!("CPUID leaf 1 detected (Standard Feature Information).");
+            // log::trace!("CPUID leaf 1 detected (Standard Feature Information).");
             // Hide hypervisor presence by setting the appropriate bit in ECX.
             cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
 
@@ -99,7 +99,7 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
         },
         // Handle CPUID for hypervisor vendor information.
         leaf if leaf == CpuidLeaf::HypervisorVendor as u32 => {
-            log::trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
+            // log::trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
             // Set the CPUID response to provide the hypervisor's vendor ID signature.
             // We use the signature "Illusion" encoded in a little-endian format.
             cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
@@ -109,7 +109,7 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
         },
         // Handle CPUID for hypervisor interface identification.
         leaf if leaf == CpuidLeaf::HypervisorInterface as u32 => {
-            log::trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
+            // log::trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
             // Return information indicating the hypervisor's interface.
             // Here, we specify that our hypervisor does not conform to the Microsoft hypervisor interface ("Hv#1").
             cpuid_result.eax = 0x00000001; // Interface signature indicating non-conformance to Microsoft interface.
@@ -118,12 +118,12 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
             cpuid_result.edx = 0x00000000; // Reserved field set to zero.
         },
         leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
-            log::trace!("CPUID leaf 7 detected (Extended Feature Information).");
+            // log::trace!("CPUID leaf 7 detected (Extended Feature Information).");
         },
         _ => { /* Pass through other CPUID leaves unchanged. */ }
     }
 
-    log::trace!("After modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
+    // log::trace!("After modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
 
     // Update the guest registers
     guest_registers.rax = cpuid_result.eax as u64;
@@ -131,7 +131,7 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
     guest_registers.rcx = cpuid_result.ecx as u64;
     guest_registers.rdx = cpuid_result.edx as u64;
 
-    log::trace!("CPUID VMEXIT handled successfully!");
+    // log::trace!("CPUID VMEXIT handled successfully!");
 
     ExitType::IncrementRIP
 }
