@@ -12,9 +12,9 @@ use {
             hooks::hook::EptHook,
             page::Page,
         },
+        windows::kernel::KernelHook,
     },
-    alloc::boxed::Box,
-    alloc::vec::Vec,
+    alloc::{boxed::Box, vec::Vec},
 };
 
 /// The maximum number of hooks supported by the hypervisor. Change this value as needed
@@ -46,6 +46,16 @@ pub struct SharedData {
 
     /// The current hook index.
     pub current_hook_index: usize,
+
+    /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe.
+    /// This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
+    pub kernel_hook: KernelHook,
+
+    /// A flag indicating whether the CPUID cache information has been called.
+    /// This will be used to perform hooks at boot time when SSDT has been initialized.
+    /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation
+    /// __cpuid(4, 0)
+    pub has_cpuid_cache_info_been_called: bool,
 }
 
 impl SharedData {
@@ -74,14 +84,21 @@ impl SharedData {
 
         #[cfg(feature = "test-windows-uefi-hooks")]
         {
+            //
             // Intercept read and write operations for the IA32_LSTAR MSR.
+            //
+
             // msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, crate::intel::bitmap::MsrAccessType::Read, crate::intel::bitmap::MsrOperation::Hook);
             msr_bitmap.modify_msr_interception(
                 x86::msr::IA32_LSTAR,
                 crate::intel::bitmap::MsrAccessType::Write,
                 crate::intel::bitmap::MsrOperation::Hook,
             );
+
+            //
             // Intercept write operations for the IA32_GS_BASE MSR.
+            //
+
             // msr_bitmap.modify_msr_interception(x86::msr::IA32_GS_BASE, crate::intel::bitmap::MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Hook);
         }
 
@@ -117,6 +134,8 @@ impl SharedData {
             secondary_eptp,
             ept_hook_manager,
             current_hook_index: 0,
+            has_cpuid_cache_info_been_called: false,
+            kernel_hook: Default::default(),
         }))
     }
 }

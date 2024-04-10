@@ -5,7 +5,10 @@
 //! or security tools.
 
 use {
-    crate::{error::HypervisorError, windows::ssdt::ssdt_find::SsdtFind},
+    crate::{
+        error::HypervisorError, intel::addresses::PhysicalAddress,
+        windows::ssdt::ssdt_find::SsdtFind,
+    },
     log::*,
 };
 
@@ -29,7 +32,7 @@ struct SSDTStruct {
 /// Describes a hook into the SSDT, allowing redirection of system calls.
 pub struct SsdtHook {
     /// The original function address before hooking.
-    pub function_address: *const u8,
+    pub guest_function_va: *const u8,
 
     /// The API number in the SSDT that is being hooked.
     pub api_number: i32,
@@ -55,7 +58,7 @@ impl SsdtHook {
         kernel_base: *const u8,
         kernel_size: usize,
     ) -> Result<Self, HypervisorError> {
-        debug!("Finding SSDT function address");
+        trace!("Finding SSDT function address");
 
         let ssdt = SsdtFind::find_ssdt(kernel_base, kernel_size)?;
 
@@ -72,24 +75,28 @@ impl SsdtHook {
 
         trace!("SSDT structure: {:?}", ssdt);
 
-        let ssdt_base = ssdt.p_service_table as *mut u8;
+        let ssdt_base_va = ssdt.p_service_table as *mut u8;
 
-        if ssdt_base.is_null() {
+        if ssdt_base_va.is_null() {
             return Err(HypervisorError::SsdtNotFound);
         }
 
-        info!("SSDT base address: {:p}", ssdt_base);
+        trace!("SSDT base address: {:p}", ssdt_base_va);
 
-        // Calculate the offset to the target function within the SSDT.
-        let offset = unsafe { ssdt.p_service_table.add(api_number as usize).read() as usize >> 4 };
+        // Get a pointer to the target offset within the SSDT.
+        // let offset = unsafe { ssdt.p_service_table.add(api_number as usize).read() as usize >> 4 }; // We can't do this because it's a guest VA.
+        //
+        let offset_ptr_va = unsafe { ssdt.p_service_table.add(api_number as usize) };
+        let offset_ptr_pa = PhysicalAddress::pa_from_va(offset_ptr_va as u64) as *const i32;
+        let offset = unsafe { offset_ptr_pa.read() as usize >> 4 };
+        trace!("SSDT function offset: {:#x}", offset);
 
         // Compute the function's address by adding its offset to the base address.
-        let function_address = unsafe { ssdt_base.add(offset) as *const u8 };
-
-        info!("SSDT function address: {:p}", function_address);
+        let guest_function_va = unsafe { ssdt_base_va.add(offset) as *const u8 };
+        trace!("SSDT function address: {:p}", guest_function_va);
 
         Ok(Self {
-            function_address,
+            guest_function_va,
             api_number,
         })
     }

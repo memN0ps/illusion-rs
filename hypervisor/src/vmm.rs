@@ -88,7 +88,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
                 VmxBasicExitReason::InitSignal => handle_init_signal(&mut vm.guest_registers),
                 VmxBasicExitReason::StartupIpi => handle_sipi_signal(&mut vm.guest_registers),
                 VmxBasicExitReason::Hlt => handle_halt(),
-                VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm.guest_registers),
+                VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm).expect("Failed to handle CPUID"),
 
                 // Grouping multiple exit reasons that are handled by the same function
                 VmxBasicExitReason::Getsec

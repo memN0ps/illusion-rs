@@ -4,8 +4,12 @@
 #![allow(dead_code)]
 
 use {
-    crate::intel::{capture::GuestRegisters, vmexit::ExitType},
+    crate::{
+        error::HypervisorError,
+        intel::{vm::Vm, vmexit::ExitType},
+    },
     bitfield::BitMut,
+    log::*,
     x86::cpuid::cpuid,
 };
 
@@ -18,6 +22,9 @@ pub enum CpuidLeaf {
 
     /// CPUID function for feature information, including hypervisor presence.
     FeatureInformation = 0x1,
+
+    /// CPUID function for cache information.
+    CacheInformation = 0x2,
 
     /// CPUID function for extended feature information.
     ExtendedFeatureInformation = 0x7,
@@ -76,11 +83,11 @@ enum FeatureBits {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual, Table C-1. Basic Exit Reasons 10.
 #[rustfmt::skip]
-pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
+pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     // log::trace!("Handling CPUID VM exit...");
 
-    let leaf = guest_registers.rax as u32;
-    let sub_leaf = guest_registers.rcx as u32;
+    let leaf = vm.guest_registers.rax as u32;
+    let sub_leaf = vm.guest_registers.rcx as u32;
 
     // Execute CPUID instruction on the host and retrieve the result
     let mut cpuid_result = cpuid!(leaf, sub_leaf);
@@ -96,6 +103,25 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
 
             // Hide VMX support by setting the appropriate bit in ECX.
             cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
+        },
+        leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
+            trace!("CPUID leaf 2 detected (Cache Information).");
+
+            #[cfg(feature = "test-windows-uefi-hooks")] 
+            {
+                let shared_data = unsafe { vm.shared_data.as_mut() };
+                if shared_data.has_cpuid_cache_info_been_called == false {
+                    trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
+        
+                    // Setup a named function hook (example: MmIsAddressValid)
+                    // shared_data.kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", crate::windows::functions::test_mm_is_address_valid as _, crate::intel::hooks::hook::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall))?;
+        
+                    // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
+                    shared_data.kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, crate::windows::functions::test_nt_create_file as _, crate::intel::hooks::hook::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall))?;
+    
+                    shared_data.has_cpuid_cache_info_been_called = true;
+                }
+            }
         },
         // Handle CPUID for hypervisor vendor information.
         leaf if leaf == CpuidLeaf::HypervisorVendor as u32 => {
@@ -126,12 +152,12 @@ pub fn handle_cpuid(guest_registers: &mut GuestRegisters) -> ExitType {
     // log::trace!("After modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
 
     // Update the guest registers
-    guest_registers.rax = cpuid_result.eax as u64;
-    guest_registers.rbx = cpuid_result.ebx as u64;
-    guest_registers.rcx = cpuid_result.ecx as u64;
-    guest_registers.rdx = cpuid_result.edx as u64;
+    vm.guest_registers.rax = cpuid_result.eax as u64;
+    vm.guest_registers.rbx = cpuid_result.ebx as u64;
+    vm.guest_registers.rcx = cpuid_result.ecx as u64;
+    vm.guest_registers.rdx = cpuid_result.edx as u64;
 
     // log::trace!("CPUID VMEXIT handled successfully!");
 
-    ExitType::IncrementRIP
+    Ok(ExitType::IncrementRIP)
 }

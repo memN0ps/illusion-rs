@@ -104,50 +104,23 @@ pub fn handle_msr_access(
                     "IA32_LSTAR write attempted with MSR value: {:#x}",
                     msr_value
                 );
-                log::trace!(
-                    "GuestRegisters Original LSTAR value: {:#x}",
-                    vm.guest_registers.original_lstar
-                );
-                log::trace!(
-                    "GuestRegisters Hook LSTAR value: {:#x}",
-                    vm.guest_registers.hook_lstar
-                );
+                // log::trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
+                // log::trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
 
-                #[cfg(feature = "test-windows-uefi-hooks")]
-                {
-                    log::trace!("Unhooking MSR_IA32_LSTAR.");
-                    unsafe {
-                        vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
-                            msr::IA32_LSTAR,
-                            MsrAccessType::Write,
-                            crate::intel::bitmap::MsrOperation::Unhook,
-                        )
-                    };
-                    log::trace!("Unhooked MSR_IA32_LSTAR");
+                unsafe {
+                    vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
+                        msr::IA32_LSTAR,
+                        MsrAccessType::Write,
+                        crate::intel::bitmap::MsrOperation::Unhook,
+                    )
+                };
+                log::trace!("Unhooked MSR_IA32_LSTAR");
 
-                    let mut kernel_hook = crate::windows::kernel::KernelHook::new(msr_value)?;
-
-                    // Setup a named function hook (example: MmIsAddressValid)
-                    kernel_hook.setup_kernel_inline_hook(
-                        vm,
-                        "MmIsAddressValid",
-                        crate::windows::functions::test_mm_is_address_valid as _,
-                        crate::intel::hooks::hook::EptHookType::Function(
-                            crate::intel::hooks::inline::InlineHookType::Vmcall,
-                        ),
-                    )?;
-
-                    // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
-                    kernel_hook.setup_kernel_ssdt_hook(
-                        vm,
-                        0x055,
-                        false,
-                        crate::windows::functions::test_nt_create_file as _,
-                        crate::intel::hooks::hook::EptHookType::Function(
-                            crate::intel::hooks::inline::InlineHookType::Vmcall,
-                        ),
-                    )?;
-                }
+                // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
+                unsafe {
+                    vm.shared_data.as_mut().kernel_hook =
+                        crate::windows::kernel::KernelHook::new(msr_value)?
+                };
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
@@ -186,21 +159,10 @@ pub fn handle_msr_access(
                 // later such as KeInitAmd64SpecificState for this. This place was
                 // chosen so that none of PatchGuard context is initialized.
                 //
-                #[cfg(feature = "test-windows-uefi-hooks")]
-                {
-                    log::trace!("Unhooking MSR_IA32_GS_BASE.");
-                    unsafe {
-                        vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
-                            msr::IA32_GS_BASE,
-                            MsrAccessType::Write,
-                            crate::intel::bitmap::MsrOperation::Unhook,
-                        )
-                    };
-                    log::trace!("KiSystemStartup being executed...");
-                }
-
-                // Return to the guest agent to initialize the hooks.
-                return Ok(ExitType::Continue);
+                // log::trace!("Unhooking MSR_IA32_GS_BASE.");
+                // unsafe { vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(msr::IA32_GS_BASE, MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Unhook) };
+                // log::trace!("KiSystemStartup being executed...");
+                wrmsr(msr_id, msr_value);
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
                 // If the guest writes any other value (which would typically only happen if the guest is attempting to modify the syscall mechanism itself),

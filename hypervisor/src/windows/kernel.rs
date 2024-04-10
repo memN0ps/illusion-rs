@@ -15,7 +15,7 @@ use {
 };
 
 /// Represents a hook into the Windows kernel, allowing redirection of functions and syscalls.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct KernelHook {
     /// The base virtual address of ntoskrnl.exe.
     ntoskrnl_base_va: u64,
@@ -29,15 +29,15 @@ impl KernelHook {
     ///
     /// # Arguments
     ///
-    /// * `msr_value` - The value of the MSR containing the base address of ntoskrnl.exe.
+    /// * `guest_va` - The virtual address of the guest.
     ///
     /// # Returns
     ///
     /// * `Ok(Self)` - The new instance of `KernelHook`.
-    pub fn new(msr_value: u64) -> Result<Self, HypervisorError> {
+    pub fn new(guest_va: u64) -> Result<Self, HypervisorError> {
         // Get the base address of ntoskrnl.exe.
         let ntoskrnl_base_va = unsafe {
-            get_image_base_address(msr_value).ok_or(HypervisorError::FailedToGetImageBaseAddress)?
+            get_image_base_address(guest_va).ok_or(HypervisorError::FailedToGetImageBaseAddress)?
         };
 
         // Get the physical address of ntoskrnl.exe using GUEST_CR3 and the virtual address.
@@ -124,11 +124,14 @@ impl KernelHook {
             self.kernel_size as _,
         )?;
 
-        trace!("Function address: {:#x}", ssdt_hook.function_address as u64);
+        trace!(
+            "Function address: {:#x}",
+            ssdt_hook.guest_function_va as u64
+        );
 
         EptHook::ept_hook(
             vm,
-            ssdt_hook.function_address as u64,
+            ssdt_hook.guest_function_va as u64,
             hook_handler,
             ept_hook_type,
         )?;
