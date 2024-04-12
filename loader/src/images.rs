@@ -20,7 +20,7 @@ use {
 };
 
 const WINDOWS_BOOT_MANAGER_PATH: &CStr16 = cstr16!("\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
-const HYPERVISOR_PATH: &CStr16 = cstr16!("\\EFI\\Microsoft\\Boot\\illusion.efi");
+const HYPERVISOR_PATH: &CStr16 = cstr16!("\\EFI\\Boot\\illusion.efi");
 
 /// Finds the device path for a given file path.
 ///
