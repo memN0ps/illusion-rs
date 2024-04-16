@@ -36,8 +36,17 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     // Get the VMCALL command number from the guest's RAX register.
     let vmcall_number = vm.guest_registers.rax;
-
     trace!("VMCALL command number: {:#x}", vmcall_number);
+
+    #[cfg(feature = "test-windows-uefi-hooks")]
+    {
+        trace!(
+            "Register state before handling VM exit: {:#x?}",
+            vm.guest_registers
+        );
+
+        // if guest rip is == hook_va then we've hit our hook
+    }
 
     // Return the exit type to continue VM execution.
     Ok(ExitType::Continue)
