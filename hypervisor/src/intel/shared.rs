@@ -115,11 +115,15 @@ impl SharedData {
             // Create a pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the secondary EPT.
             let secondary_ept_pre_alloc_pt = unsafe { box_zeroed::<Pt>() };
 
+            // Create a pre-allocated trampoline page for the hook.
+            let trampoline_page = unsafe { box_zeroed::<Page>() };
+
             // Create a new ept hook and push it to the hook manager.
             let ept_hook = EptHook::new(
                 host_shadow_page,
                 primary_ept_pre_alloc_pt,
                 secondary_ept_pre_alloc_pt,
+                trampoline_page,
             );
 
             // Save the hook in the hook manager.

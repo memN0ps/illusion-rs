@@ -68,6 +68,12 @@ pub struct EptHook {
 
     /// The type of hook to be installed.
     pub hook_type: EptHookType,
+
+    /// The pre-allocated trampoline page for the hook.
+    pub trampoline_page: Box<Page>,
+
+    /// The inline hook configuration for the hook.
+    pub inline_hook: Option<InlineHook>,
 }
 
 impl EptHook {
@@ -77,6 +83,7 @@ impl EptHook {
     ///
     /// * `host_shadow_page` - The pre-allocated host shadow page for the hook.
     /// * `pt` - The pre-allocated page table for the hook.
+    /// * `trampoline_page` - The pre-allocated trampoline page for the hook.
     ///
     /// # Returns
     ///
@@ -85,6 +92,7 @@ impl EptHook {
         host_shadow_page: Box<Page>,
         primary_ept_pre_alloc_pt: Box<Pt>,
         secondary_ept_pre_alloc_pt: Box<Pt>,
+        trampoline_page: Box<Page>,
     ) -> Box<Self> {
         let hooks = Self {
             primary_ept_pre_alloc_pt,
@@ -96,6 +104,8 @@ impl EptHook {
             host_shadow_function_pa: PAddr::zero(),
             hook_handler: core::ptr::null(),
             hook_type: EptHookType::Function(InlineHookType::Int3),
+            trampoline_page: trampoline_page,
+            inline_hook: None,
         };
         Box::new(hooks)
     }
@@ -280,6 +290,7 @@ impl EptHook {
     ) -> Option<()> {
         let guest_function_va = VAddr::from(guest_function_va);
         debug!("Guest Function VA: {:#x}", guest_function_va);
+        debug!("Hook Handler: {:#x}", hook_handler as u64);
 
         // Convert the function guest virtual address to a physical address using Guest CR3.
         let guest_function_pa =
@@ -305,9 +316,17 @@ impl EptHook {
                 guest_function_pa,
             ));
         debug!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
+        debug!(
+            "Trampoline Page: {:#x}",
+            self.trampoline_page.as_mut_slice().as_mut_ptr() as u64
+        );
 
         // Create a new inline hook configuration.
-        let mut inline_hook = InlineHook::new(host_shadow_function_pa.as_u64() as _, hook_type);
+        let mut inline_hook = InlineHook::new(
+            host_shadow_function_pa.as_u64() as _,
+            hook_type,
+            self.trampoline_page.as_mut_slice().as_mut_ptr(),
+        );
 
         // Perform the actual hook
         trace!("Calling Detour64");
@@ -320,6 +339,7 @@ impl EptHook {
         self.host_shadow_function_pa = host_shadow_function_pa;
         self.hook_handler = hook_handler;
         self.hook_type = EptHookType::Function(hook_type);
+        self.inline_hook = Some(inline_hook);
 
         Some(())
     }

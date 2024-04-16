@@ -16,6 +16,9 @@ pub struct InlineHook {
 
     /// The type of hook we are using.
     pub hook_type: InlineHookType,
+
+    /// The pre-allocated trampoline page for the hook.
+    pub trampoline_page: *mut u8,
 }
 
 impl InlineHook {
@@ -25,16 +28,22 @@ impl InlineHook {
     ///
     /// * `shadow_function_pa` - The physical address of the shadow function.
     /// * `hook_type` - The type of hook we are using.
+    /// * `trampoline_page` - The pre-allocated trampoline page for the hook.
     ///
     /// # Returns
     ///
     /// * `Self` - The new hook configuration.
-    pub fn new(shadow_function_pa: *mut u8, hook_type: InlineHookType) -> Self {
+    pub fn new(
+        shadow_function_pa: *mut u8,
+        hook_type: InlineHookType,
+        trampoline_page: *mut u8,
+    ) -> Self {
         trace!("Creating a new hook configuration");
 
         Self {
             shadow_function_pa,
             hook_type,
+            trampoline_page,
         }
     }
 
@@ -42,54 +51,79 @@ impl InlineHook {
     pub fn detour64(&mut self) {
         trace!("Hook Type: {:?}", self.hook_type);
 
-        match self.hook_type {
-            InlineHookType::Int3 => {
-                // Shellcode for the int3 (Breakpoint) instruction
-                let int3_shellcode: [u8; 1] = [0xCC]; // int3 instruction
+        let shellcode: &[u8] = match self.hook_type {
+            InlineHookType::Int3 => &[0xCC],               // int3 instruction
+            InlineHookType::Cpuid => &[0x0F, 0xA2],        // cpuid instruction
+            InlineHookType::Vmcall => &[0x0F, 0x01, 0xC1], // vmcall instruction
+        };
 
-                trace!("Creating int3 bytes for hook");
+        unsafe {
+            // First, backup the original bytes to the trampoline page
+            copy_nonoverlapping(
+                self.shadow_function_pa,
+                self.trampoline_page,
+                shellcode.len(),
+            );
 
-                // Overwrite the original function with the int3 instruction
-                unsafe {
-                    copy_nonoverlapping(
-                        int3_shellcode.as_ptr(),
-                        self.shadow_function_pa,
-                        int3_shellcode.len(),
-                    );
-                }
-            }
-            InlineHookType::Cpuid => {
-                // Shellcode for the cpuid instruction
-                let cpuid_shellcode: [u8; 2] = [0x0F, 0xA2]; // cpuid instruction
-
-                trace!("Creating cpuid bytes for hook");
-
-                // Overwrite the original function with the cpuid instruction
-                unsafe {
-                    copy_nonoverlapping(
-                        cpuid_shellcode.as_ptr(),
-                        self.shadow_function_pa,
-                        cpuid_shellcode.len(),
-                    );
-                }
-            }
-            InlineHookType::Vmcall => {
-                // Shellcode for the vmcall instruction
-                let vmcall_shellcode: [u8; 3] = [0x0F, 0x01, 0xC1]; // vmcall instruction
-
-                trace!("Creating vmcall bytes for hook");
-
-                // Overwrite the original function with the vmcall instruction
-                unsafe {
-                    copy_nonoverlapping(
-                        vmcall_shellcode.as_ptr(),
-                        self.shadow_function_pa,
-                        vmcall_shellcode.len(),
-                    );
-                }
-            }
+            // Then, overwrite the target location with the hook
+            copy_nonoverlapping(shellcode.as_ptr(), self.shadow_function_pa, shellcode.len());
         }
 
         trace!("The hook has been installed successfully");
+    }
+
+    /// Setup a trampoline by appending a JMP back to the original function after the hook.
+    ///
+    /// # Arguments
+    ///
+    /// * `original_instruction_address` - The address of the original instruction.
+    pub fn setup_trampoline(&self, original_instruction_address: u64) {
+        trace!(
+            "Appending JMP back to original instruction at: 0x{:X}",
+            original_instruction_address
+        );
+        let jmp_instruction: [u8; 2] = [0x48, 0xB8]; // mov rax, <immediate 64>
+        let jmp_to_rax: [u8; 2] = [0xFF, 0xE0]; // jmp rax
+
+        unsafe {
+            let trampoline_end = self.trampoline_page.offset(self.hook_size() as isize);
+            copy_nonoverlapping(
+                jmp_instruction.as_ptr(),
+                trampoline_end,
+                jmp_instruction.len(),
+            );
+            copy_nonoverlapping(
+                &original_instruction_address as *const u64 as *const u8,
+                trampoline_end.offset(jmp_instruction.len() as isize),
+                8,
+            );
+            copy_nonoverlapping(
+                jmp_to_rax.as_ptr(),
+                trampoline_end.offset(jmp_instruction.len() as isize + 8),
+                jmp_to_rax.len(),
+            );
+        }
+    }
+
+    /// Returns the size of the hook code in bytes based on the hook type.
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - The size of the hook code in bytes.
+    pub fn hook_size(&self) -> usize {
+        match self.hook_type {
+            InlineHookType::Int3 => 1,   // int3 is 1 byte
+            InlineHookType::Cpuid => 2,  // cpuid is 2 bytes
+            InlineHookType::Vmcall => 3, // vmcall is 3 bytes
+        }
+    }
+
+    /// Returns the address of the trampoline page.
+    ///
+    /// # Returns
+    ///
+    /// * `*mut u8` - The address of the trampoline page.
+    pub fn trampoline_address(&self) -> *mut u8 {
+        self.trampoline_page
     }
 }
