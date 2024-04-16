@@ -116,11 +116,14 @@ pub fn handle_msr_access(
                 };
                 log::trace!("Unhooked MSR_IA32_LSTAR");
 
-                // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
-                unsafe {
-                    vm.shared_data.as_mut().kernel_hook =
-                        crate::windows::kernel::KernelHook::new(msr_value)?
-                };
+                #[cfg(feature = "test-windows-uefi-hooks")]
+                {
+                    // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
+                    unsafe {
+                        vm.shared_data.as_mut().kernel_hook =
+                            crate::windows::kernel::KernelHook::new(msr_value)?
+                    };
+                }
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
