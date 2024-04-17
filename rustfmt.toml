@@ -1,0 +1,5 @@
+# Treat all imports as if they belong to one module, effectively grouping all imports together
+imports_granularity = "One"
+
+# Combine all imports into a single block, without distinguishing between standard library, external crates, or internal modules
+group_imports = "One"
