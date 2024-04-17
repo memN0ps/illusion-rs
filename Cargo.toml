@@ -5,6 +5,7 @@ members = [
     "hypervisor",
     "loader",
     "uefi",
+    "xtask",
 ]
 
 [profile.release]
