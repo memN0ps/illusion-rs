@@ -3,8 +3,10 @@
 
 use {
     crate::intel::page::Page,
-    alloc::alloc::{alloc_zeroed, handle_alloc_error},
-    alloc::boxed::Box,
+    alloc::{
+        alloc::{alloc_zeroed, handle_alloc_error},
+        boxed::Box,
+    },
     core::alloc::Layout,
     log::debug,
 };

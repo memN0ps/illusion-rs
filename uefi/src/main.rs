@@ -11,11 +11,7 @@ extern crate alloc;
 
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
-    hypervisor::{
-        allocate::box_zeroed,
-        intel::ept::Ept,
-        logger::{self, SerialPort},
-    },
+    hypervisor::logger::{self, SerialPort},
     log::*,
     uefi::prelude::*,
 };
@@ -83,25 +79,9 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         return Status::ABORTED;
     }
 
-    debug!("Allocating primary and secondary EPTs");
-    let mut primary_ept = unsafe { box_zeroed::<Ept>() };
-    let mut secondary_ept = unsafe { box_zeroed::<Ept>() };
-
-    debug!("Identity mapping primary and secondary EPTs");
-
-    if let Err(e) = primary_ept.build_identity() {
-        error!("Failed to identity map primary EPT: {:?}", e);
-        return Status::ABORTED;
-    }
-
-    if let Err(e) = secondary_ept.build_identity() {
-        error!("Failed to identity map secondary EPT: {:?}", e);
-        return Status::ABORTED;
-    }
-
     // Attempt to start the hypervisor on all processors.
     debug!("Starting hypervisor on all processors");
-    if let Err(e) = start_hypervisor_on_all_processors(boot_services, primary_ept, secondary_ept) {
+    if let Err(e) = start_hypervisor_on_all_processors(boot_services) {
         error!("Failed to start hypervisor on all processors: {:?}", e);
         return Status::ABORTED;
     }

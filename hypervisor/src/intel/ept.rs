@@ -290,7 +290,7 @@ impl Ept {
         Ok(())
     }
 
-    pub fn dump_ept_entries(&self, guest_pa: u64, pt: &mut Pt) {
+    pub fn dump_ept_entries(&self, guest_pa: u64, pt: &Pt) {
         let guest_pa = VAddr::from(guest_pa);
         let pdpt_index = pdpt_index(guest_pa);
         let pd_index = pd_index(guest_pa);

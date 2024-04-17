@@ -16,11 +16,14 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - :white_check_mark: Hidden Kernel inline hooks.
 - :white_check_mark: Hidden Model Specific Registers (MSR) hooks.
 - :x: Hidden Interrupt Descriptor Table (IDT) hooks.
+
+### Compatibility with Microsoft Hyper-V
+
 - :x: Nested virtualization support for Microsoft Hyper-V with Virtualization Based Security (VBS) enabled.
 
 ### VM Exit Handling
 
-- :white_check_mark: VM Exit Handling: `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
+- :white_check_mark: VM Exit Handling: `ExceptionOrNmi (#GP, #PF, #BP, #UD)` (0), `InitSignal` (3), `StartupIpi` (4), `Cpuid` (10), `Getsec` (11), `Hlt` (12), `Invd` (13), `Vmcall` (18), `Vmclear` (19), `Vmlaunch` (20), `Vmptrld` (21), `Vmptrst` (22), `Vmresume` (24), `Vmxon` (27), `Vmxoff` (26), `Rdmsr` (31), `Wrmsr` (32), `MonitorTrapFlag` (37), `Rdtsc` (49), `EptViolation` (48), `EptMisconfiguration` (50), `Invept` (53), `Invvpid` (55), `Xsetbv` (55).
 
 ## Supported Hardware
 

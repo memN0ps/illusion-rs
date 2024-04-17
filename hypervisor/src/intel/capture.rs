@@ -4,7 +4,7 @@
 //! essential for virtualization tasks such as state saving/restoring during VM exits and entries. Suitable
 //! for use in hypervisor development, allowing precise control and manipulation of guest CPU context.
 
-use {core::arch::global_asm, core::fmt};
+use core::{arch::global_asm, fmt};
 
 extern "efiapi" {
     /// Captures the current state of general-purpose registers, RFLAGS, RSP, and RIP.

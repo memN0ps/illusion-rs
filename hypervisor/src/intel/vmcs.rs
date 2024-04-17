@@ -164,7 +164,13 @@ impl Vmcs {
     /// - 25.8 VM-ENTRY CONTROL FIELDS
     ///
     /// # Arguments
-    /// * `shared_data` - Shared data between processors.
+    ///
+    /// * `primary_eptp` - The EPTP value for the primary EPT.
+    /// * `msr_bitmap` - The physical address of the MSR bitmap.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), HypervisorError>` - A result indicating the success or failure of the operation.
     #[rustfmt::skip]
     pub fn setup_vmcs_control_fields(primary_eptp: u64, msr_bitmap: u64) -> Result<(), HypervisorError> {
         log::debug!("Setting up VMCS Control Fields");

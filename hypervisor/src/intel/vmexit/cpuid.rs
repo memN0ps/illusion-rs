@@ -1,12 +1,15 @@
 //! Handles CPU-related virtualization tasks, specifically intercepting and managing
 //! the `CPUID` instruction in a VM to control the exposure of CPU features to the guest.
 
-#![allow(dead_code)]
-
 use {
     crate::{
         error::HypervisorError,
-        intel::{vm::Vm, vmexit::ExitType},
+        intel::{
+            hooks::{hook::EptHookType, inline::InlineHookType},
+            vm::Vm,
+            vmexit::ExitType,
+        },
+        windows::functions,
     },
     bitfield::BitMut,
     log::*,
@@ -107,20 +110,18 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
             trace!("CPUID leaf 2 detected (Cache Information).");
 
-            #[cfg(feature = "test-windows-uefi-hooks")] 
-            {
-                let shared_data = unsafe { vm.shared_data.as_mut() };
-                if shared_data.has_cpuid_cache_info_been_called == false {
-                    trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
-        
-                    // Setup a named function hook (example: MmIsAddressValid)
-                    // shared_data.kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", crate::windows::functions::test_mm_is_address_valid as _, crate::intel::hooks::hook::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall))?;
-        
-                    // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
-                    shared_data.kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, crate::windows::functions::test_nt_create_file as _, crate::intel::hooks::hook::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall))?;
-    
-                    shared_data.has_cpuid_cache_info_been_called = true;
-                }
+            let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
+
+            if vm.hook_manager.has_cpuid_cache_info_been_called == false {
+                trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
+
+                // Setup a named function hook (example: MmIsAddressValid)
+                // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", crate::windows::functions::test_mm_is_address_valid as _, EptHookType::Function(InlineHookType::Vmcall))?;
+
+                // Setup an SSDT hook by syscall number (example: syscall for NtCreateFile)
+                kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, functions::test_nt_create_file as _, EptHookType::Function(InlineHookType::Vmcall))?;
+
+                vm.hook_manager.has_cpuid_cache_info_been_called = true;
             }
         },
         // Handle CPUID for hypervisor vendor information.

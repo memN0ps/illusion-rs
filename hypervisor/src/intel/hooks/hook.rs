@@ -45,9 +45,6 @@ pub struct EptHook {
     /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT (Pre-Allocated).
     pub primary_ept_pre_alloc_pt: Box<Pt>,
 
-    /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the secondary EPT (Pre-Allocated).
-    pub secondary_ept_pre_alloc_pt: Box<Pt>,
-
     /// Guest physical address of the function or page to be copied.
     pub guest_pa: PAddr,
 
@@ -82,7 +79,7 @@ impl EptHook {
     /// # Arguments
     ///
     /// * `host_shadow_page` - The pre-allocated host shadow page for the hook.
-    /// * `pt` - The pre-allocated page table for the hook.
+    /// * `primary_ept_pre_alloc_pt` - The pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT.
     /// * `trampoline_page` - The pre-allocated trampoline page for the hook.
     ///
     /// # Returns
@@ -91,12 +88,10 @@ impl EptHook {
     pub fn new(
         host_shadow_page: Box<Page>,
         primary_ept_pre_alloc_pt: Box<Pt>,
-        secondary_ept_pre_alloc_pt: Box<Pt>,
         trampoline_page: Box<Page>,
     ) -> Box<Self> {
         let hooks = Self {
             primary_ept_pre_alloc_pt,
-            secondary_ept_pre_alloc_pt,
             guest_pa: PAddr::zero(),
             guest_va: VAddr::zero(),
             host_shadow_page,
@@ -104,7 +99,7 @@ impl EptHook {
             host_shadow_function_pa: PAddr::zero(),
             hook_handler: core::ptr::null(),
             hook_type: EptHookType::Function(InlineHookType::Int3),
-            trampoline_page: trampoline_page,
+            trampoline_page,
             inline_hook: None,
         };
         Box::new(hooks)
@@ -133,23 +128,23 @@ impl EptHook {
             guest_va
         );
 
-        // Get the shared data from the VM.
-        let shared_data = unsafe { vm.shared_data.as_mut() };
+        // Get the EPT hook manager from the VM.
+        let hook_manager = vm.hook_manager.as_mut();
 
         // Ensure the index is within bounds
-        if shared_data.current_hook_index >= shared_data.ept_hook_manager.len() {
+        if hook_manager.current_hook_index >= hook_manager.ept_hooks.len() {
             return Err(HypervisorError::OutOfHooks);
         }
 
         trace!(
             "Accessing Hook Manager with hook index: {}",
-            shared_data.current_hook_index
+            hook_manager.current_hook_index
         );
 
         // Access the current hook based on `current_hook_index`
-        let hook = shared_data
-            .ept_hook_manager
-            .get_mut(shared_data.current_hook_index)
+        let hook = hook_manager
+            .ept_hooks
+            .get_mut(hook_manager.current_hook_index)
             .ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
 
         match ept_hook_type {
@@ -163,69 +158,113 @@ impl EptHook {
             }
         }
 
-        // Get the primary and secondary EPTs.
-        let primary_ept = &mut shared_data.primary_ept;
-        let secondary_ept = &mut shared_data.secondary_ept;
+        // Get the primary EPTs.
+        let primary_ept = &mut vm.primary_ept;
 
-        // Enable the hook by setting the necessary permissions on the primary and secondary EPTs.
-        hook.enable_hooks(primary_ept, secondary_ept)?;
+        // Enable the hook by setting the necessary permissions on the primary EPTs.
+        hook.enable_hooks(primary_ept)?;
 
         // Increment the hook index for the next hook.
-        shared_data.current_hook_index += 1;
-        trace!("Hook Index Incremented: {}", shared_data.current_hook_index);
+        hook_manager.current_hook_index += 1;
+        trace!(
+            "Hook Index Incremented: {}",
+            hook_manager.current_hook_index
+        );
 
         trace!("EPT hook created successfully");
 
         Ok(())
     }
 
-    /// Enables all the hooks managed by the `Hook`.
-    ///
-    /// It sets the necessary permissions on the primary and secondary Extended Page Tables (EPTs)
-    /// to intercept execution and data access at specific memory locations. This function is
-    /// particularly used to switch between primary and secondary EPTs when executing hooked functions.
+    /// Toggles the EPT mapping between the original and the hooked page.
     ///
     /// # Arguments
     ///
-    /// * `primary_ept` - A mutable reference to the primary EPT, typically representing the normal memory view.
-    /// * `secondary_ept` - A mutable reference to the secondary EPT, typically representing the altered memory view for hooks.
+    /// * `vm` - The virtual machine instance of the hypervisor.
+    /// * `faulting_guest_pa` - The faulting guest physical address that caused the EPT violation (`vmcs::ro::GUEST_PHYSICAL_ADDR_FULL`)
+    /// * `use_hook_page` - Boolean flag to determine whether to swap to the hook page (true) or restore the original page (false).
     ///
     /// # Returns
     ///
     /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
-    pub fn enable_hooks(
-        &mut self,
-        primary_ept: &mut Box<Ept>,
-        secondary_ept: &mut Box<Ept>,
+    pub fn swap_page(
+        vm: &mut Vm,
+        faulting_guest_pa: u64,
+        use_hook_page: bool,
     ) -> Result<(), HypervisorError> {
+        // Find the EPT hook associated with the given guest physical address.
+        let ept_hook = vm
+            .hook_manager
+            .find_hook_by_guest_pa(faulting_guest_pa)
+            .ok_or(HypervisorError::HookNotFound)?;
+
+        // Determine the target physical address based on whether the hook or original page should be used.
+        let target_pa = if use_hook_page {
+            // Use the host shadow page containing the hook.
+            ept_hook.host_shadow_page_pa.as_u64()
+        } else {
+            // Restore to the original page.
+            ept_hook.guest_pa.as_u64()
+        };
+
+        // Align the guest physical address to the base page size.
+        let guest_page_pa = PAddr::from(faulting_guest_pa)
+            .align_down_to_base_page()
+            .as_u64();
+
+        // Map the guest page to the target page in the primary EPT.
+        trace!(
+            "Swapping page at Guest PA: {:#x} to Target PA: {:#x}",
+            guest_page_pa,
+            target_pa
+        );
+        vm.primary_ept.remap_gpa_to_hpa(
+            guest_page_pa,
+            target_pa,
+            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+        )?;
+
+        // Invalidate the EPT cache for all contexts to ensure the new mapping takes effect immediately.
+        invept_all_contexts();
+
+        // Invalidate the VPID cache for all contexts.
+        invvpid_all_contexts();
+
+        Ok(())
+    }
+
+    /// Enables all the hooks managed by the `Hook`.
+    ///
+    /// It sets the necessary permissions on the primary Extended Page Tables (EPTs)
+    /// to intercept execution and data access at specific memory locations. This function is
+    /// particularly used to switch between primary EPTs when executing hooked functions.
+    ///
+    /// # Arguments
+    ///
+    /// * `primary_ept` - A mutable reference to the primary EPT, typically representing the normal memory view.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
+    pub fn enable_hooks(&mut self, primary_ept: &mut Box<Ept>) -> Result<(), HypervisorError> {
         trace!("Enabling hooks");
 
         // Align the guest function or page address to the large page size.
         let guest_large_page_pa = self.guest_pa.align_down_to_large_page().as_u64();
 
         // Split the guest 2MB page into 4KB pages for the primary EPT.
-        debug!(
+        trace!(
             "Splitting 2MB page to 4KB pages for Primary EPT: {:#x}",
             guest_large_page_pa
         );
         primary_ept
             .split_2mb_to_4kb(guest_large_page_pa, self.primary_ept_pre_alloc_pt.as_mut())?;
 
-        // Split the guest 2MB page into 4KB pages for the secondary EPT.
-        debug!(
-            "Splitting 2MB page to 4KB pages for Secondary EPT: {:#x}",
-            guest_large_page_pa
-        );
-        secondary_ept.split_2mb_to_4kb(
-            guest_large_page_pa,
-            self.secondary_ept_pre_alloc_pt.as_mut(),
-        )?;
-
         // Align the guest function or page address to the base page size.
         let guest_page_pa = self.guest_pa.align_down_to_base_page().as_u64();
 
         // Modify the page permission in the primary EPT to ReadWrite for the guest page.
-        debug!(
+        trace!(
             "Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}",
             guest_page_pa
         );
@@ -233,31 +272,6 @@ impl EptHook {
             guest_page_pa,
             AccessType::READ_WRITE,
             self.primary_ept_pre_alloc_pt.as_mut(),
-        )?;
-
-        // Modify the page permission in the secondary EPT to Execute-only for the guest page.
-        debug!(
-            "Changing Secondary EPT permissions for hook page to Execute (X) only: {:#x}",
-            guest_page_pa
-        );
-        secondary_ept.modify_page_permissions(
-            guest_page_pa,
-            AccessType::EXECUTE,
-            self.secondary_ept_pre_alloc_pt.as_mut(),
-        )?;
-
-        // Align the host shadow function address to the base page size.
-        let host_shadow_page_pa = self
-            .host_shadow_function_pa
-            .align_down_to_base_page()
-            .as_u64();
-
-        // Map the guest page to the hooked host shadow page in the secondary EPT.
-        debug!("Mapping Guest Physical Address to Host Physical Address of the hooked page: {:#x} {:#x}", guest_page_pa, host_shadow_page_pa);
-        secondary_ept.remap_gpa_to_hpa(
-            guest_page_pa,
-            host_shadow_page_pa,
-            self.secondary_ept_pre_alloc_pt.as_mut(),
         )?;
 
         // Invalidate the EPT cache for all contexts.
@@ -289,22 +303,22 @@ impl EptHook {
         hook_type: InlineHookType,
     ) -> Option<()> {
         let guest_function_va = VAddr::from(guest_function_va);
-        debug!("Guest Function VA: {:#x}", guest_function_va);
-        debug!("Hook Handler: {:#x}", hook_handler as u64);
+        trace!("Guest Function VA: {:#x}", guest_function_va);
+        trace!("Hook Handler: {:#x}", hook_handler as u64);
 
         // Convert the function guest virtual address to a physical address using Guest CR3.
         let guest_function_pa =
             PAddr::from(PhysicalAddress::pa_from_va(guest_function_va.as_u64()));
-        debug!("Guest Function PA: {:#x}", guest_function_pa.as_u64());
+        trace!("Guest Function PA: {:#x}", guest_function_pa.as_u64());
 
         // Align the guest function address to the base page size.
         let guest_page_pa = guest_function_pa.align_down_to_base_page();
-        debug!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
+        trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
 
         // Get the physical address of the pre-allocated host shadow page.
         let host_shadow_page_pa =
             PAddr::from(self.host_shadow_page.as_mut_slice().as_mut_ptr() as u64);
-        debug!("Host Shadow Page PA: {:#x}", host_shadow_page_pa);
+        trace!("Host Shadow Page PA: {:#x}", host_shadow_page_pa);
 
         // Copy the guest page to the pre-allocated host shadow page.
         Self::unsafe_copy_guest_to_shadow(guest_page_pa, host_shadow_page_pa);
@@ -315,8 +329,8 @@ impl EptHook {
                 host_shadow_page_pa,
                 guest_function_pa,
             ));
-        debug!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
-        debug!(
+        trace!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
+        trace!(
             "Trampoline Page: {:#x}",
             self.trampoline_page.as_mut_slice().as_mut_ptr() as u64
         );
@@ -364,15 +378,15 @@ impl EptHook {
         ept_hook_type: EptHookType,
     ) -> Option<()> {
         let guest_page_va = VAddr::from(guest_page_va);
-        debug!("Guest Page VA: {:#x}", guest_page_va);
+        trace!("Guest Page VA: {:#x}", guest_page_va);
 
         // Convert the page guest virtual address to a physical address using Guest CR3.
         let guest_page_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_page_va.as_u64()));
-        debug!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
+        trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
 
         let host_shadow_page_pa =
             PAddr::from(self.host_shadow_page.as_mut_slice().as_mut_ptr() as u64);
-        debug!("Host Shadow Page PA: {:#x}", host_shadow_page_pa);
+        trace!("Host Shadow Page PA: {:#x}", host_shadow_page_pa);
 
         // Copy the guest page to the pre-allocated host shadow page.
         Self::unsafe_copy_guest_to_shadow(

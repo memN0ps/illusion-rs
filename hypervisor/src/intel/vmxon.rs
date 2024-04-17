@@ -6,8 +6,7 @@
 use {
     crate::{error::HypervisorError, intel::support::rdmsr},
     bitfield::BitMut,
-    x86::controlregs,
-    x86::{current::paging::BASE_PAGE_SIZE, msr},
+    x86::{controlregs, current::paging::BASE_PAGE_SIZE, msr},
     x86_64::registers::control::Cr4,
 };
 

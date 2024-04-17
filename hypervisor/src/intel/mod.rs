@@ -12,7 +12,6 @@ pub mod mtrr;
 pub mod page;
 pub mod paging;
 pub mod segmentation;
-pub mod shared;
 pub mod state;
 pub mod support;
 pub mod vm;

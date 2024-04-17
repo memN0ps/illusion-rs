@@ -7,6 +7,7 @@ pub mod invd;
 pub mod invept;
 pub mod invvpid;
 pub mod msr;
+pub mod mtf;
 pub mod rdtsc;
 pub mod sipi;
 pub mod vmcall;

@@ -98,9 +98,6 @@ pub enum HypervisorError {
     #[error("Primary EPT not provided")]
     PrimaryEPTNotProvided,
 
-    #[error("Secondary EPT not provided")]
-    SecondaryEPTNotProvided,
-
     #[error("Invalid PML4 entry")]
     InvalidPml4Entry,
 
@@ -184,4 +181,7 @@ pub enum HypervisorError {
 
     #[error("Too many hooks")]
     TooManyHooks,
+
+    #[error("Failed to get current hook")]
+    HookNotFound,
 }

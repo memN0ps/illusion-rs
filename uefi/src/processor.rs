@@ -3,13 +3,8 @@
 
 use {
     crate::virtualize::virtualize_system,
-    alloc::boxed::Box,
     core::ffi::c_void,
-    hypervisor::intel::{
-        capture::{capture_registers, GuestRegisters},
-        ept::Ept,
-        shared::SharedData,
-    },
+    hypervisor::intel::capture::{capture_registers, GuestRegisters},
     log::*,
     uefi::{prelude::*, proto::pi::mp::MpServices},
 };
@@ -19,22 +14,11 @@ use {
 /// # Arguments
 ///
 /// * `boot_services` - A reference to the UEFI Boot Services.
-/// * `primary_ept` - The primary Extended Page Table (EPT) instance.
-/// * `secondary_ept` - The secondary Extended Page Table (EPT) instance.
 ///
 /// # Returns
 ///
 /// A result indicating the success or failure of starting the hypervisor.
-pub fn start_hypervisor_on_all_processors(
-    boot_services: &BootServices,
-    primary_ept: Box<Ept>,
-    secondary_ept: Box<Ept>,
-) -> uefi::Result<()> {
-    debug!("Creating Shared Data");
-    let shared_data =
-        SharedData::new(primary_ept, secondary_ept).expect("Failed to create shared data");
-    let shared_data = Box::leak(shared_data);
-
+pub fn start_hypervisor_on_all_processors(boot_services: &BootServices) -> uefi::Result<()> {
     let handle = boot_services.get_handle_for_protocol::<MpServices>()?;
     let mp_services = boot_services.open_protocol_exclusive::<MpServices>(handle)?;
     let processor_count = mp_services.get_number_of_processors()?;
@@ -44,18 +28,18 @@ pub fn start_hypervisor_on_all_processors(
 
     if processor_count.enabled == 1 {
         info!("Found only one processor, virtualizing it");
-        start_hypervisor(shared_data);
+        start_hypervisor();
     } else {
         info!("Found multiple processors, virtualizing all of them");
 
         // Don't forget to virtualize this thread...
-        start_hypervisor(shared_data);
+        start_hypervisor();
 
         // Virtualize all other threads...
         mp_services.startup_all_aps(
             true,
             start_hypervisor_on_ap as _,
-            shared_data as *mut _ as *mut _,
+            core::ptr::null_mut(),
             None,
             None,
         )?;
@@ -70,18 +54,13 @@ pub fn start_hypervisor_on_all_processors(
 ///
 /// # Arguments
 ///
-/// * `procedure_argument` - A pointer to the `SharedData` instance.
-extern "efiapi" fn start_hypervisor_on_ap(procedure_argument: *mut c_void) {
-    let shared_data = unsafe { &mut *(procedure_argument as *mut SharedData) };
-    start_hypervisor(shared_data);
+/// * `procedure_argument` - A pointer to the `*mut c_void`.
+extern "efiapi" fn start_hypervisor_on_ap(_procedure_argument: *mut c_void) {
+    start_hypervisor();
 }
 
 /// Initiates the virtualization process.
-///
-/// # Arguments
-///
-/// * `shared_data` - A reference to the `SharedData` instance.
-fn start_hypervisor(shared_data: &mut SharedData) {
+fn start_hypervisor() {
     let mut guest_registers = GuestRegisters::default();
     // Unsafe block to capture the current CPU's register state.
     let is_virtualized = unsafe { capture_registers(&mut guest_registers) };
@@ -95,6 +74,6 @@ fn start_hypervisor(shared_data: &mut SharedData) {
     debug!("Is virtualized: {}", is_virtualized);
     if !is_virtualized {
         debug!("Virtualizing the system");
-        virtualize_system(&guest_registers, shared_data);
+        virtualize_system(&guest_registers);
     }
 }

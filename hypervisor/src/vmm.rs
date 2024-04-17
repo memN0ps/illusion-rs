@@ -10,7 +10,6 @@ use {
         intel::{
             bitmap::MsrAccessType,
             capture::GuestRegisters,
-            shared::SharedData,
             support::{vmread, vmwrite},
             vm::Vm,
             vmerror::VmxBasicExitReason,
@@ -24,6 +23,7 @@ use {
                 invept::handle_invept,
                 invvpid::handle_invvpid,
                 msr::handle_msr_access,
+                mtf::handle_monitor_trap_flag,
                 rdtsc::handle_rdtsc,
                 sipi::handle_sipi_signal,
                 vmcall::handle_vmcall,
@@ -45,13 +45,12 @@ use {
 /// # Arguments
 ///
 /// - `guest_registers`: The initial state of the guest's general-purpose registers.
-/// - `shared_data`: Shared data between the hypervisor and the guest VM.
 ///
 /// # Panics
 ///
 /// Panics if the CPU is not supported, VMX cannot be enabled, VM or VMCS activation fails,
 /// or an unhandled VM exit reason is encountered.
-pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut SharedData) -> ! {
+pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
     debug!("Starting hypervisor");
 
     match check_supported_cpu() {
@@ -66,7 +65,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
         Err(e) => panic!("Failed to enable VMX: {:?}", e),
     };
 
-    let mut vm = match Vm::new(&guest_registers, shared_data) {
+    let mut vm = match Vm::new(&guest_registers) {
         Ok(vm) => vm,
         Err(e) => panic!("Failed to create VM: {:?}", e),
     };
@@ -80,40 +79,66 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
-            // trace!("Handling VM exit reason: {:?}", basic_exit_reason);
-            // debug!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
-
             let exit_type = match basic_exit_reason {
+                // 0
                 VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
+                // 3
                 VmxBasicExitReason::InitSignal => handle_init_signal(&mut vm.guest_registers),
+                // 4
                 VmxBasicExitReason::StartupIpi => handle_sipi_signal(&mut vm.guest_registers),
-                VmxBasicExitReason::Hlt => handle_halt(),
+                // 10
                 VmxBasicExitReason::Cpuid => handle_cpuid(&mut vm).expect("Failed to handle CPUID"),
-
-                // Grouping multiple exit reasons that are handled by the same function
-                VmxBasicExitReason::Getsec
-                | VmxBasicExitReason::Vmclear
-                | VmxBasicExitReason::Vmlaunch
-                | VmxBasicExitReason::Vmptrld
-                | VmxBasicExitReason::Vmptrst
-                | VmxBasicExitReason::Vmresume
-                | VmxBasicExitReason::Vmxon
-                | VmxBasicExitReason::Vmxoff => handle_undefined_opcode_exception(),
-
-                VmxBasicExitReason::Rdmsr => {
-                    handle_msr_access(&mut vm, MsrAccessType::Read).expect("Failed to handle RDMSR")
-                }
-                VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm, MsrAccessType::Write)
-                    .expect("Failed to handle WRMSR"),
+                // 11
+                VmxBasicExitReason::Getsec => handle_undefined_opcode_exception(),
+                // 12
+                VmxBasicExitReason::Hlt => handle_halt(),
+                // 13
                 VmxBasicExitReason::Invd => handle_invd(&mut vm.guest_registers),
-                VmxBasicExitReason::Rdtsc => handle_rdtsc(&mut vm.guest_registers),
+                // 18
                 VmxBasicExitReason::Vmcall => {
                     handle_vmcall(&mut vm).expect("Failed to handle VMCALL")
                 }
-                VmxBasicExitReason::EptViolation => handle_ept_violation(&mut vm),
-                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(&mut vm),
+                // 19
+                VmxBasicExitReason::Vmclear => handle_undefined_opcode_exception(),
+                // 20
+                VmxBasicExitReason::Vmlaunch => handle_undefined_opcode_exception(),
+                // 21
+                VmxBasicExitReason::Vmptrld => handle_undefined_opcode_exception(),
+                // 22
+                VmxBasicExitReason::Vmptrst => handle_undefined_opcode_exception(),
+                // 23
+                VmxBasicExitReason::Vmread => handle_undefined_opcode_exception(),
+                // 24
+                VmxBasicExitReason::Vmresume => handle_undefined_opcode_exception(),
+                // 25
+                VmxBasicExitReason::Vmwrite => handle_undefined_opcode_exception(),
+                // 26
+                VmxBasicExitReason::Vmxoff => handle_undefined_opcode_exception(),
+                // 27
+                VmxBasicExitReason::Vmxon => handle_undefined_opcode_exception(),
+                // 31
+                VmxBasicExitReason::Rdmsr => {
+                    handle_msr_access(&mut vm, MsrAccessType::Read).expect("Failed to handle RDMSR")
+                }
+                // 32
+                VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm, MsrAccessType::Write)
+                    .expect("Failed to handle WRMSR"),
+                // 37
+                VmxBasicExitReason::MonitorTrapFlag => handle_monitor_trap_flag(&mut vm),
+                // 48
+                VmxBasicExitReason::EptViolation => {
+                    handle_ept_violation(&mut vm).expect("Failed to handle EPT violation")
+                }
+                // 49
+                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(&mut vm)
+                    .expect("Failed to handle EPT misconfiguration"),
+                // 50
                 VmxBasicExitReason::Invept => handle_invept(),
+                // 51
+                VmxBasicExitReason::Rdtsc => handle_rdtsc(&mut vm.guest_registers),
+                // 53
                 VmxBasicExitReason::Invvpid => handle_invvpid(),
+                // 55
                 VmxBasicExitReason::Xsetbv => handle_xsetbv(&mut vm.guest_registers),
                 _ => panic!("Unhandled VM exit reason: {:?}", basic_exit_reason),
             };
@@ -121,8 +146,6 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters, shared_data: &mut Shar
             if exit_type == ExitType::IncrementRIP {
                 advance_guest_rip(&mut vm.guest_registers);
             }
-
-            // debug!("Register state after handling VM exit: {:#x?}", vm.guest_registers);
         } else {
             panic!("Failed to run the VM");
         }

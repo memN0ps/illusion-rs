@@ -11,12 +11,13 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            bitmap::MsrAccessType,
+            bitmap::{MsrAccessType, MsrOperation},
             events::EventInjection,
             support::{rdmsr, wrmsr},
             vm::Vm,
             vmexit::ExitType,
         },
+        windows::kernel::KernelHook,
     },
     x86::msr,
 };
@@ -98,6 +99,7 @@ pub fn handle_msr_access(
             vm.guest_registers.rax = result_value & MSR_MASK_LOW;
             vm.guest_registers.rdx = result_value >> 32;
         }
+        // Credits: jessiep_ and https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR {
                 log::trace!(
@@ -107,23 +109,15 @@ pub fn handle_msr_access(
                 // log::trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
                 // log::trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
 
-                unsafe {
-                    vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(
-                        msr::IA32_LSTAR,
-                        MsrAccessType::Write,
-                        crate::intel::bitmap::MsrOperation::Unhook,
-                    )
-                };
+                vm.msr_bitmap.modify_msr_interception(
+                    msr::IA32_LSTAR,
+                    MsrAccessType::Write,
+                    MsrOperation::Unhook,
+                );
                 log::trace!("Unhooked MSR_IA32_LSTAR");
 
-                #[cfg(feature = "test-windows-uefi-hooks")]
-                {
-                    // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
-                    unsafe {
-                        vm.shared_data.as_mut().kernel_hook =
-                            crate::windows::kernel::KernelHook::new(msr_value)?
-                    };
-                }
+                // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
+                vm.hook_manager.kernel_hook = KernelHook::new(msr_value)?;
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.
@@ -163,7 +157,7 @@ pub fn handle_msr_access(
                 // chosen so that none of PatchGuard context is initialized.
                 //
                 // log::trace!("Unhooking MSR_IA32_GS_BASE.");
-                // unsafe { vm.shared_data.as_mut().msr_bitmap.modify_msr_interception(msr::IA32_GS_BASE, MsrAccessType::Write, crate::intel::bitmap::MsrOperation::Unhook) };
+                // vm.msr_bitmap.modify_msr_interception(msr::IA32_GS_BASE, MsrAccessType::Write, MsrOperation::Unhook);
                 // log::trace!("KiSystemStartup being executed...");
                 wrmsr(msr_id, msr_value);
             } else {
