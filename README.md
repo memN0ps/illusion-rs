@@ -12,14 +12,14 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ### PatchGuard Compatible Features
 
-- :white_check_mark: Hidden System Call (Syscall) hooks via System Service Descriptor Table (SSDT).
-- :white_check_mark: Hidden Kernel inline hooks.
-- :white_check_mark: Hidden Model Specific Registers (MSR) hooks.
-- :x: Hidden Interrupt Descriptor Table (IDT) hooks.
+- :white_check_mark: Hidden System Call (Syscall) Hooks Via System Service Descriptor Table (SSDT).
+- :white_check_mark: Hidden Kernel Inline Hooks.
+- :white_check_mark: Hidden Model Specific Registers (MSR) Hooks.
+- :x: Hidden Interrupt Descriptor Table (IDT) Hooks.
 
 ### Microsoft Hyper-V Compatible Features
 
-- :x: Nested virtualization support for Microsoft Hyper-V with Virtualization Based Security (VBS) enabled.
+- :x: Nested Virtualization Support for Microsoft Hyper-V with Virtualization Based Security (VBS) Enabled.
 
 ### VM Exit Handling
 
