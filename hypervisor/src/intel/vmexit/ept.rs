@@ -2,12 +2,15 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::hook::EptHook, support::vmread, vm::Vm, vmerror::EptViolationExitQualification,
-            vmexit::ExitType,
+            hooks::hook::EptHook,
+            support::vmread,
+            vm::Vm,
+            vmerror::EptViolationExitQualification,
+            vmexit::{mtf::set_monitor_trap_flag, ExitType},
         },
     },
     log::*,
-    x86::vmx::vmcs,
+    x86::{bits64::paging::PAddr, vmx::vmcs},
 };
 
 /// Handle VM exits for EPT violations. Violations are thrown whenever an operation is performed on an EPT entry that does not provide permissions to access that page.
@@ -17,46 +20,28 @@ use {
 pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling EPT Violation VM exit...");
 
-    let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
-    trace!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
-
-    // dump_primary_and_secondary_ept(vm, guest_physical_address);
+    let guest_pa = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
+    trace!("Faulting Guest PA: {:#x}", guest_pa);
+    //dump_primary_and_secondary_ept(vm, guest_physical_address);
 
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
     trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
+    trace!("Faulting Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    // Handle the EPT violation based on the instruction fetch status and page permissions for memory introspection.
-    // An EPT Violation vmexit occurs when a guest attempts to access a page that its current EPT settings do not permit.
-    // Depending on the type of violation, we switch the page to either the hooked host shadow copy page or guest original page.
-    // - If the guest attempts to execute from a page that is only permitted for reading and writing, we switch to the hooked host shadow copy page.
-    // - If the guest attempts to read or write to a page that is only executable, we switch to the original guest page.
-    // This approach ensures the host's code remains hidden from the guest, preventing improper access to host memory.
-    match ept_violation_qualification.instruction_fetch {
-        // When instruction fetch is false, it indicates an attempt to read or write to a page marked as Execute-Only.
-        // Here, we:
-        // - Swap Page back to the guest original page
-        // - Invalidate the EPT cache to refresh permissions, and
-        // - This typically involves a page where:
-        //   Instruction Fetch: false,
-        //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
-        false => {
-            // Swap the page back to the guest original page.
-            EptHook::swap_page(vm, guest_physical_address, false)?;
-        },
-        // When instruction fetch is true, it signifies an attempt to execute code from a page marked as Read-Write-Only.
-        // Actions taken include:
-        // - Swap Page to the hooked host shadow copy page
-        // - Invalidating the EPT cache, and
-        // - This typically involves a page where:
+    if ept_violation_qualification.instruction_fetch && !ept_violation_qualification.executable {
         //   Instruction Fetch: true,
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
-        true => {
-            // Swap the page to the hooked host shadow copy page.
-            EptHook::swap_page(vm, guest_physical_address, true)?;
-        },
-    };
-
+        trace!("Execution attempt on non-executable page, switching to shadow page.");
+        EptHook::swap_page(vm, guest_pa, true)?;
+        set_monitor_trap_flag(true);
+    } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
+        //   Instruction Fetch: false,
+        //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
+        trace!("Read/Write attempt on execute-only page, restoring original page.");
+        EptHook::swap_page(vm, guest_pa, false)?;
+    }
+    
     trace!("EPT Violation handled successfully!");
 
     // Do not increment RIP, since we want it to execute the same instruction again.
@@ -108,19 +93,25 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> Result<ExitType, HypervisorEr
 /// # Arguments
 ///
 /// * `vm` - The virtual machine instance.
-/// * `guest_physical_address` - The guest physical address that caused the EPT misconfiguration or violation.
+/// * `faulting_guest_pa` - The faulting guest physical address that caused the EPT misconfiguration or violation.
 pub fn dump_primary_ept_entries(
     vm: &mut Vm,
-    guest_physical_address: u64,
+    faulting_guest_pa: u64,
 ) -> Result<(), HypervisorError> {
     // Log the critical error information.
-    trace!("Faulting guest address: {:#x}", guest_physical_address);
+    trace!("Faulting guest address: {:#x}", faulting_guest_pa);
 
     // Get the hook manager from the VM.
     let hook_manager = vm.hook_manager.as_mut();
 
+    // Align the faulting guest physical address to the base page size.
+    let faulting_guest_page_pa = PAddr::from(faulting_guest_pa)
+        .align_down_to_base_page()
+        .as_u64();
+    trace!("Faulting guest page address: {:#x}", faulting_guest_page_pa);
+
     let ept_hook = hook_manager
-        .find_hook_by_guest_pa(guest_physical_address)
+        .find_hook_by_guest_page_pa(faulting_guest_pa)
         .ok_or(HypervisorError::HookNotFound)?;
 
     // Get the primary EPTs.
@@ -128,10 +119,10 @@ pub fn dump_primary_ept_entries(
 
     trace!(
         "Dumping Primary EPT entries for guest physical address: {:#x}",
-        guest_physical_address
+        faulting_guest_pa
     );
     primary_ept.dump_ept_entries(
-        guest_physical_address,
+        faulting_guest_pa,
         ept_hook.primary_ept_pre_alloc_pt.as_ref(),
     );
 

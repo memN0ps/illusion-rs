@@ -176,7 +176,7 @@ impl EptHook {
         Ok(())
     }
 
-    /// Toggles the EPT mapping between the original and the hooked page.
+    /// Toggles the EPT mapping between the guest original and the host hooked shadow page.
     ///
     /// # Arguments
     ///
@@ -192,37 +192,77 @@ impl EptHook {
         faulting_guest_pa: u64,
         use_hook_page: bool,
     ) -> Result<(), HypervisorError> {
-        // Find the EPT hook associated with the given guest physical address.
-        let ept_hook = vm
-            .hook_manager
-            .find_hook_by_guest_pa(faulting_guest_pa)
-            .ok_or(HypervisorError::HookNotFound)?;
-
-        // Determine the target physical address based on whether the hook or original page should be used.
-        let target_pa = if use_hook_page {
-            // Use the host shadow page containing the hook.
-            ept_hook.host_shadow_page_pa.as_u64()
-        } else {
-            // Restore to the original page.
-            ept_hook.guest_pa.as_u64()
-        };
-
-        // Align the guest physical address to the base page size.
-        let guest_page_pa = PAddr::from(faulting_guest_pa)
+        // Align the faulting guest physical address to the base page size.
+        let faulting_guest_page_pa = PAddr::from(faulting_guest_pa)
             .align_down_to_base_page()
             .as_u64();
 
-        // Map the guest page to the target page in the primary EPT.
+        trace!("Faulting Guest PA: {:#x}", faulting_guest_pa);
+        trace!("Faulting Guest Page PA: {:#x}", faulting_guest_page_pa);
+
+        // Find the EPT hook associated with the faulting guest physical address.
+        let ept_hook = vm
+            .hook_manager
+            .find_hook_by_guest_page_pa(faulting_guest_page_pa)
+            .ok_or(HypervisorError::HookNotFound)?;
+
         trace!(
-            "Swapping page at Guest PA: {:#x} to Target PA: {:#x}",
-            guest_page_pa,
-            target_pa
+            "Hook found for Guest Page PA: {:#x}",
+            faulting_guest_page_pa
         );
-        vm.primary_ept.remap_gpa_to_hpa(
-            guest_page_pa,
-            target_pa,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
-        )?;
+
+        // Align the guest physical address from the EPT hook to the base page size.
+        let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
+
+        // Determine the target physical address based on whether the hook or original page should be used.
+        if use_hook_page {
+            // Use the host shadow page containing the hook.
+            let host_shadow_page_pa = ept_hook.host_shadow_page_pa.as_u64();
+
+            // Modify the page permission in the primary EPT to Execute-only for the guest page.
+            trace!(
+                "Changing Primary EPT permissions for guest page to Execute (X) only: {:#x}",
+                guest_page_pa
+            );
+            vm.primary_ept.modify_page_permissions(
+                guest_page_pa,
+                AccessType::EXECUTE,
+                ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            )?;
+
+            // Map the guest page to the host shadow page in the primary EPT.
+            trace!(
+                "Swapping page at Guest PA: {:#x} to Host Shadow Page PA: {:#x}",
+                guest_page_pa,
+                host_shadow_page_pa
+            );
+            vm.primary_ept.remap_gpa_to_hpa(
+                guest_page_pa,
+                host_shadow_page_pa,
+                ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            )?;
+        } else {
+            // Map the guest page to the original host page in the primary EPT.
+            // We can only do this because of 1:1 mapping of guest physical address to host physical address.
+            trace!(
+                "Swapping page at Guest PA: {:#x} to Guest Original Page PA: {:#x}",
+                guest_page_pa,
+                guest_page_pa
+            );
+            vm.primary_ept.remap_gpa_to_hpa(
+                guest_page_pa,
+                guest_page_pa,
+                ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            )?;
+
+            // Modify the page permission in the primary EPT to Read-Write for the guest original page.
+            trace!("Changing Primary EPT permissions for guest original page to Read-Write (RW) only: {:#x}", guest_page_pa);
+            vm.primary_ept.modify_page_permissions(
+                guest_page_pa,
+                AccessType::READ_WRITE,
+                ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            )?;
+        };
 
         // Invalidate the EPT cache for all contexts to ensure the new mapping takes effect immediately.
         invept_all_contexts();
@@ -338,6 +378,8 @@ impl EptHook {
         // Create a new inline hook configuration.
         let mut inline_hook = InlineHook::new(
             host_shadow_function_pa.as_u64() as _,
+            guest_function_va.as_u64() as _,
+            hook_handler as _,
             hook_type,
             self.trampoline_page.as_mut_slice().as_mut_ptr(),
         );

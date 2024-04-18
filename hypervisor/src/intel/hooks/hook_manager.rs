@@ -87,18 +87,18 @@ impl HookManager {
         })
     }
 
-    /// Tries to find a hook for the specified hook guest physical address.
+    /// Tries to find a hook for the specified hook guest page physical address.
     ///
     /// # Arguments
     ///
-    /// * `guest_pa` - The hook guest physical address to search for.
+    /// * `guest_page_pa` - The hook guest page physical address to search for.
     ///
     /// # Returns
     ///
     /// * `Option<&mut EptHook>` - A mutable reference to the hook if found, or `None` if not found.
-    pub fn find_hook_by_guest_pa(&mut self, guest_pa: u64) -> Option<&mut EptHook> {
+    pub fn find_hook_by_guest_page_pa(&mut self, guest_page_pa: u64) -> Option<&mut EptHook> {
         self.ept_hooks.iter_mut().find_map(|hook| {
-            if hook.guest_pa.as_u64() == guest_pa {
+            if hook.guest_pa.align_down_to_base_page().as_u64() == guest_page_pa {
                 Some(&mut **hook) // Dereference the Box to get a mutable reference to EptHook
             } else {
                 None
