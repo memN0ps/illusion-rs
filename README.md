@@ -17,7 +17,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - :white_check_mark: Hidden Model Specific Registers (MSR) hooks.
 - :x: Hidden Interrupt Descriptor Table (IDT) hooks.
 
-### Compatibility with Microsoft Hyper-V
+### Microsoft Hyper-V Compatible Features
 
 - :x: Nested virtualization support for Microsoft Hyper-V with Virtualization Based Security (VBS) enabled.
 
