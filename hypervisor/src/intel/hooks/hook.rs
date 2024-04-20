@@ -66,9 +66,6 @@ pub struct EptHook {
     /// The type of hook to be installed.
     pub hook_type: EptHookType,
 
-    /// The pre-allocated trampoline page for the hook.
-    pub trampoline_page: Box<Page>,
-
     /// The inline hook configuration for the hook.
     pub inline_hook: Option<InlineHook>,
 }
@@ -80,13 +77,12 @@ impl EptHook {
     ///
     /// * `host_shadow_page` - The pre-allocated host shadow page for the hook.
     /// * `primary_ept_pre_alloc_pt` - The pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT.
-    /// * `trampoline_page` - The pre-allocated trampoline page for the hook.
     ///
     /// # Returns
     ///
     /// * `Box<Self>` - The new instance of `EptHook`.
     #[rustfmt::skip]
-    pub fn new(host_shadow_page: Box<Page>, primary_ept_pre_alloc_pt: Box<Pt>, trampoline_page: Box<Page>) -> Box<Self> {
+    pub fn new(host_shadow_page: Box<Page>, primary_ept_pre_alloc_pt: Box<Pt>) -> Box<Self> {
         let hooks = Self {
             primary_ept_pre_alloc_pt,
             guest_pa: PAddr::zero(),
@@ -96,7 +92,6 @@ impl EptHook {
             host_shadow_function_pa: PAddr::zero(),
             hook_handler: core::ptr::null(),
             hook_type: EptHookType::Function(InlineHookType::Int3),
-            trampoline_page,
             inline_hook: None,
         };
         Box::new(hooks)
@@ -226,7 +221,6 @@ impl EptHook {
         // Calculate the address of the function within the pre-allocated host shadow page.
         let host_shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(host_shadow_page_pa, guest_function_pa));
         trace!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
-        trace!("Trampoline Page: {:#x}", self.trampoline_page.as_mut_slice().as_mut_ptr() as u64);
 
         // Create a new inline hook configuration.
         let mut inline_hook = InlineHook::new(
@@ -234,7 +228,6 @@ impl EptHook {
             guest_function_va.as_u64() as _,
             hook_handler as _,
             hook_type,
-            self.trampoline_page.as_mut_slice().as_mut_ptr(),
         );
 
         // Perform the actual hook

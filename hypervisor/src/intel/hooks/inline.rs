@@ -23,9 +23,6 @@ pub struct InlineHook {
 
     /// The type of hook we are using.
     pub hook_type: InlineHookType,
-
-    /// The pre-allocated trampoline page for the hook.
-    pub trampoline_page: *mut u8,
 }
 
 impl InlineHook {
@@ -45,7 +42,6 @@ impl InlineHook {
         guest_function_va: *mut u8,
         hook_handler: *mut u8,
         hook_type: InlineHookType,
-        trampoline_page: *mut u8,
     ) -> Self {
         trace!("Creating a new hook configuration");
 
@@ -54,7 +50,6 @@ impl InlineHook {
             guest_function_va,
             hook_type,
             hook_handler,
-            trampoline_page,
         }
     }
 
@@ -88,51 +83,11 @@ impl InlineHook {
         }
 
         unsafe {
-            // First, backup the original bytes to the trampoline page
-            copy_nonoverlapping(
-                self.shadow_function_pa,
-                self.trampoline_page,
-                shellcode.len(),
-            );
-
             // Then, overwrite the target location with the hook
             copy_nonoverlapping(shellcode.as_ptr(), self.shadow_function_pa, shellcode.len());
         }
 
         trace!("The hook has been installed successfully");
-    }
-
-    /// Setup a trampoline by appending a JMP back to the original function after the hook.
-    ///
-    /// # Arguments
-    ///
-    /// * `original_instruction_address` - The address of the original instruction.
-    pub fn setup_trampoline(&self, original_instruction_address: u64) {
-        trace!(
-            "Appending JMP back to original instruction at: 0x{:X}",
-            original_instruction_address
-        );
-        let jmp_instruction: [u8; 2] = [0x48, 0xB8]; // mov rax, <immediate 64>
-        let jmp_to_rax: [u8; 2] = [0xFF, 0xE0]; // jmp rax
-
-        unsafe {
-            let trampoline_end = self.trampoline_page.offset(self.hook_size() as isize);
-            copy_nonoverlapping(
-                jmp_instruction.as_ptr(),
-                trampoline_end,
-                jmp_instruction.len(),
-            );
-            copy_nonoverlapping(
-                &original_instruction_address as *const u64 as *const u8,
-                trampoline_end.offset(jmp_instruction.len() as isize),
-                8,
-            );
-            copy_nonoverlapping(
-                jmp_to_rax.as_ptr(),
-                trampoline_end.offset(jmp_instruction.len() as isize + 8),
-                jmp_to_rax.len(),
-            );
-        }
     }
 
     /// Returns the size of the hook code in bytes based on the hook type.
@@ -147,14 +102,5 @@ impl InlineHook {
             InlineHookType::Vmcall => 3,       // vmcall is 3 bytes
             InlineHookType::AbsoluteJmp => 13, // mov rax, <immediate 64> + jmp rax is 13 bytes
         }
-    }
-
-    /// Returns the address of the trampoline page.
-    ///
-    /// # Returns
-    ///
-    /// * `*mut u8` - The address of the trampoline page.
-    pub fn trampoline_address(&self) -> *mut u8 {
-        self.trampoline_page
     }
 }
