@@ -34,7 +34,6 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
         trace!("Execution attempt on non-executable page, switching to shadow page.");
         EptHook::swap_page(vm, guest_pa, true)?;
-        set_monitor_trap_flag(true);
     } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
         //   Instruction Fetch: false,
         //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
