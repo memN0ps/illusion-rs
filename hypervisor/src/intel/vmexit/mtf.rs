@@ -16,6 +16,8 @@ use {
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
 
+    trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
+
     // Assuming 'find_hook_by_guest_va' fetches the hook data based on the virtual address space.
     // Access the current hook based on `current_hook_index`
     // Get the EPT hook manager from the VM.
@@ -31,12 +33,10 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     // This subtraction is key because if you add the size directly to the start address without subtracting 1,
     // you end up one byte past the actual end of the hooked region.
     let end_of_hooked_range = start_of_hooked_range + (hook_size as u64) - 1;
-
     trace!("Hooked range: Start: {:#x} to End: {:#x}", start_of_hooked_range, end_of_hooked_range);
 
     // Check if RIP is still within the range of the original overwritten instructions
     let in_range = vm.guest_registers.rip >= start_of_hooked_range && vm.guest_registers.rip <= end_of_hooked_range;
-
     trace!("RIP: {:#x}, In range: {}", vm.guest_registers.rip, in_range);
 
     if in_range {
@@ -55,6 +55,8 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     }
 
     trace!("Monitor Trap Flag handled, continuing post-trampoline execution.");
+
+    trace!("Register state after handling VM exit: {:?}", vm.guest_registers);
 
     Ok(ExitType::Continue)
 }

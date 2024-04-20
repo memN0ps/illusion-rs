@@ -79,7 +79,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         }
     };
 
-    trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
+    trace!("Register state after handling VM exit: {:?}", vm.guest_registers);
 
     // Return the exit type to continue VM execution.
     Ok(ExitType::Continue)

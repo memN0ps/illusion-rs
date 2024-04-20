@@ -19,6 +19,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     let guest_pa = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
     trace!("Faulting Guest PA: {:#x}", guest_pa);
+    trace!("Faulting Guest Page PA: {:#x}", PAddr::from(guest_pa).align_down_to_base_page().as_u64());
 
     // dump_primary_ept_entries(vm, guest_pa)?;
 
