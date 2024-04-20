@@ -19,7 +19,8 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ### Microsoft Hyper-V Compatible Features
 
-- :x: Nested Virtualization Support for Microsoft Hyper-V with Virtualization Based Security (VBS) Enabled.
+- :white_check_mark: Support for running as a nested hypervisor under Microsoft Hyper-V with Virtualization Based Security (VBS) Enabled.
+- :x: Support for running as the primary hypervisor on top of Microsoft Hyper-V with Virtualization Based Security (VBS) Enabled.
 
 ### VM Exit Handling
 
