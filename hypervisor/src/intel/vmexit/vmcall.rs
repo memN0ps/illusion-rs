@@ -6,7 +6,7 @@ use {
         error::HypervisorError,
         intel::{
             ept::AccessType,
-            hooks::hook_manager::HookManager,
+            hooks::{hook::EptHook, hook_manager::HookManager},
             vm::Vm,
             vmexit::{mtf::set_monitor_trap_flag, ExitType},
         },
@@ -70,17 +70,9 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             // Align the guest physical address from the EPT hook to the base page size.
             let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
-            // Modify the page permission in the primary EPT to Read-Write-Execute for the guest original page.
-            trace!("Changing Primary EPT permissions for guest original page to Read-Write-Execute (RW) only: {:#x}", guest_page_pa);
-            vm.primary_ept.modify_page_permissions(guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+            EptHook::swap_page(vm, guest_page_pa, false, AccessType::READ_WRITE_EXECUTE)?;
 
-            // Map the guest page to the original host page in the primary EPT.
-            // We can only do this because of 1:1 mapping of guest physical address to host physical address.
-            trace!("Swapping page at Guest PA: {:#x} to Guest Original Page PA: {:#x}", guest_page_pa, guest_page_pa);
-            vm.primary_ept.remap_gpa_to_hpa(guest_page_pa, guest_page_pa, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
-
-            // Uncomment if stepping is needed after handling this VMCALL
-            // set_monitor_trap_flag(true);
+            set_monitor_trap_flag(true);
         }
         None => {
             warn!("Unhandled VMCALL number: {:#x}", vmcall_number);

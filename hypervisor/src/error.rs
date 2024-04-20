@@ -184,4 +184,7 @@ pub enum HypervisorError {
 
     #[error("Failed to get current hook")]
     HookNotFound,
+
+    #[error("Failed to get current inline hook")]
+    InlineHookNotFound,
 }

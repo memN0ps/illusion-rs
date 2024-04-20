@@ -2,11 +2,8 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::hook::EptHook,
-            support::vmread,
-            vm::Vm,
-            vmerror::EptViolationExitQualification,
-            vmexit::{mtf::set_monitor_trap_flag, ExitType},
+            ept::AccessType, hooks::hook::EptHook, support::vmread, vm::Vm,
+            vmerror::EptViolationExitQualification, vmexit::ExitType,
         },
     },
     log::*,
@@ -30,15 +27,17 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Faulting Guest RIP: {:#x}", vm.guest_registers.rip);
 
     if ept_violation_qualification.instruction_fetch && !ept_violation_qualification.executable {
+        // if the instruction fetch is true and the page is not executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: true,
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
         trace!("Execution attempt on non-executable page, switching to shadow page.");
-        EptHook::swap_page(vm, guest_pa, true)?;
+        EptHook::swap_page(vm, guest_pa, true, AccessType::EXECUTE)?;
     } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
+        // if the instruction fetch is false and the page is executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: false,
         //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
         trace!("Read/Write attempt on execute-only page, restoring original page.");
-        EptHook::swap_page(vm, guest_pa, false)?;
+        EptHook::swap_page(vm, guest_pa, false, AccessType::READ_WRITE)?;
     }
     
     trace!("EPT Violation handled successfully!");

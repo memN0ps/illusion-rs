@@ -124,7 +124,9 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm, MsrAccessType::Write)
                     .expect("Failed to handle WRMSR"),
                 // 37
-                VmxBasicExitReason::MonitorTrapFlag => handle_monitor_trap_flag(&mut vm),
+                VmxBasicExitReason::MonitorTrapFlag => {
+                    handle_monitor_trap_flag(&mut vm).expect("Failed to handle Monitor Trap Flag")
+                }
                 // 48
                 VmxBasicExitReason::EptViolation => {
                     handle_ept_violation(&mut vm).expect("Failed to handle EPT violation")
