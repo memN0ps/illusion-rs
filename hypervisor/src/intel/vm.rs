@@ -46,6 +46,9 @@ pub struct Vm {
     /// Paging tables for the host.
     pub host_paging: Box<PageTables>,
 
+    /// The hook manager for the VM.
+    pub hook_manager: Box<HookManager>,
+
     /// A bitmap for handling MSRs.
     pub msr_bitmap: Box<MsrBitmap>,
 
@@ -54,9 +57,6 @@ pub struct Vm {
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
-
-    /// The hook manager for the VM.
-    pub hook_manager: Box<HookManager>,
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
@@ -93,10 +93,10 @@ impl Vm {
         trace!("Allocating MSR Bitmap");
         let mut msr_bitmap = MsrBitmap::new();
 
-        trace!("Allocating primary EPTs");
+        trace!("Allocating Primary EPT");
         let mut primary_ept = unsafe { box_zeroed::<Ept>() };
 
-        trace!("Identity mapping primary EPT");
+        trace!("Identity Mapping Primary EPT");
         primary_ept.build_identity()?;
 
         trace!("Creating primary EPTP with WB and 4-level walk");
@@ -110,19 +110,19 @@ impl Vm {
         );
 
         trace!("Creating EPT hook manager");
-        let ept_hook_manager = HookManager::new()?;
+        let hook_manager = HookManager::new()?;
 
         trace!("VM created");
 
         Ok(Self {
             vmcs_region,
             host_paging,
+            hook_manager,
+            host_descriptor: Descriptors::new_for_host(),
+            guest_descriptor: Descriptors::new_from_current(),
             msr_bitmap,
             primary_ept,
             primary_eptp,
-            hook_manager: ept_hook_manager,
-            host_descriptor: Descriptors::new_for_host(),
-            guest_descriptor: Descriptors::new_from_current(),
             guest_registers: guest_registers.clone(),
             has_launched: false,
         })
