@@ -3,7 +3,6 @@ use {
         error::HypervisorError,
         intel::{
             ept::AccessType,
-            hooks::hook::EptHook,
             support::{vmread, vmwrite},
             vm::Vm,
             vmexit::ExitType,
@@ -13,6 +12,7 @@ use {
     x86::vmx::vmcs,
 };
 
+#[rustfmt::skip]
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
 
@@ -22,11 +22,7 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     let hook_manager = vm.hook_manager.as_mut();
     let ept_hook = hook_manager.ept_hooks.get_mut(hook_manager.current_hook_index - 1).ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
 
-    let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
-    let hook_size = ept_hook
-        .inline_hook
-        .ok_or(HypervisorError::InlineHookNotFound)?
-        .hook_size();
+    let hook_size = ept_hook.inline_hook.ok_or(HypervisorError::InlineHookNotFound)?.hook_size();
 
     // Calculate the end of the range for the overwritten instructions
     let start_of_hooked_range = ept_hook.guest_va.as_u64();
@@ -36,9 +32,12 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     // you end up one byte past the actual end of the hooked region.
     let end_of_hooked_range = start_of_hooked_range + (hook_size as u64) - 1;
 
+    trace!("Hooked range: Start: {:#x} to End: {:#x}", start_of_hooked_range, end_of_hooked_range);
+
     // Check if RIP is still within the range of the original overwritten instructions
-    let in_range = vm.guest_registers.rip >= start_of_hooked_range
-        && vm.guest_registers.rip <= end_of_hooked_range;
+    let in_range = vm.guest_registers.rip >= start_of_hooked_range && vm.guest_registers.rip <= end_of_hooked_range;
+
+    trace!("RIP: {:#x}, In range: {}", vm.guest_registers.rip, in_range);
 
     if in_range {
         // Continue single stepping if still within the original function's range
@@ -47,7 +46,12 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     } else {
         // If RIP is out of range, disable MTF and restore the hook
         set_monitor_trap_flag(false);
-        EptHook::swap_page(vm, guest_page_pa, true, AccessType::EXECUTE)?;
+        vm.primary_ept.swap_page(
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
+            AccessType::EXECUTE,
+            ept_hook.primary_ept_pre_alloc_pt.as_mut()
+        )?;
     }
 
     trace!("Monitor Trap Flag handled, continuing post-trampoline execution.");

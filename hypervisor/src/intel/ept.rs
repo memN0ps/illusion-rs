@@ -8,7 +8,11 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::mtrr::{MemoryType, Mtrr},
+        intel::{
+            invept::invept_all_contexts,
+            invvpid::invvpid_all_contexts,
+            mtrr::{MemoryType, Mtrr},
+        },
     },
     bitfield::bitfield,
     core::ptr::addr_of,
@@ -241,14 +245,15 @@ impl Ept {
     ///
     /// # Returns
     ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful. In case of failure,
-    /// a `HypervisorError` is returned, detailing the nature of the error.
+    /// A `Result<u64, HypervisorError>` indicating if the operation was successful.
+    /// On success, returns the old host physical address that was previously mapped to the guest physical address.
+    /// In case of failure, a `HypervisorError` is returned, detailing the nature of the error.
     pub fn remap_gpa_to_hpa(
         &mut self,
         guest_pa: u64,
         host_pa: u64,
         pt: &mut Pt,
-    ) -> Result<(), HypervisorError> {
+    ) -> Result<u64, HypervisorError> {
         trace!("Remapping GPA {:#x} to HPA {:#x}", guest_pa, host_pa);
 
         let guest_pa = VAddr::from(guest_pa);
@@ -278,16 +283,18 @@ impl Ept {
 
         // Access the corresponding PT entry
         let pte = &mut pt.0.entries[pt_index];
+        let old_hpa = pte.pfn() << BASE_PAGE_SHIFT; // Calculate the old HPA from the Page Frame Number
 
         // Update the PTE to point to the new HPA
         pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);
         trace!(
-            "Updated PTE for GPA {:#x} to point to HPA {:#x}",
+            "Updated PTE for GPA {:#x} from old HPA {:#x} to new HPA {:#x}",
             guest_pa,
+            old_hpa,
             host_pa
         );
 
-        Ok(())
+        Ok(old_hpa)
     }
 
     pub fn dump_ept_entries(&self, guest_pa: u64, pt: &Pt) {
@@ -319,6 +326,47 @@ impl Ept {
             let pte = pt.0.entries[pt_index];
             trace!("PTE at index {}: {:#x?}", pt_index, pte);
         }
+    }
+
+    /// Updates the EPT mapping between a guest physical address and a specified host physical address,
+    /// and modifies the page access permissions according to the provided type.
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_pa` - The guest physical address to remap.
+    /// * `host_pa` - The new host physical address to map to the guest physical address.
+    /// * `access_type` - The access permissions to set for the mapped page.
+    /// * `pt` - The page table to use for the remap operation.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
+    #[rustfmt::skip]
+    pub fn swap_page(&mut self, guest_pa: u64, host_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
+        let guest_pa = VAddr::from(guest_pa);
+        let host_pa = VAddr::from(host_pa);
+
+        // Ensure both addresses are page aligned
+        if !guest_pa.is_base_page_aligned() || !host_pa.is_base_page_aligned() {
+            error!("Addresses are not aligned: GPA {:#x}, HPA {:#x}", guest_pa, host_pa);
+            return Err(HypervisorError::UnalignedAddressError);
+        }
+
+        // Modify the permissions for the guest physical address.
+        trace!("Modifying permissions for GPA {:#x} to {:?}", guest_pa, access_type);
+        self.modify_page_permissions(guest_pa.as_u64(), access_type, pt)?;
+
+        // Remap the guest physical address to the new host physical address in the primary EPT.
+        trace!("Remapping GPA {:#x} to HPA {:#x} in the primary EPT", guest_pa, host_pa);
+        self.remap_gpa_to_hpa(guest_pa.as_u64(), host_pa.as_u64(), pt)?;
+
+        // Invalidate the EPT cache for all contexts.
+        invept_all_contexts();
+
+        // Invalidate the VPID cache for all contexts.
+        invvpid_all_contexts();
+
+        Ok(())
     }
 
     /// Creates an Extended Page Table Pointer (EPTP) with a Write-Back memory type and a 4-level page walk.

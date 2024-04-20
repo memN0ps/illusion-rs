@@ -6,7 +6,6 @@ use {
         error::HypervisorError,
         intel::{
             ept::AccessType,
-            hooks::{hook::EptHook, hook_manager::HookManager},
             vm::Vm,
             vmexit::{mtf::set_monitor_trap_flag, ExitType},
         },
@@ -45,7 +44,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let vmcall_number = vm.guest_registers.rax;
     trace!("VMCALL command number: {:#x}", vmcall_number);
 
-    match vm.hook_manager.find_hook_by_guest_va(vmcall_number) {
+    match vm.hook_manager.find_hook_by_guest_va_as_mut(vmcall_number) {
         Some(ept_hook) => {
             // Capture and log the parameters used in NtCreateFile
             debug!(
@@ -70,7 +69,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             // Align the guest physical address from the EPT hook to the base page size.
             let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
-            EptHook::swap_page(vm, guest_page_pa, false, AccessType::READ_WRITE_EXECUTE)?;
+            vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
             set_monitor_trap_flag(true);
         }
