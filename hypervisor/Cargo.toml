@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "hypervisor"
+path = "src/lib.rs"
+
 [features]
 default = []
 test-windows-uefi-hooks = [] # If this feature is enabled, we will test the Windows UEFI hooks in the hypervisor at runtime upon booting Windows from the hypervisor.

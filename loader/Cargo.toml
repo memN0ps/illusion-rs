@@ -3,8 +3,11 @@ name = "loader"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "loader"
+path = "src/main.rs"
+
 [dependencies]
 log = "0.4.20"
-
 uefi = { version = "0.28.0", features = ["alloc"] }
 uefi-services = { version = "0.25.0", default-features = true }

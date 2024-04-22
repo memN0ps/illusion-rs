@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "illusion"
+path = "src/main.rs"
+
 [dependencies]
 uefi = { version = "0.28.0", features = ["global_allocator", "alloc"] } # https://crates.io/crates/uefi
 uefi-services = { version = "0.25.0", default-features = false } # https://crates.io/crates/uefi-services
