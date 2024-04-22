@@ -3,13 +3,12 @@ use {
         error::HypervisorError,
         intel::{
             ept::AccessType,
-            hooks::hook::EptHook,
             support::{vmread, vmwrite},
             vm::Vm,
             vmexit::ExitType,
         },
     },
-    log::trace,
+    log::*,
     x86::vmx::vmcs,
     x86_64::registers::rflags::RFlags,
 };
@@ -29,47 +28,37 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
     trace!("Handling Monitor Trap Flag exit.");
     trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
 
-    let hook_manager = &mut vm.hook_manager;
-    let ept_hook = hook_manager
-        .find_hook_by_guest_va_as_mut(vm.guest_registers.rip)
-        .ok_or(HypervisorError::HookNotFound)?;
+    if let Some(ref mut counter) = vm.hook_manager.mtf_counter {
+        if *counter > 0 {
+            *counter -= 1;
+            trace!("MTF counter decremented to {}", *counter);
+            set_monitor_trap_flag(*counter > 0);  // Keep MTF enabled if there are more steps
+        }
 
-    // Dynamic range calculation
-    let start_of_hook = ept_hook.guest_va.as_u64();
-    let end_of_hook = start_of_hook + calculate_original_instructions_length(ept_hook) as u64;
-    let current_rip = vm.guest_registers.rip;
+        if *counter == 0 {
+            if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rax) {
+                // Disable MTF and restore state when all instructions have executed
+                set_monitor_trap_flag(false);
+                vm.primary_ept.swap_page(
+                    ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+                    ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
+                    AccessType::EXECUTE,
+                    ept_hook.primary_ept_pre_alloc_pt.as_mut()
+                )?;
+                restore_guest_interrupt_flag(vm)?;
+                trace!("Monitor Trap Flag disabled, original execution restored.");
+                vm.hook_manager.mtf_counter = None;  // Reset the counter
+            } else {
+                return Err(HypervisorError::HookNotFound);
+            }
+            return Ok(ExitType::IncrementRIP);
+        }
 
-    trace!("Hooked range: Start: {:#x}, End: {:#x}, Current RIP: {:#x}", start_of_hook, end_of_hook, current_rip);
-
-    if current_rip >= start_of_hook && current_rip < end_of_hook {
-        // Continue single stepping if within the hooked instruction range
-        set_monitor_trap_flag(true);
         Ok(ExitType::Continue)
     } else {
-        // If RIP is out of range, disable MTF and restore the original page and interrupt flag.
-        set_monitor_trap_flag(false);
-        vm.primary_ept.swap_page(
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
-            AccessType::EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut()
-        )?;
-        restore_guest_interrupt_flag(vm)?;
-        trace!("Monitor Trap Flag disabled, original execution restored.");
-        Ok(ExitType::Continue)
+        error!("No active MTF counter found, possibly an error in state management.");
+        Err(HypervisorError::MtfCounterNotSet)
     }
-}
-
-/// Calculates the total length of the original instructions over the hook.
-fn calculate_original_instructions_length(hook: &EptHook) -> usize {
-    let base_address = hook.guest_pa.as_u64() as *const u8;
-    let bytes = unsafe {
-        core::slice::from_raw_parts(base_address, hook.inline_hook.as_ref().unwrap().hook_size())
-    };
-    lde::X64
-        .iter(bytes, hook.guest_va.as_u64())
-        .map(|(opcode, _)| opcode.len())
-        .sum()
 }
 
 /// Set the monitor trap flag

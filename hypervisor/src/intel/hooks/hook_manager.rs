@@ -31,6 +31,9 @@ pub struct HookManager {
     /// The old RFLAGS value before turning off the interrupt flag.
     /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
     pub old_rflags: Option<u64>,
+
+    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
+    pub mtf_counter: Option<u64>,
 }
 
 impl HookManager {
@@ -65,6 +68,7 @@ impl HookManager {
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
             old_rflags: None,
+            mtf_counter: None,
         }))
     }
 

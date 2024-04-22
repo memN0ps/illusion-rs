@@ -5,7 +5,9 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            capture::GuestRegisters,
             ept::AccessType,
+            hooks::{hook::EptHook, inline::InlineHookType},
             vm::Vm,
             vmexit::{
                 mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},
@@ -43,51 +45,57 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     debug!("Handling VMCALL VM exit...");
     trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
 
-    // Get the VMCALL command number from the guest's RAX register.
     let vmcall_number = vm.guest_registers.rax;
     trace!("VMCALL command number: {:#x}", vmcall_number);
 
-    match vm.hook_manager.find_hook_by_guest_va_as_mut(vmcall_number) {
-        Some(ept_hook) => {
-            // Capture and log the parameters used in NtCreateFile
-            debug!(
-                "NtCreateFile called with parameters:\n\
-                 FileHandle: {:#018x}, DesiredAccess: {:#018x}, ObjectAttributes: {:#018x},\n\
-                 IoStatusBlock: {:#018x}, AllocationSize: {:#018x}, FileAttributes: {:#x},\n\
-                 ShareAccess: {:#x}, CreateDisposition: {:#x}, CreateOptions: {:#x},\n\
-                 EaBuffer: {:#018x}, EaLength: {:#x}",
-                vm.guest_registers.rcx, // FileHandle (typically an out parameter, pointer passed in RCX)
-                vm.guest_registers.rdx, // DesiredAccess (passed in RDX)
-                vm.guest_registers.r8,  // ObjectAttributes (pointer in R8)
-                vm.guest_registers.r9,  // IoStatusBlock (pointer in R9)
-                vm.guest_registers.rsp + 0x28, // AllocationSize (pointer, next stack parameter)
-                vm.guest_registers.rsp + 0x30, // FileAttributes
-                vm.guest_registers.rsp + 0x38, // ShareAccess
-                vm.guest_registers.rsp + 0x40, // CreateDisposition
-                vm.guest_registers.rsp + 0x48, // CreateOptions
-                vm.guest_registers.rsp + 0x50, // EaBuffer (pointer)
-                vm.guest_registers.rsp + 0x58  // EaLength
-            );
+    if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vmcall_number) {
+        log_nt_create_file_params(&vm.guest_registers);
 
-            // Align the guest physical address from the EPT hook to the base page size.
-            let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
+        let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
+        vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
-            vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        // Set the monitor trap flag and initialize counter to the number of overwritten instructions
+        set_monitor_trap_flag(true);
+        vm.hook_manager.mtf_counter = Some(calculate_instruction_count(ept_hook));
+        trace!("MTF counter initialized to {}", vm.hook_manager.mtf_counter.unwrap_or(0));
 
-            // Prevent interrupts from being handled for guest while restoring the overwritten instruction and hook during monitor trap flag vmexit.
-            update_guest_interrupt_flag(vm, false)?;
-
-            // Set the monitor trap flag to continue post-trampoline execution.
-            set_monitor_trap_flag(true);
-        }
-        None => {
-            warn!("Unhandled VMCALL number: {:#x}", vmcall_number);
-            return Ok(ExitType::Continue);
-        }
-    };
+        // Prevent interrupts from being handled for guest while restoring the overwritten instruction and hook during monitor trap flag vmexit.
+        update_guest_interrupt_flag(vm, false)?;
+    } else {
+        warn!("Unhandled VMCALL number: {:#x}", vmcall_number);
+        return Ok(ExitType::Continue);
+    }
 
     trace!("Register state after handling VM exit: {:?}", vm.guest_registers);
-
-    // Return the exit type to continue VM execution.
     Ok(ExitType::Continue)
+}
+
+fn log_nt_create_file_params(regs: &GuestRegisters) {
+    debug!(
+        "NtCreateFile called with parameters:\n\
+         FileHandle: {:#018x}, DesiredAccess: {:#018x}, ObjectAttributes: {:#018x},\n\
+         IoStatusBlock: {:#018x}, AllocationSize: {:#018x}, FileAttributes: {:#x},\n\
+         ShareAccess: {:#x}, CreateDisposition: {:#x}, CreateOptions: {:#x},\n\
+         EaBuffer: {:#018x}, EaLength: {:#x}",
+        regs.rcx,        // FileHandle (typically an out parameter, pointer passed in RCX)
+        regs.rdx,        // DesiredAccess (passed in RDX)
+        regs.r8,         // ObjectAttributes (pointer in R8)
+        regs.r9,         // IoStatusBlock (pointer in R9)
+        regs.rsp + 0x28, // AllocationSize (pointer, next stack parameter)
+        regs.rsp + 0x30, // FileAttributes
+        regs.rsp + 0x38, // ShareAccess
+        regs.rsp + 0x40, // CreateDisposition
+        regs.rsp + 0x48, // CreateOptions
+        regs.rsp + 0x50, // EaBuffer (pointer)
+        regs.rsp + 0x58  // EaLength
+    );
+}
+
+/// Calculates the estimated number of machine instructions that need to be executed to cover the bytes overwritten by the hook.
+fn calculate_instruction_count(ept_hook: &EptHook) -> u64 {
+    match ept_hook.inline_hook.as_ref().unwrap().hook_type {
+        InlineHookType::Int3 => 1,   // Typically one instruction
+        InlineHookType::Cpuid => 1,  // Typically one instruction, though could affect more
+        InlineHookType::Vmcall => 1, // Typically one instruction
+    }
 }

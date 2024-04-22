@@ -190,4 +190,7 @@ pub enum HypervisorError {
 
     #[error("Old RFLAGS not set")]
     OldRflagsNotSet,
+
+    #[error("MTF counter not set")]
+    MtfCounterNotSet,
 }
