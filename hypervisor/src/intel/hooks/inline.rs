@@ -6,7 +6,6 @@ pub enum InlineHookType {
     Int3,
     Cpuid,
     Vmcall,
-    AbsoluteJmp,
 }
 
 /// Structure representing our hook configuration.
@@ -66,21 +65,7 @@ impl InlineHook {
 
             // vmcall instruction
             InlineHookType::Vmcall => &mut [0x0F, 0x01, 0xC1],
-
-            // mov rax, <immediate 64>
-            // jmp rax
-            InlineHookType::AbsoluteJmp => &mut [0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xE0],
         };
-
-        if self.hook_type == InlineHookType::AbsoluteJmp {
-            unsafe {
-                copy_nonoverlapping(
-                    self.hook_handler as *const u8,
-                    shellcode.as_mut_ptr().offset(2),
-                    8,
-                );
-            }
-        }
 
         unsafe {
             // Then, overwrite the target location with the hook
@@ -97,10 +82,9 @@ impl InlineHook {
     /// * `usize` - The size of the hook code in bytes.
     pub fn hook_size(&self) -> usize {
         match self.hook_type {
-            InlineHookType::Int3 => 1,         // int3 is 1 byte
-            InlineHookType::Cpuid => 2,        // cpuid is 2 bytes
-            InlineHookType::Vmcall => 3,       // vmcall is 3 bytes
-            InlineHookType::AbsoluteJmp => 13, // mov rax, <immediate 64> + jmp rax is 13 bytes
+            InlineHookType::Int3 => 1,   // int3 is 1 byte
+            InlineHookType::Cpuid => 2,  // cpuid is 2 bytes
+            InlineHookType::Vmcall => 3, // vmcall is 3 bytes
         }
     }
 }
