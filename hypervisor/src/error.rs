@@ -187,4 +187,7 @@ pub enum HypervisorError {
 
     #[error("Failed to get current inline hook")]
     InlineHookNotFound,
+
+    #[error("Old RFLAGS not set")]
+    OldRflagsNotSet,
 }

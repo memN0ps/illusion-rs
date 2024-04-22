@@ -27,6 +27,10 @@ pub struct HookManager {
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
     pub has_cpuid_cache_info_been_called: bool,
+
+    /// The old RFLAGS value before turning off the interrupt flag.
+    /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
+    pub old_rflags: Option<u64>,
 }
 
 impl HookManager {
@@ -60,6 +64,7 @@ impl HookManager {
             current_hook_index: 0,
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
+            old_rflags: None,
         }))
     }
 

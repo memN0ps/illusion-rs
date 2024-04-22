@@ -7,7 +7,10 @@ use {
         intel::{
             ept::AccessType,
             vm::Vm,
-            vmexit::{mtf::set_monitor_trap_flag, ExitType},
+            vmexit::{
+                mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},
+                ExitType,
+            },
         },
     },
     log::*,
@@ -71,6 +74,10 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
             vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
+            // Prevent interrupts from being handled for guest while restoring the overwritten instruction and hook during monitor trap flag vmexit.
+            update_guest_interrupt_flag(vm, false)?;
+
+            // Set the monitor trap flag to continue post-trampoline execution.
             set_monitor_trap_flag(true);
         }
         None => {
