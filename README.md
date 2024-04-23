@@ -38,11 +38,12 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 ## Installation
 
 - Install Rust from [here](https://www.rust-lang.org/tools/install).
+- Install cargo-make: `cargo install cargo-make --force`
 
 ## Building the Project
 
-- Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
-- Release: `cargo build --target x86_64-unknown-uefi --profile release`.
+- Debug: `cargo make build-all-debug`.
+- Release: `cargo make build-all-release`.
 
 ## Acknowledgments, References, and Motivation
 
