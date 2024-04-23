@@ -60,8 +60,6 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
 
-        vm.hook_manager.current_ept_hook = Some(ept_hook.clone());
-
         // Ensure all data mutations to vm are done before calling this
         update_guest_interrupt_flag(vm, false)?;
     } else {

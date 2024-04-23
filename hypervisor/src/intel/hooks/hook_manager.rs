@@ -26,13 +26,12 @@ pub struct HookManager {
     /// The EPT hook manager.
     pub ept_hooks: Vec<Box<EptHook>>,
 
-    /// Currently active EptHook, boxed to manage ownership and mutability centrally.
-    /// Set during `vmcall` and get during `mtf` to handle the Monitor Trap Flag VM exit.
-    pub current_ept_hook: Option<EptHook>,
+    /// The current EPT hook being used.
+    pub current_hook_index: usize,
 
     /// The index of the hook, used to retrieve the next available pre-allocated hook,
     /// so we don't have to allocate memory on the fly and can call `ept_hook` multiple times.
-    pub hook_index: usize,
+    pub next_hook_index: usize,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
     pub kernel_hook: KernelHook,
@@ -74,8 +73,8 @@ impl HookManager {
 
         Ok(Box::new(Self {
             ept_hooks,
-            current_ept_hook: None,
-            hook_index: 0,
+            current_hook_index: 0,
+            next_hook_index: 0,
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
             old_rflags: None,
@@ -98,8 +97,15 @@ impl HookManager {
     pub fn ept_hook(vm: &mut Vm, guest_va: u64, hook_handler: *const (), ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         trace!("Creating EPT hook for function at VA: {:#x}", guest_va);
 
-        // Retrieve the next available hook
-        let ept_hook = vm.hook_manager.retrieve_and_advance_hook()?;
+        let ept_hook = &mut vm.hook_manager.ept_hooks[vm.hook_manager.next_hook_index];
+
+        // Set the current hook index
+        trace!("Current Hook Index: {}", vm.hook_manager.current_hook_index);
+        vm.hook_manager.current_hook_index = vm.hook_manager.next_hook_index;
+
+        // Increment index to prepare for the next ept_hook call
+        vm.hook_manager.next_hook_index += 1;
+        trace!("Next Hook Index: {}", vm.hook_manager.next_hook_index);
 
         // Setup the hook based on the type
         match ept_hook_type {
@@ -134,32 +140,6 @@ impl HookManager {
         trace!("EPT hook created and enabled successfully");
 
         Ok(())
-    }
-
-    /// Retrieves a mutable reference to the current EPT hook if it exists.
-    ///
-    /// # Returns
-    /// * `Option<&mut EptHook>` - A mutable reference to the current EPT hook, or `None` if no hook is currently set.
-    pub fn get_current_hook_mut(&mut self) -> Option<&mut EptHook> {
-        self.current_ept_hook.as_mut()
-    }
-
-    /// Retrieves the current available hook and prepares the next one for use by incrementing
-    /// the index. This approach ensures the hook is ready for immediate deployment while
-    /// setting up the manager for subsequent operations.
-    ///
-    /// # Returns
-    /// * `Result<&mut EptHook, HypervisorError>` - A mutable reference to the current available EptHook,
-    /// or an error if all hooks are in use.
-    pub fn retrieve_and_advance_hook(&mut self) -> Result<&mut EptHook, HypervisorError> {
-        if self.hook_index >= self.ept_hooks.len() {
-            Err(HypervisorError::OutOfHooks)
-        } else {
-            let hook = &mut self.ept_hooks[self.hook_index];
-            self.hook_index += 1; // Increment index to prepare for the next call
-            trace!("Hook retrieved and index advanced to: {}", self.hook_index);
-            Ok(hook)
-        }
     }
 
     /// Tries to find a hook by its index.

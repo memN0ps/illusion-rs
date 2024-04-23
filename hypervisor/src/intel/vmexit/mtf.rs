@@ -26,7 +26,7 @@ use {
 #[rustfmt::skip]
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
-    if let Some(ept_hook) = vm.hook_manager.get_current_hook_mut() {
+    if let Some(ept_hook) = vm.hook_manager.find_hook_by_index(vm.hook_manager.current_hook_index) {
         if let Some(ref mut counter) = ept_hook.mtf_counter {
             *counter = counter.saturating_sub(1); // Safely decrement the counter
             trace!("MTF counter decremented to {}", *counter);
