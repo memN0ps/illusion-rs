@@ -61,6 +61,10 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
         vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
+        // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
+        let instruction_count = unsafe { calculate_instruction_count(ept_hook.guest_pa.as_u64(), ept_hook.inline_hook.unwrap().hook_size()) as u64 };
+        ept_hook.mtf_counter = Some(instruction_count);
+
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
 
@@ -73,6 +77,38 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     trace!("Register state after handling VM exit: {:?}", vm.guest_registers);
     Ok(ExitType::Continue)
+}
+
+/// Calculates the number of instructions that fit into the given number of bytes,
+/// adjusting for partial instruction overwrites by including the next full instruction.
+///
+/// # Safety
+///
+/// This function is unsafe because it performs operations on raw pointers. The caller must
+/// ensure that the memory at `guest_pa` (converted properly to a virtual address if necessary)
+/// is valid and that reading beyond `hook_size` bytes does not cause memory violations.
+pub unsafe fn calculate_instruction_count(guest_pa: u64, hook_size: usize) -> usize {
+    // Define a buffer size, typical maximum x86-64 instruction length is 15 bytes.
+    let buffer_size = hook_size + 15; // Buffer size to read, slightly larger than hook_size to accommodate potential long instructions at the boundary.
+    let bytes = core::slice::from_raw_parts(guest_pa as *const u8, buffer_size);
+
+    let mut byte_count = 0;
+    let mut instruction_count = 0;
+    // Use a disassembler engine to iterate over the instructions within the bytes read.
+    for (opcode, pa) in lde::X64.iter(bytes, guest_pa) {
+        byte_count += opcode.len();
+        instruction_count += 1;
+
+        trace!("{:x}: {}", pa, opcode);
+        if byte_count >= hook_size {
+            break;
+        }
+    }
+
+    trace!("Calculated byte count: {}", byte_count);
+    trace!("Calculated instruction count: {}", instruction_count);
+
+    instruction_count
 }
 
 fn log_nt_query_system_information_params(regs: &GuestRegisters) {

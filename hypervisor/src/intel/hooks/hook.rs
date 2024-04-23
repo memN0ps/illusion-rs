@@ -61,11 +61,11 @@ pub struct EptHook {
     /// The type of hook to be installed.
     pub hook_type: EptHookType,
 
-    /// The inline hook configuration for the hook.
-    pub inline_hook: Option<InlineHook>,
-
     /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
     pub mtf_counter: Option<u64>,
+
+    /// The inline hook configuration for the hook.
+    pub inline_hook: Option<InlineHook>,
 }
 
 impl EptHook {
@@ -153,7 +153,6 @@ impl EptHook {
         self.host_shadow_function_pa = host_shadow_function_pa;
         self.hook_handler = hook_handler;
         self.hook_type = EptHookType::Function(hook_type);
-        self.mtf_counter = Some(inline_hook.hook_size() as u64);
         self.inline_hook = Some(inline_hook);
 
         Some(())
