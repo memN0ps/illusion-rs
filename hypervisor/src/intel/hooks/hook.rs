@@ -6,17 +6,11 @@
 //!
 
 use {
-    crate::{
-        error::HypervisorError,
-        intel::{
-            addresses::PhysicalAddress,
-            ept::{AccessType, Ept, Pt},
-            hooks::inline::{InlineHook, InlineHookType},
-            invept::invept_all_contexts,
-            invvpid::invvpid_all_contexts,
-            page::Page,
-            vm::Vm,
-        },
+    crate::intel::{
+        addresses::PhysicalAddress,
+        ept::Pt,
+        hooks::inline::{InlineHook, InlineHookType},
+        page::Page,
     },
     alloc::boxed::Box,
     core::intrinsics::copy_nonoverlapping,
@@ -41,6 +35,7 @@ pub enum EptHookType {
 /// `EptHook` is a container for multiple hooks and provides an interface
 /// to enable or disable these hooks as a group. It's primarily responsible for
 /// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
+#[derive(Debug, Clone)]
 pub struct EptHook {
     /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT (Pre-Allocated).
     pub primary_ept_pre_alloc_pt: Box<Pt>,
@@ -68,6 +63,9 @@ pub struct EptHook {
 
     /// The inline hook configuration for the hook.
     pub inline_hook: Option<InlineHook>,
+
+    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
+    pub mtf_counter: Option<u64>,
 }
 
 impl EptHook {
@@ -93,95 +91,9 @@ impl EptHook {
             hook_handler: core::ptr::null(),
             hook_type: EptHookType::Function(InlineHookType::Int3),
             inline_hook: None,
+            mtf_counter: None,
         };
         Box::new(hooks)
-    }
-
-    /// Installs an EPT hook for a function.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine instance of the hypervisor.
-    /// * guest_va - The virtual address of the function or page to be hooked.
-    /// * hook_handler - The handler function to be called when the hooked function is executed.
-    /// * ept_hook_type - The type of EPT hook to be installed.
-    ///
-    /// # Returns
-    ///
-    /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
-    #[rustfmt::skip]
-    pub fn ept_hook(vm: &mut Vm, guest_va: u64, hook_handler: *const (), ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        trace!("Creating EPT hook for function at VA: {:#x}", guest_va);
-
-        // Ensure the index is within bounds
-        if vm.hook_manager.current_hook_index >= vm.hook_manager.ept_hooks.len() {
-            return Err(HypervisorError::OutOfHooks);
-        }
-
-        trace!("Accessing Hook Manager with hook index: {}", vm.hook_manager.current_hook_index);
-
-        // Access the current hook based on `current_hook_index`
-        let ept_hook = vm.hook_manager.ept_hooks.get_mut(vm.hook_manager.current_hook_index).ok_or(HypervisorError::FailedToGetCurrentHookIndex)?;
-
-        match ept_hook_type {
-            EptHookType::Function(inline_hook_type) => {
-                ept_hook.hook_function(guest_va, hook_handler, inline_hook_type).ok_or(HypervisorError::HookError)?;
-            }
-            EptHookType::Page => {
-                ept_hook.hook_page(guest_va, hook_handler, ept_hook_type).ok_or(HypervisorError::HookError)?;
-            }
-        }
-
-        // Enable the hook by setting the necessary permissions on the primary EPTs.
-        ept_hook.enable_hooks(&mut vm.primary_ept)?;
-
-        // Increment the hook index for the next hook.
-        vm.hook_manager.current_hook_index += 1;
-        trace!("Hook Index Incremented: {}", vm.hook_manager.current_hook_index);
-
-        trace!("EPT hook created successfully");
-
-        Ok(())
-    }
-
-    /// Enables all the hooks managed by the `Hook`.
-    ///
-    /// It sets the necessary permissions on the primary Extended Page Tables (EPTs)
-    /// to intercept execution and data access at specific memory locations. This function is
-    /// particularly used to switch between primary EPTs when executing hooked functions.
-    ///
-    /// # Arguments
-    ///
-    /// * `primary_ept` - A mutable reference to the primary EPT, typically representing the normal memory view.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
-    #[rustfmt::skip]
-    pub fn enable_hooks(&mut self, primary_ept: &mut Box<Ept>) -> Result<(), HypervisorError> {
-        trace!("Enabling hooks");
-
-        // Align the guest function or page address to the large page size.
-        let guest_large_page_pa = self.guest_pa.align_down_to_large_page().as_u64();
-
-        // Split the guest 2MB page into 4KB pages for the primary EPT.
-        trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-        primary_ept.split_2mb_to_4kb(guest_large_page_pa, self.primary_ept_pre_alloc_pt.as_mut())?;
-
-        // Align the guest function or page address to the base page size.
-        let guest_page_pa = self.guest_pa.align_down_to_base_page().as_u64();
-
-        // Modify the page permission in the primary EPT to ReadWrite for the guest page.
-        trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
-        primary_ept.modify_page_permissions(guest_page_pa, AccessType::READ_WRITE, self.primary_ept_pre_alloc_pt.as_mut())?;
-
-        // Invalidate the EPT cache for all contexts.
-        invept_all_contexts();
-
-        // Invalidate the VPID cache for all contexts.
-        invvpid_all_contexts();
-
-        Ok(())
     }
 
     /// Creates a hook on a function by its name.
@@ -241,6 +153,7 @@ impl EptHook {
         self.host_shadow_function_pa = host_shadow_function_pa;
         self.hook_handler = hook_handler;
         self.hook_type = EptHookType::Function(hook_type);
+        self.mtf_counter = Some(inline_hook.hook_size() as u64);
         self.inline_hook = Some(inline_hook);
 
         Some(())

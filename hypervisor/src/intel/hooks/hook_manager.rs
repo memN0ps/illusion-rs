@@ -2,7 +2,14 @@ use {
     crate::{
         allocate::box_zeroed,
         error::HypervisorError,
-        intel::{ept::Pt, hooks::hook::EptHook, page::Page},
+        intel::{
+            ept::{AccessType, Pt},
+            hooks::hook::{EptHook, EptHookType},
+            invept::invept_all_contexts,
+            invvpid::invvpid_all_contexts,
+            page::Page,
+            vm::Vm,
+        },
         windows::kernel::KernelHook,
     },
     alloc::{boxed::Box, vec::Vec},
@@ -14,12 +21,18 @@ pub const MAX_HOOKS: usize = 64;
 
 /// Represents hook manager structures for hypervisor operations.
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct HookManager {
     /// The EPT hook manager.
     pub ept_hooks: Vec<Box<EptHook>>,
 
-    /// The current hook index.
-    pub current_hook_index: usize,
+    /// Currently active EptHook, boxed to manage ownership and mutability centrally.
+    /// Set during `vmcall` and get during `mtf` to handle the Monitor Trap Flag VM exit.
+    pub current_ept_hook: Option<EptHook>,
+
+    /// The index of the hook, used to retrieve the next available pre-allocated hook,
+    /// so we don't have to allocate memory on the fly and can call `ept_hook` multiple times.
+    pub hook_index: usize,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
     pub kernel_hook: KernelHook,
@@ -31,9 +44,6 @@ pub struct HookManager {
     /// The old RFLAGS value before turning off the interrupt flag.
     /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
     pub old_rflags: Option<u64>,
-
-    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
-    pub mtf_counter: Option<u64>,
 }
 
 impl HookManager {
@@ -64,12 +74,118 @@ impl HookManager {
 
         Ok(Box::new(Self {
             ept_hooks,
-            current_hook_index: 0,
+            current_ept_hook: None,
+            hook_index: 0,
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
             old_rflags: None,
-            mtf_counter: None,
         }))
+    }
+
+    /// Installs an EPT hook for a function.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine instance of the hypervisor.
+    /// * guest_va - The virtual address of the function or page to be hooked.
+    /// * hook_handler - The handler function to be called when the hooked function is executed.
+    /// * ept_hook_type - The type of EPT hook to be installed.
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
+    #[rustfmt::skip]
+    pub fn ept_hook(vm: &mut Vm, guest_va: u64, hook_handler: *const (), ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+        trace!("Creating EPT hook for function at VA: {:#x}", guest_va);
+
+        // Retrieve the next available hook
+        let ept_hook = vm.hook_manager.retrieve_and_advance_hook()?;
+
+        // Setup the hook based on the type
+        match ept_hook_type {
+            EptHookType::Function(inline_hook_type) => {
+                ept_hook.hook_function(guest_va, hook_handler, inline_hook_type).ok_or(HypervisorError::HookError)?;
+            },
+            EptHookType::Page => {
+                ept_hook.hook_page(guest_va, hook_handler, ept_hook_type).ok_or(HypervisorError::HookError)?;
+            }
+        }
+
+        // Align the guest function or page address to the large page size.
+        let guest_large_page_pa = ept_hook.guest_pa.align_down_to_large_page().as_u64();
+
+        // Split the guest 2MB page into 4KB pages for the primary EPT.
+        trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+        vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+
+        // Align the guest function or page address to the base page size.
+        let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
+
+        // Modify the page permission in the primary EPT to ReadWrite for the guest page.
+        trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
+        vm.primary_ept.modify_page_permissions(guest_page_pa, AccessType::READ_WRITE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+
+        // Invalidate the EPT cache for all contexts.
+        invept_all_contexts();
+
+        // Invalidate the VPID cache for all contexts.
+        invvpid_all_contexts();
+
+        trace!("EPT hook created and enabled successfully");
+
+        Ok(())
+    }
+
+    /// Retrieves a mutable reference to the current EPT hook if it exists.
+    ///
+    /// # Returns
+    /// * `Option<&mut EptHook>` - A mutable reference to the current EPT hook, or `None` if no hook is currently set.
+    pub fn get_current_hook_mut(&mut self) -> Option<&mut EptHook> {
+        self.current_ept_hook.as_mut()
+    }
+
+    /// Retrieves the current available hook and prepares the next one for use by incrementing
+    /// the index. This approach ensures the hook is ready for immediate deployment while
+    /// setting up the manager for subsequent operations.
+    ///
+    /// # Returns
+    /// * `Result<&mut EptHook, HypervisorError>` - A mutable reference to the current available EptHook,
+    /// or an error if all hooks are in use.
+    pub fn retrieve_and_advance_hook(&mut self) -> Result<&mut EptHook, HypervisorError> {
+        if self.hook_index >= self.ept_hooks.len() {
+            Err(HypervisorError::OutOfHooks)
+        } else {
+            let hook = &mut self.ept_hooks[self.hook_index];
+            self.hook_index += 1; // Increment index to prepare for the next call
+            trace!("Hook retrieved and index advanced to: {}", self.hook_index);
+            Ok(hook)
+        }
+    }
+
+    /// Tries to find a hook by its index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of the hook to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<&mut EptHook>` - A mutable reference to the hook if found, or `None` if the index is out of bounds.
+    pub fn find_hook_by_index(&mut self, index: usize) -> Option<&mut EptHook> {
+        self.ept_hooks.get_mut(index).map(|hook| &mut **hook)
+    }
+
+    /// Tries to find a hook by its index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of the hook to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<&EptHook>` - A reference to the hook if found, or `None` if the index is out of bounds.
+    pub fn find_hook_by_index_as_ref(&self, index: usize) -> Option<&EptHook> {
+        self.ept_hooks.get(index).map(|hook| &**hook)
     }
 
     /// Tries to find a hook for the specified hook guest virtual address.

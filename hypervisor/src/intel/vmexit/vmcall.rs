@@ -47,18 +47,22 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let vmcall_number = vm.guest_registers.rax;
     trace!("VMCALL command number: {:#x}", vmcall_number);
 
+    // Set the current hook to the EPT hook for handling MTF exit
+
     if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
         log_nt_create_file_params(&vm.guest_registers);
 
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
+
+        // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
         vm.primary_ept.swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
-        vm.hook_manager.mtf_counter = Some(ept_hook.inline_hook.unwrap().hook_size() as u64);
-        trace!("MTF counter initialized to {}", vm.hook_manager.mtf_counter.unwrap_or(0));
 
-        // Prevent interrupts from being handled for guest while restoring the overwritten instruction and hook during monitor trap flag vmexit.
+        vm.hook_manager.current_ept_hook = Some(ept_hook.clone());
+
+        // Ensure all data mutations to vm are done before calling this
         update_guest_interrupt_flag(vm, false)?;
     } else {
         warn!("Unhandled VMCALL number: {:#x}", vmcall_number);

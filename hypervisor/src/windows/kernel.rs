@@ -3,7 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
-            hooks::hook::{EptHook, EptHookType},
+            hooks::{hook::EptHookType, hook_manager::HookManager},
             vm::Vm,
         },
         windows::{
@@ -87,7 +87,7 @@ impl KernelHook {
 
         trace!("Function address: {:#x}", function_va as u64);
 
-        EptHook::ept_hook(vm, function_va as u64, hook_handler, ept_hook_type)?;
+        HookManager::ept_hook(vm, function_va as u64, hook_handler, ept_hook_type)?;
 
         info!("Windows kernel inline hook installed successfully");
 
@@ -129,7 +129,7 @@ impl KernelHook {
             ssdt_hook.guest_function_va as u64
         );
 
-        EptHook::ept_hook(
+        HookManager::ept_hook(
             vm,
             ssdt_hook.guest_function_va as u64,
             hook_handler,

@@ -26,38 +26,34 @@ use {
 #[rustfmt::skip]
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
-    trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
-
-    if let Some(ref mut counter) = vm.hook_manager.mtf_counter {
-        if *counter > 0 {
-            *counter -= 1;
+    if let Some(ept_hook) = vm.hook_manager.get_current_hook_mut() {
+        if let Some(ref mut counter) = ept_hook.mtf_counter {
+            *counter = counter.saturating_sub(1); // Safely decrement the counter
             trace!("MTF counter decremented to {}", *counter);
-        }
 
-        if *counter == 0 {
-            if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rax) {
-                // Disable MTF and restore state when all instructions have executed
+            if *counter == 0 {
                 set_monitor_trap_flag(false);
+                // Now vm is not borrowed, can pass vm to functions separately
                 vm.primary_ept.swap_page(
                     ept_hook.guest_pa.align_down_to_base_page().as_u64(),
                     ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
                     AccessType::EXECUTE,
-                    ept_hook.primary_ept_pre_alloc_pt.as_mut()
+                    &mut ept_hook.primary_ept_pre_alloc_pt
                 )?;
                 restore_guest_interrupt_flag(vm)?;
                 trace!("Monitor Trap Flag disabled, original execution restored.");
-                vm.hook_manager.mtf_counter = None;  // Reset the counter
             } else {
-                return Err(HypervisorError::HookNotFound);
+                set_monitor_trap_flag(true);  // Keep MTF enabled if there are more steps
             }
-            return Ok(ExitType::IncrementRIP);
+        } else {
+            error!("No active MTF counter found, possibly an error in state management.");
+            return Err(HypervisorError::MtfCounterNotSet);
         }
-
-        Ok(ExitType::Continue)
     } else {
-        error!("No active MTF counter found, possibly an error in state management.");
-        Err(HypervisorError::MtfCounterNotSet)
+        error!("No current hook set, unable to handle MTF exit.");
+        return Err(HypervisorError::HookNotFound);
     }
+    Ok(ExitType::Continue)
 }
 
 /// Set the monitor trap flag
