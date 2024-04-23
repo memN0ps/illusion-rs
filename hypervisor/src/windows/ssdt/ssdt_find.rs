@@ -67,7 +67,7 @@ impl SsdtFind {
         // Calculate the starting address of KiServiceSystemStart based on the offset.
         // That is: `14042ba57  8bf8               mov     edi, eax` in this case.
         let ki_service_system_start = unsafe { kernel_base.add(offset) };
-        info!(
+        trace!(
             "KiServiceSystemStart address: {:p}",
             ki_service_system_start
         );
@@ -81,7 +81,7 @@ impl SsdtFind {
         // Reading the 4-byte relative offset for KeServiceDescriptorTableShadow
         let relative_offset = unsafe { *(lea_r11_address.add(3) as *const i32) }; // 3 bytes after the opcode
 
-        info!("Relative offset: {:x}", relative_offset);
+        trace!("Relative offset: {:x}", relative_offset);
 
         // Compute the absolute address of KeServiceDescriptorTableShadow
         let ke_service_descriptor_table_shadow =
@@ -96,8 +96,8 @@ impl SsdtFind {
         // Win32kTable Address of Win32k Syscall Table
         let win32k_table = unsafe { shadow.offset(0x20) as *const u64 };
 
-        info!("NtTable address: {:p}", nt_table);
-        info!("Win32kTable address: {:p}", win32k_table);
+        trace!("NtTable address: {:p}", nt_table);
+        trace!("Win32kTable address: {:p}", win32k_table);
 
         Ok(Self {
             nt_table,

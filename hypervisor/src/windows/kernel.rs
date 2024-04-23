@@ -136,7 +136,7 @@ impl KernelHook {
             ept_hook_type,
         )?;
 
-        info!("Windows kernel ssdt hook installed successfully");
+        trace!("Windows Kernel SSDT hook installed successfully");
 
         Ok(())
     }
