@@ -65,8 +65,7 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     logger::init(SerialPort::COM1, LevelFilter::Trace);
 
     // Initialize UEFI services.
-    uefi_services::init(&mut system_table).unwrap();
-    // allocator::init(&system_table);
+    uefi::helpers::init(&mut system_table).unwrap();
 
     info!("The Matrix is an illusion");
 
