@@ -76,7 +76,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 }
 
 fn log_nt_query_system_information_params(regs: &GuestRegisters) {
-    debug!(
+    info!(
         "NtQuerySystemInformation called with parameters: SystemInformationClass: {}, \
         SystemInformation: {:#018x}, SystemInformationLength: {}, ReturnLength: {:#018x}",
         system_information_class_name(regs.rcx as u32),
