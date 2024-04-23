@@ -35,12 +35,15 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         //   Instruction Fetch: true,
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
         trace!("Execution attempt on non-executable page, switching to shadow page.");
+        info!("Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).");
+        info!("Execution attempt on non-executable page, switching to hooked shadow-copy page.");
         vm.primary_ept.swap_page(
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
             AccessType::EXECUTE,
             ept_hook.primary_ept_pre_alloc_pt.as_mut()
         )?;
+        info!("Page swapped successfully!");
     } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
         // if the instruction fetch is false and the page is executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: false,
