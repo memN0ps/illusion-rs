@@ -7,7 +7,6 @@ use {
         intel::{
             capture::GuestRegisters,
             ept::AccessType,
-            hooks::{hook::EptHook, inline::InlineHookType},
             vm::Vm,
             vmexit::{
                 mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},

@@ -8,7 +8,7 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 description = "Performs cargo check on specified packages."
 script = [
     "cargo check --package hypervisor",  # Checks the 'hypervisor' package.
-    "cargo check --package uefi",        # Checks the 'uefi' package.
+    "cargo check --package illusion",        # Checks the 'illusion' package.
     "cargo check --package loader"       # Checks the 'loader' package.
 ]
 
@@ -24,7 +24,7 @@ script = [
 description = "Builds specified packages in debug mode."
 script = [
     "cargo build --package loader --target x86_64-unknown-uefi",  # Builds the 'loader' package for UEFI in debug mode.
-    "cargo build --package uefi --target x86_64-unknown-uefi"  # Builds the 'uefi' package for UEFI in debug mode.
+    "cargo build --package illusion --target x86_64-unknown-uefi"  # Builds the 'illusion' package for UEFI in debug mode.
 ]
 
 # Task to compile the release versions of specific packages targeting UEFI.
@@ -32,7 +32,7 @@ script = [
 description = "Builds specified packages in release mode."
 script = [
     "cargo build --package loader --target x86_64-unknown-uefi --release",  # Builds the 'loader' package for UEFI in release mode.
-    "cargo build --package uefi --target x86_64-unknown-uefi --release"  # Builds the 'uefi' package for UEFI in release mode.
+    "cargo build --package illusion --target x86_64-unknown-uefi --release"  # Builds the 'illusion' package for UEFI in release mode.
 ]
 
 # Meta-task that runs multiple tasks sequentially for a complete debug build.
