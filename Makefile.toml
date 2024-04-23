@@ -39,7 +39,6 @@ script = [
 [tasks.build-all-debug]
 description = "Runs check, format, and builds all specified packages in debug mode."
 category = "build"
-workspace = false  # This task should run only once for the whole workspace
 dependencies = [
     "check-packages",  # First, perform a check for compile-time errors.
     "fmt",             # Next, format all code.
@@ -50,7 +49,6 @@ dependencies = [
 [tasks.build-all-release]
 description = "Runs check, format, and builds all specified packages in release mode."
 category = "build"
-workspace = false  # This task should run only once for the whole workspace
 dependencies = [
     "check-packages",  # First, perform a check for compile-time errors.
     "fmt",             # Next, format all code.
