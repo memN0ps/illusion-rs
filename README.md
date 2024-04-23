@@ -42,8 +42,8 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Building the Project
 
-- Debug: `cargo make build-all-debug`.
-- Release: `cargo make build-all-release`.
+- Debug: `cargo make build-debug`.
+- Release: `cargo make build-release`.
 
 ## Acknowledgments, References, and Motivation
 
