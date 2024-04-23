@@ -49,12 +49,14 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         //   Instruction Fetch: false,
         //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
         // trace!("Read/Write attempt on execute-only page, restoring original page.");
+        /*
         vm.primary_ept.swap_page(
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             AccessType::READ_WRITE,
             ept_hook.primary_ept_pre_alloc_pt.as_mut()
         )?;
+         */
     }
     
     trace!("EPT Violation handled successfully!");
