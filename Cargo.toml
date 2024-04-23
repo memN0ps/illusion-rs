@@ -7,18 +7,16 @@ members = [
     "uefi",
 ]
 
-[profile.release]
-#opt-level = "z"     # Optimize for size.
-lto = true          # Enable Link Time Optimization
-#codegen-units = 1   # Reduce number of codegen units to increase optimizations.
-panic = "abort"     # Abort on panic
-#strip = true        # Automatically strip symbols from the binary.
-debug-assertions = false
-
 [profile.dev]
-#opt-level = "z"     # Optimize for size.
-lto = true          # Enable Link Time Optimization
-#codegen-units = 1   # Reduce number of codegen units to increase optimizations.
-panic = "abort"     # Abort on panic
-#strip = true        # Automatically strip symbols from the binary.
+panic = "abort"          # Abort on panic
+lto = false              # Disable Link Time Optimization
+debug = true             # Enable debug information
+debug-assertions = true  # Enable debug assertions
+
+[profile.release]
+#opt-level = "z"         # Optimize for size.
+lto = true               # Enable Link Time Optimization
+#codegen-units = 1       # Reduce number of codegen units to increase optimizations.
+panic = "abort"          # Abort on panic
+#strip = true            # Automatically strip symbols from the binary.
 debug-assertions = false
