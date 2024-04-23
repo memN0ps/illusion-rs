@@ -32,7 +32,6 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
         if *counter > 0 {
             *counter -= 1;
             trace!("MTF counter decremented to {}", *counter);
-            set_monitor_trap_flag(*counter > 0);  // Keep MTF enabled if there are more steps
         }
 
         if *counter == 0 {

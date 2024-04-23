@@ -48,7 +48,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let vmcall_number = vm.guest_registers.rax;
     trace!("VMCALL command number: {:#x}", vmcall_number);
 
-    if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vmcall_number) {
+    if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
         log_nt_create_file_params(&vm.guest_registers);
 
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
@@ -56,7 +56,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
-        vm.hook_manager.mtf_counter = Some(calculate_instruction_count(ept_hook));
+        vm.hook_manager.mtf_counter = Some(ept_hook.inline_hook.unwrap().hook_size() as u64);
         trace!("MTF counter initialized to {}", vm.hook_manager.mtf_counter.unwrap_or(0));
 
         // Prevent interrupts from being handled for guest while restoring the overwritten instruction and hook during monitor trap flag vmexit.
@@ -89,13 +89,4 @@ fn log_nt_create_file_params(regs: &GuestRegisters) {
         regs.rsp + 0x50, // EaBuffer (pointer)
         regs.rsp + 0x58  // EaLength
     );
-}
-
-/// Calculates the estimated number of machine instructions that need to be executed to cover the bytes overwritten by the hook.
-fn calculate_instruction_count(ept_hook: &EptHook) -> u64 {
-    match ept_hook.inline_hook.as_ref().unwrap().hook_type {
-        InlineHookType::Int3 => 1,   // Typically one instruction
-        InlineHookType::Cpuid => 1,  // Typically one instruction, though could affect more
-        InlineHookType::Vmcall => 1, // Typically one instruction
-    }
 }
