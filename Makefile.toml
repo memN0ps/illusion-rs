@@ -1,0 +1,58 @@
+# General environment settings for the workspace.
+# Ensures tasks defined in the root Makefile are available to all workspace members.
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+# Task to check the code of specific packages for errors without compiling the final binaries.
+[tasks.check-packages]
+description = "Performs cargo check on specified packages."
+script = [
+    "cargo check --package hypervisor",  # Checks the 'hypervisor' package.
+    "cargo check --package uefi",        # Checks the 'uefi' package.
+    "cargo check --package loader"       # Checks the 'loader' package.
+]
+
+# Task to format all Rust files in the project according to standard rustfmt guidelines.
+[tasks.fmt]
+description = "Formats all packages using rustfmt."
+script = [
+    "cargo fmt"  # Formats the code using Rust's formatting tool, rustfmt.
+]
+
+# Task to compile the debug versions of specific packages targeting UEFI.
+[tasks.build-dev-debug]
+description = "Builds specified packages in debug mode."
+script = [
+    "cargo build --package loader --target x86_64-unknown-uefi",  # Builds the 'loader' package for UEFI in debug mode.
+    "cargo build --package uefi --target x86_64-unknown-uefi"  # Builds the 'uefi' package for UEFI in debug mode.
+]
+
+# Task to compile the release versions of specific packages targeting UEFI.
+[tasks.build-dev-release]
+description = "Builds specified packages in release mode."
+script = [
+    "cargo build --package loader --target x86_64-unknown-uefi --release",  # Builds the 'loader' package for UEFI in release mode.
+    "cargo build --package uefi --target x86_64-unknown-uefi --release"  # Builds the 'uefi' package for UEFI in release mode.
+]
+
+# Meta-task that runs multiple tasks sequentially for a complete debug build.
+[tasks.build-all-debug]
+description = "Runs check, format, and builds all specified packages in debug mode."
+category = "build"
+workspace = false  # This task should run only once for the whole workspace
+dependencies = [
+    "check-packages",  # First, perform a check for compile-time errors.
+    "fmt",             # Next, format all code.
+    "build-dev-debug"  # Finally, compile the debug versions.
+]
+
+# Meta-task that runs multiple tasks sequentially for a complete release build.
+[tasks.build-all-release]
+description = "Runs check, format, and builds all specified packages in release mode."
+category = "build"
+workspace = false  # This task should run only once for the whole workspace
+dependencies = [
+    "check-packages",  # First, perform a check for compile-time errors.
+    "fmt",             # Next, format all code.
+    "build-dev-release"  # Finally, compile the release versionclss.
+]
