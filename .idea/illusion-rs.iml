@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/hypervisor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/loader/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/xtask/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/illusion/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/uefi/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
