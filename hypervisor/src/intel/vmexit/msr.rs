@@ -59,14 +59,13 @@ pub fn handle_msr_access(
     let msr_id = vm.guest_registers.rcx as u32;
     let msr_value = (vm.guest_registers.rdx << 32) | (vm.guest_registers.rax & MSR_MASK_LOW);
 
-    // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks).
-    // Credits: https://mellownight.github.io/AetherVisor
-    // Check if the MSR address is in the Hyper-V range or outside other valid ranges
+    // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks)
+    // by checking if the MSR address is in the Hyper-V range or outside other valid ranges
 
     // First, check if the MSR access falls within the reserved Hyper-V range
     if msr_id >= HYPERV_MSR_START as u32 && msr_id <= HYPERV_MSR_END as u32 {
         log::trace!("Access to reserved Hyper-V MSR attempted: {:#x}", msr_id);
-        EventInjection::vmentry_inject_gp(0); // This is just an example; adjust based on your handling requirements
+        EventInjection::vmentry_inject_gp(0);
         return Ok(ExitType::Continue);
     }
 
