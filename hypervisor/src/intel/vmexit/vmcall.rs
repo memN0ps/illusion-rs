@@ -52,9 +52,13 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
         info!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
 
-        log_nt_query_system_information_params(&vm.guest_registers);
+        // log_nt_query_system_information_params(&vm.guest_registers);
 
         // log_nt_create_file_params(&vm.guest_registers);
+
+        log_nt_open_process_params(&vm.guest_registers);
+
+        // log_mm_is_address_valid_params(&vm.guest_registers);
 
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
@@ -109,6 +113,14 @@ pub unsafe fn calculate_instruction_count(guest_pa: u64, hook_size: usize) -> us
     trace!("Calculated instruction count: {}", instruction_count);
 
     instruction_count
+}
+
+fn log_mm_is_address_valid_params(regs: &GuestRegisters) {
+    info!(
+        "MmIsAddressValid called with parameters:\n\
+         VirtualAddress: {:#018x}", // Typically passed in RCX for x64 calling convention
+        regs.rcx // VirtualAddress to check
+    );
 }
 
 fn log_nt_query_system_information_params(regs: &GuestRegisters) {
@@ -182,7 +194,7 @@ fn system_information_class_name(class: u32) -> &'static str {
 }
 
 fn log_nt_create_file_params(regs: &GuestRegisters) {
-    debug!(
+    info!(
         "NtCreateFile called with parameters:\n\
          FileHandle: {:#018x}, DesiredAccess: {:#018x}, ObjectAttributes: {:#018x},\n\
          IoStatusBlock: {:#018x}, AllocationSize: {:#018x}, FileAttributes: {:#x},\n\
@@ -199,5 +211,19 @@ fn log_nt_create_file_params(regs: &GuestRegisters) {
         regs.rsp + 0x48, // CreateOptions
         regs.rsp + 0x50, // EaBuffer (pointer)
         regs.rsp + 0x58  // EaLength
+    );
+}
+
+fn log_nt_open_process_params(regs: &GuestRegisters) {
+    info!(
+        "NtOpenProcess called with parameters:\n\
+         ProcessHandle (out): {:#018x},\n\
+         DesiredAccess: {:#018x},\n\
+         ObjectAttributes: {:#018x},\n\
+         ClientId (PID): {:#018x}", // Assuming ClientId is a pointer to a CLIENT_ID structure that contains PID
+        regs.rcx, // ProcessHandle, typically a pointer to a HANDLE, passed back out to the caller
+        regs.rdx, // DesiredAccess, specifies access rights
+        regs.r8,  // ObjectAttributes, pointer to an OBJECT_ATTRIBUTES structure
+        regs.r9   // ClientId, pointer to a CLIENT_ID structure (which typically includes a PID)
     );
 }
