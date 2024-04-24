@@ -49,7 +49,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     // Set the current hook to the EPT hook for handling MTF exit
 
-    if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
+    let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
         info!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
 
         // log_nt_query_system_information_params(&vm.guest_registers);
@@ -74,13 +74,44 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
         // Ensure all data mutations to vm are done before calling this
         update_guest_interrupt_flag(vm, false)?;
-    } else {
-        warn!("Unhandled VMCALL number: {:#x}", vmcall_number);
-        return Ok(ExitType::Continue);
-    }
 
-    trace!("Register state after handling VM exit: {:?}", vm.guest_registers);
-    Ok(ExitType::Continue)
+        Ok(ExitType::Continue)
+    } else {
+        // If the address is not a hook and we are running under hyper-v forward it.
+        debug!("Hyper-V VMCALL detected and handled.");
+        asm_hyperv_vmcall(vm.guest_registers.rcx, vm.guest_registers.rdx, vm.guest_registers.r8);
+
+        Ok(ExitType::IncrementRIP)
+    };
+
+    exit_type
+}
+
+/// Execute a Hyper-V VMCALL.
+///
+/// # Safety
+///
+/// This function is unsafe because it uses inline assembly and can cause a VM exit or other undefined behavior
+/// if not used within the proper hypervisor context.
+///
+/// # Parameters
+///
+/// * `hypercall_input_value` - The input value for the hypercall.
+/// * `input_parameters_gpa` - Guest Physical Address (GPA) of the input parameters.
+/// * `output_parameters_gpa` - Guest Physical Address (GPA) of the output parameters.
+pub fn asm_hyperv_vmcall(
+    hypercall_input_value: u64,
+    input_parameters_gpa: u64,
+    output_parameters_gpa: u64,
+) {
+    unsafe {
+        core::arch::asm!("vmcall",
+        in("rcx") hypercall_input_value,
+        in("rdx") input_parameters_gpa,
+        in("r8") output_parameters_gpa,
+        options(nostack, nomem)
+        );
+    }
 }
 
 /// Calculates the number of instructions that fit into the given number of bytes,
@@ -115,6 +146,7 @@ pub unsafe fn calculate_instruction_count(guest_pa: u64, hook_size: usize) -> us
     instruction_count
 }
 
+#[allow(dead_code)]
 fn log_mm_is_address_valid_params(regs: &GuestRegisters) {
     info!(
         "MmIsAddressValid called with parameters:\n\
@@ -123,6 +155,7 @@ fn log_mm_is_address_valid_params(regs: &GuestRegisters) {
     );
 }
 
+#[allow(dead_code)]
 fn log_nt_query_system_information_params(regs: &GuestRegisters) {
     info!(
         "NtQuerySystemInformation called with parameters: SystemInformationClass: {}, \
@@ -134,6 +167,7 @@ fn log_nt_query_system_information_params(regs: &GuestRegisters) {
     );
 }
 
+#[allow(dead_code)]
 fn system_information_class_name(class: u32) -> &'static str {
     match class {
         0x00 => "SystemBasicInformation",
@@ -193,6 +227,7 @@ fn system_information_class_name(class: u32) -> &'static str {
     }
 }
 
+#[allow(dead_code)]
 fn log_nt_create_file_params(regs: &GuestRegisters) {
     info!(
         "NtCreateFile called with parameters:\n\
@@ -214,6 +249,7 @@ fn log_nt_create_file_params(regs: &GuestRegisters) {
     );
 }
 
+#[allow(dead_code)]
 fn log_nt_open_process_params(regs: &GuestRegisters) {
     info!(
         "NtOpenProcess called with parameters:\n\
