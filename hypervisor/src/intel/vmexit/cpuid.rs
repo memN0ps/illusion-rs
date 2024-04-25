@@ -124,10 +124,10 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 //info!("Hooking NtQuerySystemInformation with syscall number 0x36");
                 //kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
-                info!("Hooking NtOpenProcess with syscall number 0x26");
-                kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                //info!("Hooking NtOpenProcess with syscall number 0x26");
+                //kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
-                info!("Hook installed successfully!");
+                //info!("Hook installed successfully!");
 
                 vm.hook_manager.has_cpuid_cache_info_been_called = true;
             }
@@ -143,7 +143,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
         },
         // Handle CPUID for hypervisor interface identification.
-        leaf if leaf == CpuidLeaf::HypervisorInterface as u32 => {
+        leaf if leaf == CpuidLeaf::HypervisorInterface as u32 && cfg!(feature = "hyperv") => {
             // log::trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
             // Return information indicating the hypervisor's interface.
             // Here, we specify that our hypervisor does not conform to the Microsoft hypervisor interface ("Hv#1").
