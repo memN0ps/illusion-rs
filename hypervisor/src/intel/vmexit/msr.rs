@@ -64,8 +64,9 @@ pub fn handle_msr_access(
 
     // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks)
     // by checking if the MSR address is in the Hyper-V range or outside other valid ranges
-    if !MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id)
-        || MSR_HYPERV_RANGE.contains(&msr_id)
+    if !MSR_VALID_RANGE_LOW.contains(&msr_id)
+        && !MSR_VALID_RANGE_HIGH.contains(&msr_id)
+        && !cfg!(feature = "hyperv")
     {
         log::trace!("Invalid MSR access attempted: {:#x}", msr_id);
         EventInjection::vmentry_inject_gp(0);
