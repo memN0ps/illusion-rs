@@ -7,7 +7,6 @@ use {
         intel::{
             hooks::{hook::EptHookType, inline::InlineHookType},
             vm::Vm,
-            vmerror::VmxBasicExitReason::Cpuid,
             vmexit::ExitType,
         },
     },
@@ -63,6 +62,7 @@ pub enum CpuidLeaf {
 
 /// Enumerates specific feature bits in the ECX register for CPUID instruction results.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 enum FeatureBits {
     /// Bit 5 of ECX for CPUID with EAX=1, indicating VMX support.
     HypervisorVmxSupportBit = 5,
@@ -114,17 +114,16 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         },
         leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
             trace!("CPUID leaf 0x2 detected (Cache Information).");
-            let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
-
-            if vm.hook_manager.has_cpuid_cache_info_been_called == false {
+            if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
                 trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
+                let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
 
                 // Setup a named function hook (example: MmIsAddressValid)
                 // info!("Hooking MmIsAddressValid with inline hook");
                 // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
-                //info!("Hooking NtCreateFile with syscall number 0x055");
-                //kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                info!("Hooking NtCreateFile with syscall number 0x055");
+                kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
                 //info!("Hooking NtQuerySystemInformation with syscall number 0x36");
                 //kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
