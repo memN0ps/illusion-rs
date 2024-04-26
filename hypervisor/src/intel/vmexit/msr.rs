@@ -54,7 +54,7 @@ pub fn handle_msr_access(
     // Define the range for valid MSR access and Hyper-V MSRs
     const MSR_VALID_RANGE_LOW: RangeInclusive<u32> = 0x00000000..=0x00001FFF;
     const MSR_VALID_RANGE_HIGH: RangeInclusive<u32> = 0xC0000000..=0xC0001FFF;
-    const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000F0;
+    // const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000F0;
 
     // Define the VMX lock bit for IA32_FEATURE_CONTROL MSR
     const VMX_LOCK_BIT: u64 = 1 << 0;
