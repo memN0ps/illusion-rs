@@ -12,7 +12,6 @@ path = "src/lib.rs"
 [features]
 default = []
 test-windows-uefi-hooks = [] # If this feature is enabled, we will test the Windows UEFI hooks in the hypervisor at runtime upon booting Windows from the hypervisor.
-hyperv = [] # If this feature is enabled, we will enable the Hyper-V hypervisor support in the hypervisor.
 
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
