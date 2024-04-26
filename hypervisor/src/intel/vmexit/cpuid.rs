@@ -7,10 +7,12 @@ use {
         intel::{
             hooks::{hook::EptHookType, inline::InlineHookType},
             vm::Vm,
+            vmerror::VmxBasicExitReason::Cpuid,
             vmexit::ExitType,
         },
     },
     bitfield::BitMut,
+    core::ops::RangeInclusive,
     log::*,
     x86::cpuid::cpuid,
 };
@@ -86,7 +88,9 @@ enum FeatureBits {
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual, Table C-1. Basic Exit Reasons 10.
 #[rustfmt::skip]
 pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
-    // log::trace!("Handling CPUID VM exit...");
+    trace!("Handling CPUID VM exit...");
+
+    const HYPERV_CPUID_LEAF_RANGE: RangeInclusive<u32> = 0x40000000..=0x4FFFFFFF;
 
     let leaf = vm.guest_registers.rax as u32;
     let sub_leaf = vm.guest_registers.rcx as u32;
@@ -94,21 +98,22 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     // Execute CPUID instruction on the host and retrieve the result
     let mut cpuid_result = cpuid!(leaf, sub_leaf);
 
-    // log::trace!("Before modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
+    trace!("CpuidLeaf: {:#x}", leaf);
 
     match leaf {
-        // Handle CPUID for standard feature information.
+        leaf if leaf == CpuidLeaf::VendorInfo as u32 => {
+            trace!("CPUID leaf 0x0 detected (Vendor Identification).");
+        },
         leaf if leaf == CpuidLeaf::FeatureInformation as u32 => {
-            // log::trace!("CPUID leaf 1 detected (Standard Feature Information).");
-            // Hide hypervisor presence by setting the appropriate bit in ECX.
-            cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
-
-            // Hide VMX support by setting the appropriate bit in ECX.
-            cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
+            trace!("CPUID leaf 0x1 detected (Feature Information).");
+            // Check if the guest is querying for hypervisor presence.
+            if sub_leaf == 0 {
+                // Set the hypervisor present bit in ECX to indicate the presence of a hypervisor.
+                cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, true);
+            }
         },
         leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
-            trace!("CPUID leaf 2 detected (Cache Information).");
-
+            trace!("CPUID leaf 0x2 detected (Cache Information).");
             let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
 
             if vm.hook_manager.has_cpuid_cache_info_been_called == false {
@@ -132,41 +137,45 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 vm.hook_manager.has_cpuid_cache_info_been_called = true;
             }
         },
-        // Handle CPUID for hypervisor vendor information.
-        leaf if leaf == CpuidLeaf::HypervisorVendor as u32 => {
-            // log::trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
-            // Set the CPUID response to provide the hypervisor's vendor ID signature.
-            // We use the signature "Illusion" encoded in a little-endian format.
-            cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
-            cpuid_result.ebx = 0x756c6c49; // "ullI", part of "Illusion" (in reverse order due to little-endian storage).
-            cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
-            cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
-        },
-        // Handle CPUID for hypervisor interface identification.
-        leaf if leaf == CpuidLeaf::HypervisorInterface as u32 && cfg!(feature = "hyperv") => {
-            // log::trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
-            // Return information indicating the hypervisor's interface.
-            // Here, we specify that our hypervisor does not conform to the Microsoft hypervisor interface ("Hv#1").
-            cpuid_result.eax = 0x00000001; // Interface signature indicating non-conformance to Microsoft interface.
-            cpuid_result.ebx = 0x00000000; // Reserved field set to zero.
-            cpuid_result.ecx = 0x00000000; // Reserved field set to zero.
-            cpuid_result.edx = 0x00000000; // Reserved field set to zero.
-        },
         leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
-            // log::trace!("CPUID leaf 7 detected (Extended Feature Information).");
+            trace!("CPUID leaf 0x7 detected (Extended Feature Information).");
         },
-        _ => { /* Pass through other CPUID leaves unchanged. */ }
+        leaf if HYPERV_CPUID_LEAF_RANGE.contains(&leaf) => {
+            trace!("Hypervisor specific CPUID leaf 0x{leaf:X} detected.");
+            // Depending on your specific implementation, you may need to modify or mask the results
+            // For example, for the Hypervisor Vendor leaf:
+            if leaf == CpuidLeaf::HypervisorVendor as u32 {
+                // Provide a customized vendor ID signature
+                cpuid_result.eax = 0; // Set to a meaningful max CPUID leaf value or leave it for default behavior
+                cpuid_result.ebx = 0x756c6c49; // "ullI" - part of "Illusion" (in reverse due to little-endian storage)
+                cpuid_result.ecx = 0x6e6f6973; // "nois" - remaining part of "Illusion"
+                cpuid_result.edx = 0x00000000; // Filled with null bytes as no further characters to encode
+            } else {
+                // Default handling for unrecognized but within range leaves
+                cpuid_result.eax = 0;
+                cpuid_result.ebx = 0;
+                cpuid_result.ecx = 0;
+                cpuid_result.edx = 0;
+            }
+        },
+        _ => {
+            trace!("Unhandled or unknown CPUID leaf 0x{leaf:X}. Treating as reserved.");
+            // Mask off the results to avoid exposing unsupported features
+            cpuid_result.eax = 0;
+            cpuid_result.ebx = 0;
+            cpuid_result.ecx = 0;
+            cpuid_result.edx = 0;
+        }
     }
 
-    // log::trace!("After modification: CPUID Leaf: {:#x}, EAX: {:#x}, EBX: {:#x}, ECX: {:#x}, EDX: {:#x}", leaf, cpuid_result.eax, cpuid_result.ebx, cpuid_result.ecx, cpuid_result.edx);
-
-    // Update the guest registers
+    // Update the guest registers with the results
     vm.guest_registers.rax = cpuid_result.eax as u64;
     vm.guest_registers.rbx = cpuid_result.ebx as u64;
     vm.guest_registers.rcx = cpuid_result.ecx as u64;
     vm.guest_registers.rdx = cpuid_result.edx as u64;
 
-    // log::trace!("CPUID VMEXIT handled successfully!");
+    trace!("CPUID VMEXIT handled successfully!");
 
     Ok(ExitType::IncrementRIP)
+
 }
