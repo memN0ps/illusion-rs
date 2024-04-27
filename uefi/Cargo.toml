@@ -9,6 +9,10 @@ edition = "2021"
 name = "illusion"
 path = "src/main.rs"
 
+[features]
+default = ["hyperv"] # Enables Hyper-V hypervisor support.
+hyperv = [] # Enables Hyper-V hypervisor support.
+
 [dependencies]
 uefi = { version = "0.28.0", features = ["global_allocator", "alloc"] } # https://crates.io/crates/uefi
 uefi-services = { version = "0.25.0", default-features = false } # https://crates.io/crates/uefi-services

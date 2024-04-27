@@ -19,33 +19,39 @@ use {
 ///
 /// A result indicating the success or failure of starting the hypervisor.
 pub fn start_hypervisor_on_all_processors(boot_services: &BootServices) -> uefi::Result<()> {
-    let handle = boot_services.get_handle_for_protocol::<MpServices>()?;
-    let mp_services = boot_services.open_protocol_exclusive::<MpServices>(handle)?;
-    let processor_count = mp_services.get_number_of_processors()?;
-
-    info!("Total processors: {}", processor_count.total);
-    info!("Enabled processors: {}", processor_count.enabled);
-
-    if processor_count.enabled == 1 {
-        info!("Found only one processor, virtualizing it");
+    if cfg!(feature = "hyperv") {
+        warn!("Hyper-V feature is enabled");
         start_hypervisor();
+        // Multi-processor initialization is not supported in Hyper-V mode yet (ACPI).
     } else {
-        info!("Found multiple processors, virtualizing all of them");
+        let handle = boot_services.get_handle_for_protocol::<MpServices>()?;
+        let mp_services = boot_services.open_protocol_exclusive::<MpServices>(handle)?;
+        let processor_count = mp_services.get_number_of_processors()?;
 
-        // Don't forget to virtualize this thread...
-        start_hypervisor();
+        info!("Total processors: {}", processor_count.total);
+        info!("Enabled processors: {}", processor_count.enabled);
 
-        // Virtualize all other threads...
-        mp_services.startup_all_aps(
-            true,
-            start_hypervisor_on_ap as _,
-            core::ptr::null_mut(),
-            None,
-            None,
-        )?;
+        if processor_count.enabled == 1 {
+            info!("Found only one processor, virtualizing it");
+            start_hypervisor();
+        } else {
+            info!("Found multiple processors, virtualizing all of them");
+
+            // Don't forget to virtualize this thread...
+            start_hypervisor();
+
+            // Virtualize all other threads...
+            mp_services.startup_all_aps(
+                true,
+                start_hypervisor_on_ap as _,
+                core::ptr::null_mut(),
+                None,
+                None,
+            )?;
+        }
+
+        info!("The hypervisor has been installed successfully!");
     }
-
-    info!("The hypervisor has been installed successfully!");
 
     Ok(())
 }
