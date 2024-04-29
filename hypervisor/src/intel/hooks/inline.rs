@@ -36,12 +36,7 @@ impl InlineHook {
     /// # Returns
     ///
     /// * `Self` - The new hook configuration.
-    pub fn new(
-        shadow_function_pa: *mut u8,
-        guest_function_va: *mut u8,
-        hook_handler: *mut u8,
-        hook_type: InlineHookType,
-    ) -> Self {
+    pub fn new(shadow_function_pa: *mut u8, guest_function_va: *mut u8, hook_handler: *mut u8, hook_type: InlineHookType) -> Self {
         trace!("Creating a new hook configuration");
 
         Self {

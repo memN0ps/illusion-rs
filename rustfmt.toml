@@ -1,5 +1,10 @@
-# Treat all imports as if they belong to one module, effectively grouping all imports together
+# Sets the maximum width of each line to 150 characters. If a line exceeds this limit, `rustfmt` will attempt to split it.
+max_width = 150
+
+# Treats all imports as if they belong to one module, effectively grouping all imports together.
+# This can simplify the top of your files by having a single import section.
 imports_granularity = "One"
 
-# Combine all imports into a single block, without distinguishing between standard library, external crates, or internal modules
+# Combines all imports into a single block, without distinguishing between standard library, external crates, or internal modules.
+# This setting avoids separate blocks for different types of imports, creating a cleaner and more concise import section.
 group_imports = "One"

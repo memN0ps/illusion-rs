@@ -50,7 +50,6 @@ impl HookManager {
     ///
     /// # Returns
     /// A result containing a boxed `HookManager` instance or an error of type `HypervisorError`.
-    #[rustfmt::skip]
     pub fn new() -> Result<Box<Self>, HypervisorError> {
         trace!("Initializing hook manager");
 
@@ -93,7 +92,6 @@ impl HookManager {
     /// # Returns
     ///
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
-    #[rustfmt::skip]
     pub fn ept_hook(vm: &mut Vm, guest_va: u64, hook_handler: *const (), ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         trace!("Creating EPT hook for function at VA: {:#x}", guest_va);
 
@@ -110,10 +108,14 @@ impl HookManager {
         // Setup the hook based on the type
         match ept_hook_type {
             EptHookType::Function(inline_hook_type) => {
-                ept_hook.hook_function(guest_va, hook_handler, inline_hook_type).ok_or(HypervisorError::HookError)?;
-            },
+                ept_hook
+                    .hook_function(guest_va, hook_handler, inline_hook_type)
+                    .ok_or(HypervisorError::HookError)?;
+            }
             EptHookType::Page => {
-                ept_hook.hook_page(guest_va, hook_handler, ept_hook_type).ok_or(HypervisorError::HookError)?;
+                ept_hook
+                    .hook_page(guest_va, hook_handler, ept_hook_type)
+                    .ok_or(HypervisorError::HookError)?;
             }
         }
 
@@ -122,14 +124,16 @@ impl HookManager {
 
         // Split the guest 2MB page into 4KB pages for the primary EPT.
         trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-        vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        vm.primary_ept
+            .split_2mb_to_4kb(guest_large_page_pa, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
         // Align the guest function or page address to the base page size.
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
         // Modify the page permission in the primary EPT to ReadWrite for the guest page.
         trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
-        vm.primary_ept.modify_page_permissions(guest_page_pa, AccessType::READ_WRITE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        vm.primary_ept
+            .modify_page_permissions(guest_page_pa, AccessType::READ_WRITE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
         // Invalidate the EPT cache for all contexts.
         invept_all_contexts();
@@ -215,10 +219,7 @@ impl HookManager {
     /// # Returns
     ///
     /// * `Option<&mut EptHook>` - A mutable reference to the hook if found, or `None` if not found.
-    pub fn find_hook_by_guest_page_pa_as_mut(
-        &mut self,
-        guest_page_pa: u64,
-    ) -> Option<&mut EptHook> {
+    pub fn find_hook_by_guest_page_pa_as_mut(&mut self, guest_page_pa: u64) -> Option<&mut EptHook> {
         self.ept_hooks.iter_mut().find_map(|hook| {
             if hook.guest_pa.align_down_to_base_page().as_u64() == guest_page_pa {
                 Some(&mut **hook)

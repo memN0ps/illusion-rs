@@ -95,9 +95,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 // 13
                 VmxBasicExitReason::Invd => handle_invd(&mut vm.guest_registers),
                 // 18
-                VmxBasicExitReason::Vmcall => {
-                    handle_vmcall(&mut vm).expect("Failed to handle VMCALL")
-                }
+                VmxBasicExitReason::Vmcall => handle_vmcall(&mut vm).expect("Failed to handle VMCALL"),
                 // 19
                 VmxBasicExitReason::Vmclear => handle_undefined_opcode_exception(),
                 // 20
@@ -117,23 +115,15 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 // 27
                 VmxBasicExitReason::Vmxon => handle_undefined_opcode_exception(),
                 // 31
-                VmxBasicExitReason::Rdmsr => {
-                    handle_msr_access(&mut vm, MsrAccessType::Read).expect("Failed to handle RDMSR")
-                }
+                VmxBasicExitReason::Rdmsr => handle_msr_access(&mut vm, MsrAccessType::Read).expect("Failed to handle RDMSR"),
                 // 32
-                VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm, MsrAccessType::Write)
-                    .expect("Failed to handle WRMSR"),
+                VmxBasicExitReason::Wrmsr => handle_msr_access(&mut vm, MsrAccessType::Write).expect("Failed to handle WRMSR"),
                 // 37
-                VmxBasicExitReason::MonitorTrapFlag => {
-                    handle_monitor_trap_flag(&mut vm).expect("Failed to handle Monitor Trap Flag")
-                }
+                VmxBasicExitReason::MonitorTrapFlag => handle_monitor_trap_flag(&mut vm).expect("Failed to handle Monitor Trap Flag"),
                 // 48
-                VmxBasicExitReason::EptViolation => {
-                    handle_ept_violation(&mut vm).expect("Failed to handle EPT violation")
-                }
+                VmxBasicExitReason::EptViolation => handle_ept_violation(&mut vm).expect("Failed to handle EPT violation"),
                 // 49
-                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(&mut vm)
-                    .expect("Failed to handle EPT misconfiguration"),
+                VmxBasicExitReason::EptMisconfiguration => handle_ept_misconfiguration(&mut vm).expect("Failed to handle EPT misconfiguration"),
                 // 50
                 VmxBasicExitReason::Invept => handle_invept(),
                 // 51
@@ -162,7 +152,6 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 /// # Arguments
 ///
 /// - `guest_registers`: A mutable reference to the guest's general-purpose registers.
-#[rustfmt::skip]
 fn advance_guest_rip(guest_registers: &mut GuestRegisters) {
     // trace!("Advancing guest RIP...");
     let len = vmread(ro::VMEXIT_INSTRUCTION_LEN);

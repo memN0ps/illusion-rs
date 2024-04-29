@@ -103,11 +103,7 @@ impl Vm {
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
         trace!("Modifying MSR interception for LSTAR MSR write access");
-        msr_bitmap.modify_msr_interception(
-            x86::msr::IA32_LSTAR,
-            MsrAccessType::Write,
-            MsrOperation::Hook,
-        );
+        msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
         trace!("Creating EPT hook manager");
         let hook_manager = HookManager::new()?;

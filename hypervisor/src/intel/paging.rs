@@ -101,10 +101,7 @@ impl PageTables {
     ///
     /// # Credits
     /// Credits to Jessie (jessiep_) for the initial concept.
-    pub fn translate_guest_virtual_to_physical(
-        guest_cr3: usize,
-        virtual_address: usize,
-    ) -> Option<usize> {
+    pub fn translate_guest_virtual_to_physical(guest_cr3: usize, virtual_address: usize) -> Option<usize> {
         // Mask used to clear the lower 12 bits of an address, effectively aligning it to a page boundary.
         const ADDRESS_MASK: usize = ((1 << x86::bits64::paging::MAXPHYADDR) - 1) & !0xFFF;
 

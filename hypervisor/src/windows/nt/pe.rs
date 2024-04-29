@@ -5,8 +5,7 @@ use {
     crate::{
         intel::addresses::PhysicalAddress,
         windows::nt::types::{
-            IMAGE_DIRECTORY_ENTRY_EXPORT, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE,
-            PIMAGE_DOS_HEADER, PIMAGE_EXPORT_DIRECTORY, PIMAGE_NT_HEADERS64,
+            IMAGE_DIRECTORY_ENTRY_EXPORT, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE, PIMAGE_DOS_HEADER, PIMAGE_EXPORT_DIRECTORY, PIMAGE_NT_HEADERS64,
         },
     },
     core::slice::from_raw_parts,
@@ -43,8 +42,7 @@ pub unsafe fn get_dos_header(module_base: *mut u8) -> Option<PIMAGE_DOS_HEADER> 
 pub unsafe fn get_nt_headers(module_base: *mut u8) -> Option<PIMAGE_NT_HEADERS64> {
     let dos_header = get_dos_header(module_base)?;
 
-    let nt_headers =
-        (module_base as usize + (*dos_header).e_lfanew as usize) as PIMAGE_NT_HEADERS64;
+    let nt_headers = (module_base as usize + (*dos_header).e_lfanew as usize) as PIMAGE_NT_HEADERS64;
 
     if (*nt_headers).Signature != IMAGE_NT_SIGNATURE as _ {
         return None;
@@ -63,15 +61,11 @@ pub unsafe fn get_nt_headers(module_base: *mut u8) -> Option<PIMAGE_NT_HEADERS64
 /// # Returns
 ///
 /// * `Option<*mut u8>` - The address of the export.
-pub unsafe fn get_export_by_hash(
-    module_base_pa: *mut u8,
-    module_base_va: u64,
-    export_hash: u32,
-) -> Option<*mut u8> {
+pub unsafe fn get_export_by_hash(module_base_pa: *mut u8, module_base_va: u64, export_hash: u32) -> Option<*mut u8> {
     let nt_headers = get_nt_headers(module_base_pa)?;
     let export_directory = (module_base_pa as usize
-        + (*nt_headers).OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT as usize]
-            .VirtualAddress as usize) as PIMAGE_EXPORT_DIRECTORY;
+        + (*nt_headers).OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT as usize].VirtualAddress as usize)
+        as PIMAGE_EXPORT_DIRECTORY;
 
     let names = from_raw_parts(
         (module_base_pa as usize + (*export_directory).AddressOfNames as usize) as *const u32,
@@ -82,8 +76,7 @@ pub unsafe fn get_export_by_hash(
         (*export_directory).NumberOfFunctions as _,
     );
     let ordinals = from_raw_parts(
-        (module_base_pa as usize + (*export_directory).AddressOfNameOrdinals as usize)
-            as *const u16,
+        (module_base_pa as usize + (*export_directory).AddressOfNameOrdinals as usize) as *const u16,
         (*export_directory).NumberOfNames as _,
     );
 

@@ -5,10 +5,7 @@
 //! or security tools.
 
 use {
-    crate::{
-        error::HypervisorError, intel::addresses::PhysicalAddress,
-        windows::ssdt::ssdt_find::SsdtFind,
-    },
+    crate::{error::HypervisorError, intel::addresses::PhysicalAddress, windows::ssdt::ssdt_find::SsdtFind},
     log::*,
 };
 

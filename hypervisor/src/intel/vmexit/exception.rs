@@ -7,9 +7,7 @@ use {
         events::EventInjection,
         support::vmread,
         vm::Vm,
-        vmerror::{
-            EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation,
-        },
+        vmerror::{EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation},
         vmexit::ExitType,
     },
     x86::vmx::vmcs,
@@ -29,7 +27,6 @@ use {
 /// # Returns
 ///
 /// * `ExitType::Continue` - Indicating that VM execution should continue after handling the exception
-#[rustfmt::skip]
 pub fn handle_exception(_vm: &mut Vm) -> ExitType {
     log::debug!("Handling ExceptionOrNmi VM exit...");
 
@@ -44,17 +41,17 @@ pub fn handle_exception(_vm: &mut Vm) -> ExitType {
                     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
                     log::trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
                     EventInjection::vmentry_inject_pf(interruption_error_code_value as u32);
-                },
+                }
                 ExceptionInterrupt::GeneralProtectionFault => {
                     EventInjection::vmentry_inject_gp(interruption_error_code_value as u32);
-                },
+                }
                 ExceptionInterrupt::Breakpoint => {
                     //handle_breakpoint_exception(guest_registers, vm);
                     EventInjection::vmentry_inject_bp();
-                },
+                }
                 ExceptionInterrupt::InvalidOpcode => {
                     EventInjection::vmentry_inject_ud();
-                },
+                }
                 _ => {
                     panic!("Unhandled exception: {:?}", exception_interrupt);
                 }

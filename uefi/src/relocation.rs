@@ -23,8 +23,7 @@ use {
 /// The result of the operation. Returns `uefi::Result::SUCCESS` on success, or an error
 pub fn zap_relocations(boot_service: &BootServices) -> uefi::Result<()> {
     // Obtain the current loaded image protocol.
-    let loaded_image =
-        boot_service.open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())?;
+    let loaded_image = boot_service.open_protocol_exclusive::<LoadedImage>(boot_service.image_handle())?;
 
     // Extract the image base address and size.
     let (image_base, image_size) = loaded_image.info();

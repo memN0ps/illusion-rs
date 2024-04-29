@@ -76,12 +76,7 @@ impl MsrBitmap {
     /// * `msr` - The MSR to modify.
     /// * `access` - Specifies the access type read or write for the MSR operation.
     /// * `operation` - Specifies the operation hook (mask) or unhook (unmask) to perform on the MSR.
-    pub fn modify_msr_interception(
-        &mut self,
-        msr: u32,
-        access: MsrAccessType,
-        operation: MsrOperation,
-    ) {
+    pub fn modify_msr_interception(&mut self, msr: u32, access: MsrAccessType, operation: MsrOperation) {
         let msr_low = msr & 0x1FFF;
         let msr_index = (msr_low >> 3) as usize;
         let msr_bit = (msr_low & 7) as u8;

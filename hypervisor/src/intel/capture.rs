@@ -109,11 +109,7 @@ impl fmt::Debug for GuestRegisters {
             "  r13: {:#018x}, r14: {:#018x}, r15: {:#018x}, rip: {:#018x}\n",
             self.r13, self.r14, self.r15, self.rip
         )?;
-        write!(
-            f,
-            "  rsp: {:#018x}, rflags: {:#018x}\n",
-            self.rsp, self.rflags
-        )?;
+        write!(f, "  rsp: {:#018x}, rflags: {:#018x}\n", self.rsp, self.rflags)?;
 
         // XMM registers in 4 columns
         write!(

@@ -17,9 +17,7 @@ use {
     bitfield::bitfield,
     core::ptr::addr_of,
     log::*,
-    x86::bits64::paging::{
-        pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE,
-    },
+    x86::bits64::paging::{pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE},
 };
 
 /// Represents the entire Extended Page Table structure.
@@ -194,12 +192,7 @@ impl Ept {
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn modify_page_permissions(
-        &mut self,
-        guest_pa: u64,
-        access_type: AccessType,
-        pt: &mut Pt,
-    ) -> Result<(), HypervisorError> {
+    pub fn modify_page_permissions(&mut self, guest_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
         trace!("Modifying permissions for GPA {:#x}", guest_pa);
 
         let guest_pa = VAddr::from(guest_pa);
@@ -248,12 +241,7 @@ impl Ept {
     /// A `Result<u64, HypervisorError>` indicating if the operation was successful.
     /// On success, returns the old host physical address that was previously mapped to the guest physical address.
     /// In case of failure, a `HypervisorError` is returned, detailing the nature of the error.
-    pub fn remap_gpa_to_hpa(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        pt: &mut Pt,
-    ) -> Result<u64, HypervisorError> {
+    pub fn remap_gpa_to_hpa(&mut self, guest_pa: u64, host_pa: u64, pt: &mut Pt) -> Result<u64, HypervisorError> {
         trace!("Remapping GPA {:#x} to HPA {:#x}", guest_pa, host_pa);
 
         let guest_pa = VAddr::from(guest_pa);
@@ -261,10 +249,7 @@ impl Ept {
 
         // Ensure both addresses are page aligned
         if !guest_pa.is_base_page_aligned() || !host_pa.is_base_page_aligned() {
-            error!(
-                "Addresses are not aligned: GPA {:#x}, HPA {:#x}",
-                guest_pa, host_pa
-            );
+            error!("Addresses are not aligned: GPA {:#x}, HPA {:#x}", guest_pa, host_pa);
             return Err(HypervisorError::UnalignedAddressError);
         }
 
@@ -341,7 +326,6 @@ impl Ept {
     /// # Returns
     ///
     /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
-    #[rustfmt::skip]
     pub fn swap_page(&mut self, guest_pa: u64, host_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
         let guest_pa = VAddr::from(guest_pa);
         let host_pa = VAddr::from(host_pa);

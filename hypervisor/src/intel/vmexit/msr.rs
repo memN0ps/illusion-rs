@@ -42,10 +42,7 @@ use {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: RDMSR—Read From Model Specific Register or WRMSR—Write to Model Specific Register
 /// and Table C-1. Basic Exit Reasons 31 and 32.
-pub fn handle_msr_access(
-    vm: &mut Vm,
-    access_type: MsrAccessType,
-) -> Result<ExitType, HypervisorError> {
+pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<ExitType, HypervisorError> {
     log::debug!("Handling MSR VM exit...");
 
     // Define the mask for the low 32-bits of the MSR value
@@ -64,10 +61,7 @@ pub fn handle_msr_access(
 
     // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks)
     // by checking if the MSR address is in the Hyper-V range or outside other valid ranges
-    if !MSR_VALID_RANGE_LOW.contains(&msr_id)
-        && !MSR_VALID_RANGE_HIGH.contains(&msr_id)
-        && !cfg!(feature = "hyperv")
-    {
+    if !MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id) && !cfg!(feature = "hyperv") {
         log::trace!("Invalid MSR access attempted: {:#x}", msr_id);
         EventInjection::vmentry_inject_gp(0);
         return Ok(ExitType::Continue);
@@ -90,10 +84,7 @@ pub fn handle_msr_access(
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
                 // Set lock bit, indicating that feature control is locked.
                 msr::IA32_FEATURE_CONTROL => {
-                    log::trace!(
-                        "IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}",
-                        msr_value
-                    );
+                    log::trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
                     VMX_LOCK_BIT
                 }
                 _ => rdmsr(msr_id),
@@ -105,18 +96,12 @@ pub fn handle_msr_access(
         // Credits: jessiep_ and https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR {
-                log::trace!(
-                    "IA32_LSTAR write attempted with MSR value: {:#x}",
-                    msr_value
-                );
+                log::trace!("IA32_LSTAR write attempted with MSR value: {:#x}", msr_value);
                 // log::trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
                 // log::trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
 
-                vm.msr_bitmap.modify_msr_interception(
-                    msr::IA32_LSTAR,
-                    MsrAccessType::Write,
-                    MsrOperation::Unhook,
-                );
+                vm.msr_bitmap
+                    .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Unhook);
                 log::trace!("Unhooked MSR_IA32_LSTAR");
 
                 // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`

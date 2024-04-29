@@ -41,13 +41,7 @@ pub fn start_hypervisor_on_all_processors(boot_services: &BootServices) -> uefi:
             start_hypervisor();
 
             // Virtualize all other threads...
-            mp_services.startup_all_aps(
-                true,
-                start_hypervisor_on_ap as _,
-                core::ptr::null_mut(),
-                None,
-                None,
-            )?;
+            mp_services.startup_all_aps(true, start_hypervisor_on_ap as _, core::ptr::null_mut(), None, None)?;
         }
 
         info!("The hypervisor has been installed successfully!");

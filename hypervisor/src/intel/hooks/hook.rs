@@ -79,7 +79,6 @@ impl EptHook {
     /// # Returns
     ///
     /// * `Box<Self>` - The new instance of `EptHook`.
-    #[rustfmt::skip]
     pub fn new(host_shadow_page: Box<Page>, primary_ept_pre_alloc_pt: Box<Pt>) -> Box<Self> {
         let hooks = Self {
             primary_ept_pre_alloc_pt,
@@ -109,7 +108,6 @@ impl EptHook {
     /// # Returns
     ///
     /// * `Option<()>` - Returns `Some(())` if the hook was successfully installed, otherwise `None`.
-    #[rustfmt::skip]
     pub fn hook_function(&mut self, guest_function_va: u64, hook_handler: *const (), hook_type: InlineHookType) -> Option<()> {
         let guest_function_va = VAddr::from(guest_function_va);
         trace!("Guest Function VA: {:#x}", guest_function_va);
@@ -131,7 +129,10 @@ impl EptHook {
         Self::unsafe_copy_guest_to_shadow(guest_page_pa, host_shadow_page_pa);
 
         // Calculate the address of the function within the pre-allocated host shadow page.
-        let host_shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(host_shadow_page_pa, guest_function_pa));
+        let host_shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(
+            host_shadow_page_pa,
+            guest_function_pa,
+        ));
         trace!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
 
         // Create a new inline hook configuration.
@@ -171,7 +172,6 @@ impl EptHook {
     /// # Returns
     ///
     /// * `Option<()>` - Returns `Some(())` if the hook was successfully installed, otherwise `None`.
-    #[rustfmt::skip]
     pub fn hook_page(&mut self, guest_page_va: u64, hook_handler: *const (), ept_hook_type: EptHookType) -> Option<()> {
         let guest_page_va = VAddr::from(guest_page_va);
         trace!("Guest Page VA: {:#x}", guest_page_va);
@@ -206,7 +206,6 @@ impl EptHook {
     /// # Safety
     ///
     /// This function is unsafe because it performs a raw memory copy from the guest page to the shadow page.
-    #[rustfmt::skip]
     pub fn unsafe_copy_guest_to_shadow(guest_page_pa: PAddr, host_shadow_page_pa: PAddr) {
         unsafe { copy_nonoverlapping(guest_page_pa.as_u64() as *mut u8, host_shadow_page_pa.as_u64() as *mut u8, BASE_PAGE_SIZE) };
     }
@@ -221,7 +220,6 @@ impl EptHook {
     /// # Returns
     ///
     /// * `u64` - The adjusted address of the function within the new page.
-    #[rustfmt::skip]
     fn calculate_function_offset_in_host_shadow_page(host_shadow_page_pa: PAddr, guest_function_pa: PAddr) -> u64 {
         host_shadow_page_pa.as_u64() + guest_function_pa.base_page_offset()
     }

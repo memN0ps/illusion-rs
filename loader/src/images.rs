@@ -33,34 +33,21 @@ const HYPERVISOR_PATH: &CStr16 = cstr16!("illusion.efi");
 ///
 /// If a device containing the specified file is found, this function returns an `Option` containing
 /// a `DevicePath` to the file. If no such device is found, it returns `None`.
-pub(crate) fn find_device_path(
-    boot_services: &BootServices,
-    path: &CStr16,
-) -> Option<Box<DevicePath>> {
-    let handles: HandleBuffer = boot_services
-        .locate_handle_buffer(SearchType::ByProtocol(&SimpleFileSystem::GUID))
-        .ok()?;
+pub(crate) fn find_device_path(boot_services: &BootServices, path: &CStr16) -> Option<Box<DevicePath>> {
+    let handles: HandleBuffer = boot_services.locate_handle_buffer(SearchType::ByProtocol(&SimpleFileSystem::GUID)).ok()?;
 
     handles.iter().find_map(|handle| {
-        let mut file_system = boot_services
-            .open_protocol_exclusive::<SimpleFileSystem>(*handle)
-            .ok()?;
+        let mut file_system = boot_services.open_protocol_exclusive::<SimpleFileSystem>(*handle).ok()?;
 
         let mut root = file_system.open_volume().ok()?;
-        root.open(path, FileMode::Read, FileAttribute::READ_ONLY)
-            .ok()?;
+        root.open(path, FileMode::Read, FileAttribute::READ_ONLY).ok()?;
 
-        let device_path = boot_services
-            .open_protocol_exclusive::<DevicePath>(*handle)
-            .ok()?;
+        let device_path = boot_services.open_protocol_exclusive::<DevicePath>(*handle).ok()?;
 
         let mut storage = Vec::new();
         let boot_path = device_path
             .node_iter()
-            .fold(
-                DevicePathBuilder::with_vec(&mut storage),
-                |builder, item| builder.push(&item).unwrap(),
-            )
+            .fold(DevicePathBuilder::with_vec(&mut storage), |builder, item| builder.push(&item).unwrap())
             .push(&FilePath { path_name: path })
             .ok()?
             .finalize()

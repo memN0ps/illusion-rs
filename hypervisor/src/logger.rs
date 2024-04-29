@@ -40,9 +40,7 @@ pub fn init(port: SerialPort, level: log::LevelFilter) {
     unsafe { SERIAL_LOGGER = Some(SerialLogger::new(port)) };
     let serial_logger = unsafe { SERIAL_LOGGER.as_ref().unwrap() };
 
-    log::set_logger(serial_logger)
-        .map(|()| log::set_max_level(level))
-        .unwrap();
+    log::set_logger(serial_logger).map(|()| log::set_max_level(level)).unwrap();
 }
 
 /// A logger that outputs messages to a serial port.
@@ -123,13 +121,7 @@ impl log::Log for SerialLogger {
             let mut serial = self.lock();
 
             // Format and print the log message with APIC ID, log level, and log message
-            let _ = writeln!(
-                serial,
-                "vcpu-{} {}: {}",
-                vcpu_id,
-                record.level(),
-                record.args()
-            );
+            let _ = writeln!(serial, "vcpu-{} {}: {}", vcpu_id, record.level(), record.args());
         }
     }
 
@@ -169,10 +161,7 @@ impl Write for Serial {
 
         for byte in string.bytes() {
             while (inb(self.port as u16 + UART_OFFSET_LINE_STATUS) & 0x20) == 0 {}
-            outb(
-                self.port as u16 + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER,
-                byte,
-            );
+            outb(self.port as u16 + UART_OFFSET_TRANSMITTER_HOLDING_BUFFER, byte);
         }
         Ok(())
     }

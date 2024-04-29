@@ -11,8 +11,7 @@ use {
     x86::{
         dtables::DescriptorTablePointer,
         segmentation::{
-            cs, BuildDescriptor, CodeSegmentType, Descriptor, DescriptorBuilder,
-            GateDescriptorBuilder, SegmentDescriptorBuilder, SegmentSelector,
+            cs, BuildDescriptor, CodeSegmentType, Descriptor, DescriptorBuilder, GateDescriptorBuilder, SegmentDescriptorBuilder, SegmentSelector,
         },
     },
 };
@@ -63,12 +62,7 @@ impl Descriptors {
 
         // Get the current GDT.
         let current_gdtr = sgdt();
-        let current_gdt = unsafe {
-            core::slice::from_raw_parts(
-                current_gdtr.base.cast::<u64>(),
-                usize::from(current_gdtr.limit + 1) / 8,
-            )
-        };
+        let current_gdt = unsafe { core::slice::from_raw_parts(current_gdtr.base.cast::<u64>(), usize::from(current_gdtr.limit + 1) / 8) };
 
         // Copy the current GDT.
         let mut descriptors = Self {
@@ -79,9 +73,7 @@ impl Descriptors {
         // Append the TSS descriptor. Push extra 0 as it is 16 bytes.
         // See: 3.5.2 Segment Descriptor Tables in IA-32e Mode
         let tr_index = descriptors.gdt.len() as u16;
-        descriptors
-            .gdt
-            .push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
+        descriptors.gdt.push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
         descriptors.gdt.push(0);
 
         descriptors.gdtr = DescriptorTablePointer::new_from_slice(&descriptors.gdt);
@@ -106,12 +98,8 @@ impl Descriptors {
         let mut descriptors = Self::default();
 
         descriptors.gdt.push(0);
-        descriptors
-            .gdt
-            .push(Self::code_segment_descriptor().as_u64());
-        descriptors
-            .gdt
-            .push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
+        descriptors.gdt.push(Self::code_segment_descriptor().as_u64());
+        descriptors.gdt.push(Self::task_segment_descriptor(&descriptors.tss).as_u64());
         descriptors.gdt.push(0);
 
         descriptors.gdtr = DescriptorTablePointer::new_from_slice(&descriptors.gdt);
@@ -169,12 +157,7 @@ impl Descriptors {
     ///
     /// A slice of the GDT entries represented as `u64` values.
     pub fn from_pointer(pointer: &DescriptorTablePointer<u64>) -> &[u64] {
-        unsafe {
-            core::slice::from_raw_parts(
-                pointer.base.cast::<u64>(),
-                (pointer.limit + 1) as usize / core::mem::size_of::<u64>(),
-            )
-        }
+        unsafe { core::slice::from_raw_parts(pointer.base.cast::<u64>(), (pointer.limit + 1) as usize / core::mem::size_of::<u64>()) }
     }
 }
 

@@ -86,7 +86,6 @@ enum FeatureBits {
 /// * `ExitType::IncrementRIP` - To move past the `CPUID` instruction in the VM.
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual, Table C-1. Basic Exit Reasons 10.
-#[rustfmt::skip]
 pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling CPUID VM exit...");
 
@@ -103,7 +102,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     match leaf {
         leaf if leaf == CpuidLeaf::VendorInfo as u32 => {
             trace!("CPUID leaf 0x0 detected (Vendor Identification).");
-        },
+        }
         leaf if leaf == CpuidLeaf::FeatureInformation as u32 => {
             trace!("CPUID leaf 0x1 detected (Feature Information).");
             // Check if the guest is querying for hypervisor presence.
@@ -111,7 +110,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 // Set the hypervisor present bit in ECX to indicate the presence of a hypervisor.
                 cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, true);
             }
-        },
+        }
         leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
             trace!("CPUID leaf 0x2 detected (Cache Information).");
             if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
@@ -135,10 +134,10 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
                 vm.hook_manager.has_cpuid_cache_info_been_called = true;
             }
-        },
+        }
         leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
             trace!("CPUID leaf 0x7 detected (Extended Feature Information).");
-        },
+        }
         leaf if HYPERV_CPUID_LEAF_RANGE.contains(&leaf) => {
             trace!("Hypervisor specific CPUID leaf 0x{leaf:X} detected.");
             // Depending on your specific implementation, you may need to modify or mask the results
@@ -156,7 +155,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 cpuid_result.ecx = 0;
                 cpuid_result.edx = 0;
             }
-        },
+        }
         _ => {
             trace!("Unhandled or unknown CPUID leaf 0x{leaf:X}. Treating as reserved.");
             // Mask off the results to avoid exposing unsupported features
@@ -176,5 +175,4 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("CPUID VMEXIT handled successfully!");
 
     Ok(ExitType::IncrementRIP)
-
 }

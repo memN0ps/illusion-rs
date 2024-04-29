@@ -5,9 +5,7 @@
 
 use {
     core::arch::global_asm,
-    hypervisor::{
-        allocate::allocate_stack_space, intel::capture::GuestRegisters, vmm::start_hypervisor,
-    },
+    hypervisor::{allocate::allocate_stack_space, intel::capture::GuestRegisters, vmm::start_hypervisor},
     log::debug,
 };
 

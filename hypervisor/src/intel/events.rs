@@ -109,10 +109,7 @@ impl EventInjection {
     /// and Table 25-17. Format of the VM-Entry Interruption-Information Field.
     pub fn vmentry_inject_gp(error_code: u32) {
         vmwrite(vmcs::control::VMENTRY_EXCEPTION_ERR_CODE, error_code);
-        vmwrite(
-            vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD,
-            EventInjection::general_protection(),
-        );
+        vmwrite(vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD, EventInjection::general_protection());
     }
 
     /// Injects a page fault into the guest.
@@ -128,10 +125,7 @@ impl EventInjection {
     /// and Table 25-17. Format of the VM-Entry Interruption-Information Field.
     pub fn vmentry_inject_pf(error_code: u32) {
         vmwrite(vmcs::control::VMENTRY_EXCEPTION_ERR_CODE, error_code);
-        vmwrite(
-            vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD,
-            EventInjection::page_fault(),
-        );
+        vmwrite(vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD, EventInjection::page_fault());
     }
 
     /// Injects a breakpoint exception into the guest.
@@ -142,10 +136,7 @@ impl EventInjection {
     /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 25.8.3 VM-Entry Controls for Event Injection
     /// and Table 25-17. Format of the VM-Entry Interruption-Information Field.
     pub fn vmentry_inject_bp() {
-        vmwrite(
-            vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD,
-            EventInjection::breakpoint(),
-        );
+        vmwrite(vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD, EventInjection::breakpoint());
     }
 
     /// Injects an undefined opcode exception into the guest.
@@ -156,9 +147,6 @@ impl EventInjection {
     /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 25.8.3 VM-Entry Controls for Event Injection
     /// and Table 25-17. Format of the VM-Entry Interruption-Information Field.
     pub fn vmentry_inject_ud() {
-        vmwrite(
-            vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD,
-            EventInjection::undefined_opcode(),
-        );
+        vmwrite(vmcs::control::VMENTRY_INTERRUPTION_INFO_FIELD, EventInjection::undefined_opcode());
     }
 }

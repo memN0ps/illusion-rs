@@ -52,25 +52,19 @@ impl SsdtFind {
         */
 
         // Pattern to identify the KiServiceSystemStart in the kernel memory.
-        let ki_service_system_start_pattern = &[
-            0x8B, 0xF8, 0xC1, 0xEF, 0x07, 0x83, 0xE7, 0x20, 0x25, 0xFF, 0x0F, 0x00, 0x00,
-        ];
+        let ki_service_system_start_pattern = &[0x8B, 0xF8, 0xC1, 0xEF, 0x07, 0x83, 0xE7, 0x20, 0x25, 0xFF, 0x0F, 0x00, 0x00];
         let signature_size = 13;
 
         // Create a slice from the Windows kernel (ntoskrnl.exe) base address for the specified size.
         let ntoskrnl_data = unsafe { core::slice::from_raw_parts(kernel_base, kernel_size) };
 
         // Find the starting offset of the KiServiceSystemStart pattern within the kernel data.
-        let offset = Self::find_needle(ntoskrnl_data, ki_service_system_start_pattern)
-            .ok_or(HypervisorError::PatternNotFound)?;
+        let offset = Self::find_needle(ntoskrnl_data, ki_service_system_start_pattern).ok_or(HypervisorError::PatternNotFound)?;
 
         // Calculate the starting address of KiServiceSystemStart based on the offset.
         // That is: `14042ba57  8bf8               mov     edi, eax` in this case.
         let ki_service_system_start = unsafe { kernel_base.add(offset) };
-        trace!(
-            "KiServiceSystemStart address: {:p}",
-            ki_service_system_start
-        );
+        trace!("KiServiceSystemStart address: {:p}", ki_service_system_start);
 
         // Address of the 'lea r10, [rel KeServiceDescriptorTable]' instruction
         let lea_r10_address = unsafe { ki_service_system_start.add(signature_size) };
@@ -84,8 +78,7 @@ impl SsdtFind {
         trace!("Relative offset: {:x}", relative_offset);
 
         // Compute the absolute address of KeServiceDescriptorTableShadow
-        let ke_service_descriptor_table_shadow =
-            unsafe { lea_r11_address.add(7).offset(relative_offset as isize) };
+        let ke_service_descriptor_table_shadow = unsafe { lea_r11_address.add(7).offset(relative_offset as isize) };
 
         // Extracting nt!KiServiceTable and win32k!W32pServiceTable addresses
         let shadow = ke_service_descriptor_table_shadow;
@@ -99,10 +92,7 @@ impl SsdtFind {
         trace!("NtTable address: {:p}", nt_table);
         trace!("Win32kTable address: {:p}", win32k_table);
 
-        Ok(Self {
-            nt_table,
-            win32k_table,
-        })
+        Ok(Self { nt_table, win32k_table })
     }
 
     /// Scans a given data slice for a specific pattern.

@@ -11,10 +11,7 @@ use {
         invvpid::invvpid_single_context,
         segmentation::VmxSegmentAccessRights,
         state::GuestActivityState,
-        support::{
-            cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread,
-            vmwrite,
-        },
+        support::{cr2_write, dr0_write, dr1_write, dr2_write, dr3_write, dr6_write, rdmsr, vmread, vmwrite},
         vmexit::ExitType,
     },
     x86::{
@@ -211,10 +208,7 @@ pub fn handle_init_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     //
     // Set the activity state to "Wait for SIPI".
     //
-    vmwrite(
-        vmcs::guest::ACTIVITY_STATE,
-        GuestActivityState::WaitForSipi as u32,
-    );
+    vmwrite(vmcs::guest::ACTIVITY_STATE, GuestActivityState::WaitForSipi as u32);
 
     ExitType::Continue
 }
@@ -237,8 +231,7 @@ fn adjust_guest_cr0(cr0: Cr0) -> u64 {
 
     // Read the secondary processor-based VM-execution controls to check for UnrestrictedGuest support.
     let secondary_proc_based_ctls2 = vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS);
-    let unrestricted_guest =
-        secondary_proc_based_ctls2 as u32 & SecondaryControls::UNRESTRICTED_GUEST.bits() != 0;
+    let unrestricted_guest = secondary_proc_based_ctls2 as u32 & SecondaryControls::UNRESTRICTED_GUEST.bits() != 0;
 
     if unrestricted_guest {
         // if the guest is unrestricted, only set these bits if the guest requested them to be set
@@ -279,8 +272,7 @@ fn adjust_cr0(cr0: Cr0) -> Cr0 {
 fn adjust_cr4() -> u64 {
     let fixed0_cr4 = Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED0));
     let zero_cr4 = Cr4Flags::empty();
-    let new_cr4 =
-        (zero_cr4 & Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED1))) | fixed0_cr4;
+    let new_cr4 = (zero_cr4 & Cr4Flags::from_bits_truncate(rdmsr(IA32_VMX_CR4_FIXED1))) | fixed0_cr4;
     new_cr4.bits()
 }
 

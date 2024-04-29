@@ -36,18 +36,13 @@ impl KernelHook {
     /// * `Ok(Self)` - The new instance of `KernelHook`.
     pub fn new(guest_va: u64) -> Result<Self, HypervisorError> {
         // Get the base address of ntoskrnl.exe.
-        let ntoskrnl_base_va = unsafe {
-            get_image_base_address(guest_va).ok_or(HypervisorError::FailedToGetImageBaseAddress)?
-        };
+        let ntoskrnl_base_va = unsafe { get_image_base_address(guest_va).ok_or(HypervisorError::FailedToGetImageBaseAddress)? };
 
         // Get the physical address of ntoskrnl.exe using GUEST_CR3 and the virtual address.
         let ntoskrnl_base_pa = PhysicalAddress::pa_from_va(ntoskrnl_base_va);
 
         // Get the size of ntoskrnl.exe.
-        let kernel_size = unsafe {
-            get_size_of_image(ntoskrnl_base_pa as _)
-                .ok_or(HypervisorError::FailedToGetKernelSize)?
-        } as u64;
+        let kernel_size = unsafe { get_size_of_image(ntoskrnl_base_pa as _).ok_or(HypervisorError::FailedToGetKernelSize)? } as u64;
 
         Ok(Self {
             ntoskrnl_base_va,
@@ -124,17 +119,9 @@ impl KernelHook {
             self.kernel_size as _,
         )?;
 
-        trace!(
-            "Function address: {:#x}",
-            ssdt_hook.guest_function_va as u64
-        );
+        trace!("Function address: {:#x}", ssdt_hook.guest_function_va as u64);
 
-        HookManager::ept_hook(
-            vm,
-            ssdt_hook.guest_function_va as u64,
-            hook_handler,
-            ept_hook_type,
-        )?;
+        HookManager::ept_hook(vm, ssdt_hook.guest_function_va as u64, hook_handler, ept_hook_type)?;
 
         trace!("Windows Kernel SSDT hook installed successfully");
 

@@ -23,7 +23,6 @@ use {
 ///
 /// # Returns
 /// * `Result<ExitType, HypervisorError>`: Ok with the appropriate exit type or an error.
-#[rustfmt::skip]
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
     if let Some(ept_hook) = vm.hook_manager.find_hook_by_index(vm.hook_manager.current_hook_index) {
@@ -38,12 +37,12 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
                     ept_hook.guest_pa.align_down_to_base_page().as_u64(),
                     ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
                     AccessType::EXECUTE,
-                    &mut ept_hook.primary_ept_pre_alloc_pt
+                    &mut ept_hook.primary_ept_pre_alloc_pt,
                 )?;
                 restore_guest_interrupt_flag(vm)?;
                 trace!("Monitor Trap Flag disabled, original execution restored.");
             } else {
-                set_monitor_trap_flag(true);  // Keep MTF enabled if there are more steps
+                set_monitor_trap_flag(true); // Keep MTF enabled if there are more steps
             }
         } else {
             error!("No active MTF counter found, possibly an error in state management.");
@@ -63,8 +62,7 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
 /// * `set` - A flag indicating whether to set the monitor trap flag.
 pub fn set_monitor_trap_flag(set: bool) {
     let controls = vmread(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS);
-    let mut primary_controls =
-        unsafe { vmcs::control::PrimaryControls::from_bits_unchecked(controls as u32) };
+    let mut primary_controls = unsafe { vmcs::control::PrimaryControls::from_bits_unchecked(controls as u32) };
 
     if set {
         // Enabling the monitor trap flag
@@ -74,10 +72,7 @@ pub fn set_monitor_trap_flag(set: bool) {
         primary_controls.remove(vmcs::control::PrimaryControls::MONITOR_TRAP_FLAG);
     }
 
-    vmwrite(
-        vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS,
-        primary_controls.bits(),
-    );
+    vmwrite(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS, primary_controls.bits());
     trace!("Monitor Trap Flag set to: {}", set);
 }
 
@@ -90,7 +85,6 @@ pub fn set_monitor_trap_flag(set: bool) {
 ///
 /// # Returns
 /// * `Result<(), HypervisorError>`: Ok if successful, Err if an error occurred during VMCS read/write operations.
-#[rustfmt::skip]
 pub fn update_guest_interrupt_flag(vm: &mut Vm, enable: bool) -> Result<(), HypervisorError> {
     trace!("Updating guest interrupt flag...");
 
@@ -126,7 +120,6 @@ pub fn update_guest_interrupt_flag(vm: &mut Vm, enable: bool) -> Result<(), Hype
 ///
 /// # Returns
 /// * `Result<(), HypervisorError>`: Ok if successful, Err if an error occurred during VMCS read/write operations.
-#[rustfmt::skip]
 pub fn restore_guest_interrupt_flag(vm: &mut Vm) -> Result<(), HypervisorError> {
     if let Some(old_rflags_bits) = vm.hook_manager.old_rflags {
         trace!("Restoring guest RFLAGS to old value: {:#x}", old_rflags_bits);

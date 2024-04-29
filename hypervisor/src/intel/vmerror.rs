@@ -174,7 +174,6 @@ impl core::fmt::Display for VmxBasicExitReason {
     /// Provides a descriptive string for a `VmxBasicExitReason` variant.
     ///
     /// This implementation aids in debugging by providing a human-readable description of each exit reason.
-    #[rustfmt::skip]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let description = match *self {
             VmxBasicExitReason::ExceptionOrNmi => "Exception or non-maskable interrupt (NMI)",
@@ -336,7 +335,6 @@ impl core::fmt::Display for VmInstructionError {
     /// Provides a descriptive string for a `VmInstructionError` variant.
     ///
     /// This implementation aids in debugging by providing a human-readable description of each instruction error.
-    #[rustfmt::skip]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         use VmInstructionError::*;
         let description = match *self {
@@ -429,33 +427,18 @@ impl core::fmt::Debug for EptViolationExitQualification {
             .field("Instruction Fetch", &self.instruction_fetch)
             .field(
                 "Page Permissions",
-                &format_args!(
-                    "R:{} W:{} X:{}",
-                    self.readable, self.writable, self.executable
-                ),
+                &format_args!("R:{} W:{} X:{}", self.readable, self.writable, self.executable),
             )
             .field("User Mode Executable", &self.user_mode_executable)
-            .field(
-                "Guest Linear Address Valid",
-                &self.guest_linear_address_valid,
-            )
+            .field("Guest Linear Address Valid", &self.guest_linear_address_valid)
             .field("Guest Physical Access", &self.guest_physical_access)
             .field("Supervisor/User Mode", &self.supervisor_user_mode)
             .field("Linear Address Read/Write", &self.linear_address_read_write)
             .field("Linear Address Executable", &self.linear_address_executable)
-            .field(
-                "NMI Unblocking due to IRET",
-                &self.nmi_unblocking_due_to_iret,
-            )
+            .field("NMI Unblocking due to IRET", &self.nmi_unblocking_due_to_iret)
             .field("Shadow Stack Access", &self.shadow_stack_access)
-            .field(
-                "Supervisor Shadow Stack Control",
-                &self.supervisor_shadow_stack_control,
-            )
-            .field(
-                "Caused by Guest Paging Verification",
-                &self.caused_by_guest_paging_verification,
-            )
+            .field("Supervisor Shadow Stack Control", &self.supervisor_shadow_stack_control)
+            .field("Caused by Guest Paging Verification", &self.caused_by_guest_paging_verification)
             .field("Asynchronous Access", &self.asynchronous_access)
             .finish()
     }
@@ -637,9 +620,9 @@ impl VmExitInterruptionInformation {
         Some(VmExitInterruptionInformation {
             vector,
             interruption_type,
-            error_code_valid: (value & (1 << 11)) != 0, // Check if error code is valid (bit 11).
+            error_code_valid: (value & (1 << 11)) != 0,           // Check if error code is valid (bit 11).
             nmi_unblocking_due_to_iret: (value & (1 << 12)) != 0, // Check for NMI unblocking due to IRET (bit 12).
-            valid: (value & (1 << 31)) != 0, // Check if the interruption information is valid (bit 31).
+            valid: (value & (1 << 31)) != 0,                      // Check if the interruption information is valid (bit 31).
         })
     }
 }

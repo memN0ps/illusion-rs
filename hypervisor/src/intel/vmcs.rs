@@ -67,7 +67,6 @@ impl Vmcs {
     /// # Arguments
     /// * `guest_descriptor` - Descriptor tables for the guest.
     /// * `guest_registers` - Guest registers for the guest.
-    #[rustfmt::skip]
     pub fn setup_guest_registers_state(guest_descriptor: &Descriptors, guest_registers: &GuestRegisters) {
         log::debug!("Setting up Guest Registers State");
 
@@ -133,7 +132,6 @@ impl Vmcs {
     /// # Arguments
     /// * `host_descriptor` - Descriptor tables for the host.
     /// * `host_paging` - Paging tables for the host.
-    #[rustfmt::skip]
     pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &Box<PageTables>) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
 
@@ -171,11 +169,11 @@ impl Vmcs {
     /// # Returns
     ///
     /// * `Result<(), HypervisorError>` - A result indicating the success or failure of the operation.
-    #[rustfmt::skip]
     pub fn setup_vmcs_control_fields(primary_eptp: u64, msr_bitmap: u64) -> Result<(), HypervisorError> {
         log::debug!("Setting up VMCS Control Fields");
 
-        const PRIMARY_CTL: u64 = (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits() | vmcs::control::PrimaryControls::USE_MSR_BITMAPS.bits()) as u64;
+        const PRIMARY_CTL: u64 =
+            (vmcs::control::PrimaryControls::SECONDARY_CONTROLS.bits() | vmcs::control::PrimaryControls::USE_MSR_BITMAPS.bits()) as u64;
         const SECONDARY_CTL: u64 = (vmcs::control::SecondaryControls::ENABLE_RDTSCP.bits()
             | vmcs::control::SecondaryControls::ENABLE_XSAVES_XRSTORS.bits()
             | vmcs::control::SecondaryControls::ENABLE_INVPCID.bits()
@@ -186,11 +184,20 @@ impl Vmcs {
         const EXIT_CTL: u64 = vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits() as u64;
         const PINBASED_CTL: u64 = 0;
 
-        vmwrite(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::ProcessorBased, PRIMARY_CTL));
-        vmwrite(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::ProcessorBased2, SECONDARY_CTL));
+        vmwrite(
+            vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS,
+            adjust_vmx_controls(VmxControl::ProcessorBased, PRIMARY_CTL),
+        );
+        vmwrite(
+            vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS,
+            adjust_vmx_controls(VmxControl::ProcessorBased2, SECONDARY_CTL),
+        );
         vmwrite(vmcs::control::VMENTRY_CONTROLS, adjust_vmx_controls(VmxControl::VmEntry, ENTRY_CTL));
         vmwrite(vmcs::control::VMEXIT_CONTROLS, adjust_vmx_controls(VmxControl::VmExit, EXIT_CTL));
-        vmwrite(vmcs::control::PINBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL));
+        vmwrite(
+            vmcs::control::PINBASED_EXEC_CONTROLS,
+            adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL),
+        );
 
         vmwrite(vmcs::control::CR0_READ_SHADOW, cr0().bits() as u64);
         vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw());
@@ -219,13 +226,11 @@ impl fmt::Debug for Vmcs {
     ///
     /// # Returns
     /// Formatting result.
-    #[rustfmt::skip]
     fn fmt(&self, format: &mut fmt::Formatter<'_>) -> fmt::Result {
-
-        format.debug_struct("Vmcs")
+        format
+            .debug_struct("Vmcs")
             .field("Current VMCS: ", &(self as *const _))
             .field("Revision ID: ", &self.revision_id)
-
             /* VMCS Guest state fields */
             .field("Guest CR0: ", &vmread(vmcs::guest::CR0))
             .field("Guest CR3: ", &vmread(vmcs::guest::CR3))
@@ -234,7 +239,6 @@ impl fmt::Debug for Vmcs {
             .field("Guest RSP: ", &vmread(vmcs::guest::RSP))
             .field("Guest RIP: ", &vmread(vmcs::guest::RIP))
             .field("Guest RFLAGS: ", &vmread(vmcs::guest::RFLAGS))
-
             .field("Guest CS Selector: ", &vmread(vmcs::guest::CS_SELECTOR))
             .field("Guest SS Selector: ", &vmread(vmcs::guest::SS_SELECTOR))
             .field("Guest DS Selector: ", &vmread(vmcs::guest::DS_SELECTOR))
@@ -243,7 +247,6 @@ impl fmt::Debug for Vmcs {
             .field("Guest GS Selector: ", &vmread(vmcs::guest::GS_SELECTOR))
             .field("Guest LDTR Selector: ", &vmread(vmcs::guest::LDTR_SELECTOR))
             .field("Guest TR Selector: ", &vmread(vmcs::guest::TR_SELECTOR))
-
             .field("Guest CS Base: ", &vmread(vmcs::guest::CS_BASE))
             .field("Guest SS Base: ", &vmread(vmcs::guest::SS_BASE))
             .field("Guest DS Base: ", &vmread(vmcs::guest::DS_BASE))
@@ -252,7 +255,6 @@ impl fmt::Debug for Vmcs {
             .field("Guest GS Base: ", &vmread(vmcs::guest::GS_BASE))
             .field("Guest LDTR Base: ", &vmread(vmcs::guest::LDTR_BASE))
             .field("Guest TR Base: ", &vmread(vmcs::guest::TR_BASE))
-
             .field("Guest CS Limit: ", &vmread(vmcs::guest::CS_LIMIT))
             .field("Guest SS Limit: ", &vmread(vmcs::guest::SS_LIMIT))
             .field("Guest DS Limit: ", &vmread(vmcs::guest::DS_LIMIT))
@@ -261,7 +263,6 @@ impl fmt::Debug for Vmcs {
             .field("Guest GS Limit: ", &vmread(vmcs::guest::GS_LIMIT))
             .field("Guest LDTR Limit: ", &vmread(vmcs::guest::LDTR_LIMIT))
             .field("Guest TR Limit: ", &vmread(vmcs::guest::TR_LIMIT))
-
             .field("Guest CS Access Rights: ", &vmread(vmcs::guest::CS_ACCESS_RIGHTS))
             .field("Guest SS Access Rights: ", &vmread(vmcs::guest::SS_ACCESS_RIGHTS))
             .field("Guest DS Access Rights: ", &vmread(vmcs::guest::DS_ACCESS_RIGHTS))
@@ -270,12 +271,10 @@ impl fmt::Debug for Vmcs {
             .field("Guest GS Access Rights: ", &vmread(vmcs::guest::GS_ACCESS_RIGHTS))
             .field("Guest LDTR Access Rights: ", &vmread(vmcs::guest::LDTR_ACCESS_RIGHTS))
             .field("Guest TR Access Rights: ", &vmread(vmcs::guest::TR_ACCESS_RIGHTS))
-
             .field("Guest GDTR Base: ", &vmread(vmcs::guest::GDTR_BASE))
             .field("Guest IDTR Base: ", &vmread(vmcs::guest::IDTR_BASE))
             .field("Guest GDTR Limit: ", &vmread(vmcs::guest::GDTR_LIMIT))
             .field("Guest IDTR Limit: ", &vmread(vmcs::guest::IDTR_LIMIT))
-
             .field("Guest IA32_DEBUGCTL_FULL: ", &vmread(vmcs::guest::IA32_DEBUGCTL_FULL))
             .field("Guest IA32_SYSENTER_CS: ", &vmread(vmcs::guest::IA32_SYSENTER_CS))
             .field("Guest IA32_SYSENTER_ESP: ", &vmread(vmcs::guest::IA32_SYSENTER_ESP))
@@ -283,7 +282,6 @@ impl fmt::Debug for Vmcs {
             .field("Guest IA32_EFER_FULL: ", &vmread(vmcs::guest::IA32_EFER_FULL))
             .field("Guest VMCS Link Pointer: ", &vmread(vmcs::guest::LINK_PTR_FULL))
             .field("Guest Activity State: ", &vmread(vmcs::guest::ACTIVITY_STATE))
-
             /* VMCS Host state fields */
             .field("Host CR0: ", &vmread(vmcs::host::CR0))
             .field("Host CR3: ", &vmread(vmcs::host::CR3))
@@ -305,10 +303,15 @@ impl fmt::Debug for Vmcs {
             .field("Host IA32_SYSENTER_CS: ", &vmread(vmcs::host::IA32_SYSENTER_CS))
             .field("Host IA32_SYSENTER_ESP: ", &vmread(vmcs::host::IA32_SYSENTER_ESP))
             .field("Host IA32_SYSENTER_EIP: ", &vmread(vmcs::host::IA32_SYSENTER_EIP))
-
             /* VMCS Control fields */
-            .field("Primary Proc Based Execution Controls: ", &vmread(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS))
-            .field("Secondary Proc Based Execution Controls: ", &vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS))
+            .field(
+                "Primary Proc Based Execution Controls: ",
+                &vmread(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS),
+            )
+            .field(
+                "Secondary Proc Based Execution Controls: ",
+                &vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS),
+            )
             .field("VM Entry Controls: ", &vmread(vmcs::control::VMENTRY_CONTROLS))
             .field("VM Exit Controls: ", &vmread(vmcs::control::VMEXIT_CONTROLS))
             .field("Pin Based Execution Controls: ", &vmread(vmcs::control::PINBASED_EXEC_CONTROLS))
