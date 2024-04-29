@@ -50,10 +50,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     // Set the current hook to the EPT hook for handling MTF exit
 
     let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
-        info!(
-            "Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}",
-            ept_hook.guest_pa, vm.guest_registers.rip
-        );
+        info!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
 
         // log_nt_query_system_information_params(&vm.guest_registers);
 
@@ -66,12 +63,8 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
-        vm.primary_ept.swap_page(
-            guest_page_pa,
-            guest_page_pa,
-            AccessType::READ_WRITE_EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
-        )?;
+        vm.primary_ept
+            .swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
         let instruction_count = unsafe { calculate_instruction_count(ept_hook.guest_pa.as_u64(), ept_hook.inline_hook.unwrap().hook_size()) as u64 };

@@ -89,49 +89,17 @@ impl fmt::Debug for GuestRegisters {
         f.write_str("GuestRegisters {\n")?;
 
         // General-purpose registers in 4 columns
-        write!(
-            f,
-            "  rax: {:#018x}, rbx: {:#018x}, rcx: {:#018x}, rdx: {:#018x}\n",
-            self.rax, self.rbx, self.rcx, self.rdx
-        )?;
-        write!(
-            f,
-            "  rsi: {:#018x}, rdi: {:#018x}, rbp: {:#018x}, r8: {:#018x}\n",
-            self.rsi, self.rdi, self.rbp, self.r8
-        )?;
-        write!(
-            f,
-            "  r9: {:#018x}, r10: {:#018x}, r11: {:#018x}, r12: {:#018x}\n",
-            self.r9, self.r10, self.r11, self.r12
-        )?;
-        write!(
-            f,
-            "  r13: {:#018x}, r14: {:#018x}, r15: {:#018x}, rip: {:#018x}\n",
-            self.r13, self.r14, self.r15, self.rip
-        )?;
+        write!(f, "  rax: {:#018x}, rbx: {:#018x}, rcx: {:#018x}, rdx: {:#018x}\n", self.rax, self.rbx, self.rcx, self.rdx)?;
+        write!(f, "  rsi: {:#018x}, rdi: {:#018x}, rbp: {:#018x}, r8: {:#018x}\n", self.rsi, self.rdi, self.rbp, self.r8)?;
+        write!(f, "  r9: {:#018x}, r10: {:#018x}, r11: {:#018x}, r12: {:#018x}\n", self.r9, self.r10, self.r11, self.r12)?;
+        write!(f, "  r13: {:#018x}, r14: {:#018x}, r15: {:#018x}, rip: {:#018x}\n", self.r13, self.r14, self.r15, self.rip)?;
         write!(f, "  rsp: {:#018x}, rflags: {:#018x}\n", self.rsp, self.rflags)?;
 
         // XMM registers in 4 columns
-        write!(
-            f,
-            "  xmm0: {:?}, xmm1: {:?}, xmm2: {:?}, xmm3: {:?}\n",
-            self.xmm0, self.xmm1, self.xmm2, self.xmm3
-        )?;
-        write!(
-            f,
-            "  xmm4: {:?}, xmm5: {:?}, xmm6: {:?}, xmm7: {:?}\n",
-            self.xmm4, self.xmm5, self.xmm6, self.xmm7
-        )?;
-        write!(
-            f,
-            "  xmm8: {:?}, xmm9: {:?}, xmm10: {:?}, xmm11: {:?}\n",
-            self.xmm8, self.xmm9, self.xmm10, self.xmm11
-        )?;
-        write!(
-            f,
-            "  xmm12: {:?}, xmm13: {:?}, xmm14: {:?}, xmm15: {:?}\n",
-            self.xmm12, self.xmm13, self.xmm14, self.xmm15
-        )?;
+        write!(f, "  xmm0: {:?}, xmm1: {:?}, xmm2: {:?}, xmm3: {:?}\n", self.xmm0, self.xmm1, self.xmm2, self.xmm3)?;
+        write!(f, "  xmm4: {:?}, xmm5: {:?}, xmm6: {:?}, xmm7: {:?}\n", self.xmm4, self.xmm5, self.xmm6, self.xmm7)?;
+        write!(f, "  xmm8: {:?}, xmm9: {:?}, xmm10: {:?}, xmm11: {:?}\n", self.xmm8, self.xmm9, self.xmm10, self.xmm11)?;
+        write!(f, "  xmm12: {:?}, xmm13: {:?}, xmm14: {:?}, xmm15: {:?}\n", self.xmm12, self.xmm13, self.xmm14, self.xmm15)?;
 
         f.write_str("}")
     }

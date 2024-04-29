@@ -272,12 +272,7 @@ impl Ept {
 
         // Update the PTE to point to the new HPA
         pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);
-        trace!(
-            "Updated PTE for GPA {:#x} from old HPA {:#x} to new HPA {:#x}",
-            guest_pa,
-            old_hpa,
-            host_pa
-        );
+        trace!("Updated PTE for GPA {:#x} from old HPA {:#x} to new HPA {:#x}", guest_pa, old_hpa, host_pa);
 
         Ok(old_hpa)
     }

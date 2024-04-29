@@ -67,10 +67,8 @@ pub unsafe fn get_export_by_hash(module_base_pa: *mut u8, module_base_va: u64, e
         + (*nt_headers).OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT as usize].VirtualAddress as usize)
         as PIMAGE_EXPORT_DIRECTORY;
 
-    let names = from_raw_parts(
-        (module_base_pa as usize + (*export_directory).AddressOfNames as usize) as *const u32,
-        (*export_directory).NumberOfNames as _,
-    );
+    let names =
+        from_raw_parts((module_base_pa as usize + (*export_directory).AddressOfNames as usize) as *const u32, (*export_directory).NumberOfNames as _);
     let functions = from_raw_parts(
         (module_base_pa as usize + (*export_directory).AddressOfFunctions as usize) as *const u32,
         (*export_directory).NumberOfFunctions as _,

@@ -425,10 +425,7 @@ impl core::fmt::Debug for EptViolationExitQualification {
             .field("Data Read", &self.data_read)
             .field("Data Write", &self.data_write)
             .field("Instruction Fetch", &self.instruction_fetch)
-            .field(
-                "Page Permissions",
-                &format_args!("R:{} W:{} X:{}", self.readable, self.writable, self.executable),
-            )
+            .field("Page Permissions", &format_args!("R:{} W:{} X:{}", self.readable, self.writable, self.executable))
             .field("User Mode Executable", &self.user_mode_executable)
             .field("Guest Linear Address Valid", &self.guest_linear_address_valid)
             .field("Guest Physical Access", &self.guest_physical_access)

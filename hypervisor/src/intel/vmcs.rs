@@ -184,20 +184,11 @@ impl Vmcs {
         const EXIT_CTL: u64 = vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits() as u64;
         const PINBASED_CTL: u64 = 0;
 
-        vmwrite(
-            vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS,
-            adjust_vmx_controls(VmxControl::ProcessorBased, PRIMARY_CTL),
-        );
-        vmwrite(
-            vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS,
-            adjust_vmx_controls(VmxControl::ProcessorBased2, SECONDARY_CTL),
-        );
+        vmwrite(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::ProcessorBased, PRIMARY_CTL));
+        vmwrite(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::ProcessorBased2, SECONDARY_CTL));
         vmwrite(vmcs::control::VMENTRY_CONTROLS, adjust_vmx_controls(VmxControl::VmEntry, ENTRY_CTL));
         vmwrite(vmcs::control::VMEXIT_CONTROLS, adjust_vmx_controls(VmxControl::VmExit, EXIT_CTL));
-        vmwrite(
-            vmcs::control::PINBASED_EXEC_CONTROLS,
-            adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL),
-        );
+        vmwrite(vmcs::control::PINBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL));
 
         vmwrite(vmcs::control::CR0_READ_SHADOW, cr0().bits() as u64);
         vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw());
@@ -304,14 +295,8 @@ impl fmt::Debug for Vmcs {
             .field("Host IA32_SYSENTER_ESP: ", &vmread(vmcs::host::IA32_SYSENTER_ESP))
             .field("Host IA32_SYSENTER_EIP: ", &vmread(vmcs::host::IA32_SYSENTER_EIP))
             /* VMCS Control fields */
-            .field(
-                "Primary Proc Based Execution Controls: ",
-                &vmread(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS),
-            )
-            .field(
-                "Secondary Proc Based Execution Controls: ",
-                &vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS),
-            )
+            .field("Primary Proc Based Execution Controls: ", &vmread(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS))
+            .field("Secondary Proc Based Execution Controls: ", &vmread(vmcs::control::SECONDARY_PROCBASED_EXEC_CONTROLS))
             .field("VM Entry Controls: ", &vmread(vmcs::control::VMENTRY_CONTROLS))
             .field("VM Exit Controls: ", &vmread(vmcs::control::VMEXIT_CONTROLS))
             .field("Pin Based Execution Controls: ", &vmread(vmcs::control::PINBASED_EXEC_CONTROLS))

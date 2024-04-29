@@ -85,10 +85,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> Result<ExitType, HypervisorEr
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
-    trace!(
-        "EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.",
-        guest_physical_address
-    );
+    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
     dump_primary_ept_entries(vm, guest_physical_address)?;
 
     // Trigger a breakpoint exception to halt execution for debugging.

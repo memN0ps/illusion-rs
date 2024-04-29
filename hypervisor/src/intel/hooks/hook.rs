@@ -129,19 +129,11 @@ impl EptHook {
         Self::unsafe_copy_guest_to_shadow(guest_page_pa, host_shadow_page_pa);
 
         // Calculate the address of the function within the pre-allocated host shadow page.
-        let host_shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(
-            host_shadow_page_pa,
-            guest_function_pa,
-        ));
+        let host_shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(host_shadow_page_pa, guest_function_pa));
         trace!("Host Shadow Function PA: {:#x}", host_shadow_function_pa);
 
         // Create a new inline hook configuration.
-        let mut inline_hook = InlineHook::new(
-            host_shadow_function_pa.as_u64() as _,
-            guest_function_va.as_u64() as _,
-            hook_handler as _,
-            hook_type,
-        );
+        let mut inline_hook = InlineHook::new(host_shadow_function_pa.as_u64() as _, guest_function_va.as_u64() as _, hook_handler as _, hook_type);
 
         // Perform the actual hook
         trace!("Calling Detour64");
