@@ -79,6 +79,8 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
+            trace!("VM exit reason: {:?}", basic_exit_reason);
+
             let exit_type = match basic_exit_reason {
                 // 0
                 VmxBasicExitReason::ExceptionOrNmi => handle_exception(&mut vm),
