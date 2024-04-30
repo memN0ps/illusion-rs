@@ -42,7 +42,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 ## Installation
 
 - Install Rust from [here](https://www.rust-lang.org/tools/install).
-- Install cargo-make: `cargo install cargo-make --force`
+- Install cargo-make: `cargo install cargo-make`
 
 ## Building the Project
 
