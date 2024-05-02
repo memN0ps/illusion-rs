@@ -6,8 +6,7 @@
 use {
     crate::{error::HypervisorError, intel::support::rdmsr},
     bitfield::BitMut,
-    x86::controlregs,
-    x86::{current::paging::BASE_PAGE_SIZE, msr},
+    x86::{controlregs, current::paging::BASE_PAGE_SIZE, msr},
     x86_64::registers::control::Cr4,
 };
 
@@ -62,12 +61,7 @@ impl Vmxon {
         let ia32_feature_control = unsafe { msr::rdmsr(msr::IA32_FEATURE_CONTROL) };
 
         if (ia32_feature_control & VMX_LOCK_BIT) == 0 {
-            unsafe {
-                msr::wrmsr(
-                    msr::IA32_FEATURE_CONTROL,
-                    VMXON_OUTSIDE_SMX | VMX_LOCK_BIT | ia32_feature_control,
-                )
-            };
+            unsafe { msr::wrmsr(msr::IA32_FEATURE_CONTROL, VMXON_OUTSIDE_SMX | VMX_LOCK_BIT | ia32_feature_control) };
         } else if (ia32_feature_control & VMXON_OUTSIDE_SMX) == 0 {
             return Err(HypervisorError::VMXBIOSLock);
         }

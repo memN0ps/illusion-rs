@@ -7,24 +7,23 @@
 
 use {
     crate::{
+        allocate::box_zeroed,
         error::HypervisorError,
         intel::{
+            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             capture::GuestRegisters,
             descriptor::Descriptors,
-            page::Page,
+            ept::Ept,
+            hooks::hook_manager::HookManager,
             paging::PageTables,
-            shared::SharedData,
             support::{rdmsr, vmclear, vmptrld, vmread},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
         },
     },
-    alloc::alloc::handle_alloc_error,
     alloc::boxed::Box,
     bit_field::BitField,
-    core::alloc::Layout,
-    core::ptr::NonNull,
     log::*,
     x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
@@ -47,21 +46,27 @@ pub struct Vm {
     /// Paging tables for the host.
     pub host_paging: Box<PageTables>,
 
+    /// The hook manager for the VM.
+    pub hook_manager: Box<HookManager>,
+
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: Box<MsrBitmap>,
+
+    /// The primary EPT (Extended Page Tables) for the VM.
+    pub primary_ept: Box<Ept>,
+
+    /// The primary EPTP (Extended Page Tables Pointer) for the VM.
+    pub primary_eptp: u64,
+
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
 
-    /// Bitmap controlling MSR read/write operations.
-    pub msr_bitmap: Box<Page>,
-
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
-
-    /// Shared data across processors for synchronization and state management.
-    pub shared_data: NonNull<SharedData>,
 }
 
 impl Vm {
-    /// Initializes a new VM instance with specified guest registers and shared data.
+    /// Initializes a new VM instance with specified guest registers.
     ///
     /// Sets up the necessary environment for the VM, including VMCS initialization, host and guest
     /// descriptor tables, paging structures, and MSR bitmaps. Prepares the VM for execution.
@@ -69,37 +74,53 @@ impl Vm {
     /// # Arguments
     ///
     /// - `guest_registers`: The initial state of guest registers for the VM.
-    /// - `shared_data`: Mutable reference to shared data used across processors.
     ///
     /// # Returns
     ///
     /// Returns `Ok(Self)` with a newly created `Vm` instance, or an `Err(HypervisorError)` if
     /// any part of the setup fails.
-    pub fn new(
-        guest_registers: &GuestRegisters,
-        shared_data: &mut SharedData,
-    ) -> Result<Self, HypervisorError> {
-        debug!("Creating VM");
+    pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
+        trace!("Creating VM");
         let mut vmcs_region = unsafe { box_zeroed::<Vmcs>() };
         vmcs_region.revision_id = rdmsr(x86::msr::IA32_VMX_BASIC) as u32;
 
-        debug!("Allocating Memory for Host Paging");
+        trace!("Allocating Memory for Host Paging");
         let mut host_paging = unsafe { box_zeroed::<PageTables>() };
 
-        debug!("Building Identity Paging for Host");
+        trace!("Building Identity Paging for Host");
         host_paging.build_identity();
 
-        debug!("VM created");
+        trace!("Allocating MSR Bitmap");
+        let mut msr_bitmap = MsrBitmap::new();
+
+        trace!("Allocating Primary EPT");
+        let mut primary_ept = unsafe { box_zeroed::<Ept>() };
+
+        trace!("Identity Mapping Primary EPT");
+        primary_ept.build_identity()?;
+
+        trace!("Creating primary EPTP with WB and 4-level walk");
+        let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
+
+        trace!("Modifying MSR interception for LSTAR MSR write access");
+        msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+
+        trace!("Creating EPT hook manager");
+        let hook_manager = HookManager::new()?;
+
+        trace!("VM created");
 
         Ok(Self {
             vmcs_region,
             host_paging,
+            hook_manager,
             host_descriptor: Descriptors::new_for_host(),
             guest_descriptor: Descriptors::new_from_current(),
+            msr_bitmap,
+            primary_ept,
+            primary_eptp,
             guest_registers: guest_registers.clone(),
-            msr_bitmap: unsafe { box_zeroed::<Page>() },
             has_launched: false,
-            shared_data: unsafe { NonNull::new_unchecked(shared_data as *mut _) },
         })
     }
 
@@ -112,7 +133,7 @@ impl Vm {
     ///
     /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if activation fails.
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
-        debug!("Activating VMCS");
+        trace!("Activating VMCS");
         self.vmcs_region.revision_id.set_bit(31, false);
 
         // Clear the VMCS region.
@@ -125,29 +146,27 @@ impl Vm {
 
         self.setup_vmcs()?;
 
-        debug!("VMCS activated successfully!");
+        trace!("VMCS activated successfully!");
 
         Ok(())
     }
 
     /// Configures the VMCS with necessary settings for guest and host state, and VM execution controls.
     ///
-    /// Includes setting up guest registers, host state on VM-exits, and control fields for VM execution.
-    /// Utilizes shared data for setting up Extended Page Tables (EPT) and MSR bitmaps.
-    ///
     /// # Returns
     ///
     /// Returns `Ok(())` if VMCS setup is successful, or an `Err(HypervisorError)` for setup failures.
     pub fn setup_vmcs(&mut self) -> Result<(), HypervisorError> {
-        debug!("Setting up VMCS");
+        trace!("Setting up VMCS");
 
-        let primary_eptp = unsafe { self.shared_data.as_ref().primary_eptp };
+        let primary_eptp = self.primary_eptp;
+        let msr_bitmap = self.msr_bitmap.as_ref() as *const _ as u64;
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
         Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
-        Vmcs::setup_vmcs_control_fields(primary_eptp, &self.msr_bitmap)?;
+        Vmcs::setup_vmcs_control_fields(primary_eptp, msr_bitmap)?;
 
-        debug!("VMCS setup successfully!");
+        trace!("VMCS setup successfully!");
 
         Ok(())
     }
@@ -166,7 +185,7 @@ impl Vm {
         let flags = unsafe { launch_vm(&mut self.guest_registers, u64::from(self.has_launched)) };
         Self::vm_succeed(RFlags::from_raw(flags))?;
         self.has_launched = true;
-        trace!("VM-exit occurred!");
+        // trace!("VM-exit occurred!");
 
         // VM-exit occurred. Copy the guest register values from VMCS so that
         // `self.registers` is complete and up to date.
@@ -216,27 +235,4 @@ impl Vm {
 
         Ok(())
     }
-}
-
-/// Allocates and zeros memory for a given type, returning a boxed instance.
-///
-/// # Safety
-///
-/// This function allocates memory and initializes it to zero. It must be called
-/// in a safe context where allocation errors and uninitialized memory access are handled.
-///
-/// # Returns
-///
-/// Returns a `Box<T>` pointing to the zero-initialized memory of type `T`.
-///
-/// # Panics
-///
-/// Panics if memory allocation fails.
-pub unsafe fn box_zeroed<T>() -> Box<T> {
-    let layout = Layout::new::<T>();
-    let ptr = unsafe { alloc::alloc::alloc_zeroed(layout) }.cast::<T>();
-    if ptr.is_null() {
-        handle_alloc_error(layout);
-    }
-    unsafe { Box::from_raw(ptr) }
 }

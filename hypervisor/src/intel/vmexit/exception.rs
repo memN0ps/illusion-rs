@@ -7,9 +7,7 @@ use {
         events::EventInjection,
         support::vmread,
         vm::Vm,
-        vmerror::{
-            EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation,
-        },
+        vmerror::{EptViolationExitQualification, ExceptionInterrupt, VmExitInterruptionInformation},
         vmexit::ExitType,
     },
     x86::vmx::vmcs,
@@ -29,7 +27,6 @@ use {
 /// # Returns
 ///
 /// * `ExitType::Continue` - Indicating that VM execution should continue after handling the exception
-#[rustfmt::skip]
 pub fn handle_exception(_vm: &mut Vm) -> ExitType {
     log::debug!("Handling ExceptionOrNmi VM exit...");
 
@@ -42,19 +39,19 @@ pub fn handle_exception(_vm: &mut Vm) -> ExitType {
                 ExceptionInterrupt::PageFault => {
                     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
                     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
-                    log::trace!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
+                    log::trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
                     EventInjection::vmentry_inject_pf(interruption_error_code_value as u32);
-                },
+                }
                 ExceptionInterrupt::GeneralProtectionFault => {
                     EventInjection::vmentry_inject_gp(interruption_error_code_value as u32);
-                },
+                }
                 ExceptionInterrupt::Breakpoint => {
                     //handle_breakpoint_exception(guest_registers, vm);
                     EventInjection::vmentry_inject_bp();
-                },
+                }
                 ExceptionInterrupt::InvalidOpcode => {
                     EventInjection::vmentry_inject_ud();
-                },
+                }
                 _ => {
                     panic!("Unhandled exception: {:?}", exception_interrupt);
                 }
@@ -85,7 +82,7 @@ pub fn handle_exception(_vm: &mut Vm) -> ExitType {
 fn handle_breakpoint_exception(guest_registers: &mut GuestRegisters, vm: &mut Vm) {
     log::debug!("Breakpoint Exception");
 
-    let hook_manager = unsafe { vm.shared_data.as_mut().hook_manager.as_mut() };
+    let hook_manager = vm.hook_manager.as_mut();
 
     log::trace!("Finding hook for RIP: {:#x}", guest_registers.rip);
 

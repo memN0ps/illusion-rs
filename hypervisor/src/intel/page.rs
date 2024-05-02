@@ -12,3 +12,41 @@ use x86::bits64::paging::BASE_PAGE_SIZE;
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(4096))]
 pub struct Page([u8; BASE_PAGE_SIZE]);
+
+impl Page {
+    /// Creates a new `Page` instance.
+    ///
+    /// # Returns
+    ///
+    /// * `Self` - The new `Page` instance.
+    pub fn new() -> Self {
+        Self([0; BASE_PAGE_SIZE])
+    }
+
+    /// Returns a mutable reference to the underlying page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `&mut [u8; 4096]` - A mutable reference to the underlying page buffer.
+    pub fn as_mut_slice(&mut self) -> &mut [u8; BASE_PAGE_SIZE] {
+        &mut self.0
+    }
+
+    /// Returns a reference to the underlying page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `&[u8; 4096]` - A reference to the underlying page buffer.
+    pub fn as_slice(&self) -> &[u8; BASE_PAGE_SIZE] {
+        &self.0
+    }
+
+    /// Returns the size of the page.
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - The size of the page.
+    pub fn size() -> usize {
+        BASE_PAGE_SIZE
+    }
+}

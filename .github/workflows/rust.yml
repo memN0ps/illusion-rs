@@ -16,7 +16,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install
+      run: cargo install cargo-make
     - name: Build
-      run: cargo build --target x86_64-unknown-uefi --profile dev --verbose
-    - name: Run tests
+      run: cargo make build-debug
+    - name: Test
       run: cargo test --lib .\hypervisor\ --verbose

@@ -4,7 +4,7 @@
 //! like `HLT`, facilitating appropriate responses and actions in a virtualized environment.
 //! Essential for managing VM execution flow and state in response to guest actions.
 
-use crate::intel::vmexit::ExitType;
+use {crate::intel::vmexit::ExitType, log::trace};
 
 /// Handles the VM exit caused by a `HLT` instruction.
 ///
@@ -17,5 +17,6 @@ use crate::intel::vmexit::ExitType;
 /// Returns `ExitType::IncrementRIP` to indicate that the VM's instruction pointer should
 /// be incremented to continue execution.
 pub fn handle_halt() -> ExitType {
+    trace!("Handling HLT VM exit...");
     ExitType::IncrementRIP
 }

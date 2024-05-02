@@ -1,59 +1,65 @@
 use {
-    crate::intel::{
-        invept::invept_all_contexts, support::vmread, support::vmwrite, vm::Vm,
-        vmerror::EptViolationExitQualification, vmexit::ExitType,
+    crate::{
+        error::HypervisorError,
+        intel::{ept::AccessType, support::vmread, vm::Vm, vmerror::EptViolationExitQualification, vmexit::ExitType},
     },
-    x86::vmx::vmcs,
+    log::*,
+    x86::{bits64::paging::PAddr, vmx::vmcs},
 };
 
 /// Handle VM exits for EPT violations. Violations are thrown whenever an operation is performed on an EPT entry that does not provide permissions to access that page.
 /// 29.3.3.2 EPT Violations
 /// Table 28-7. Exit Qualification for EPT Violations
-#[rustfmt::skip]
-pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
-    log::debug!("Handling EPT Violation VM exit...");
+pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
+    trace!("Handling EPT Violation VM exit...");
 
-    let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
-    log::debug!("EPT Violation: Guest Physical Address: {:#x}", guest_physical_address);
+    let guest_pa = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
+    trace!("Faulting Guest PA: {:#x}", guest_pa);
+    trace!("Faulting Guest Page PA: {:#x}", PAddr::from(guest_pa).align_down_to_base_page().as_u64());
 
-    // Translate the page from a physical address to virtual so we can read its memory.
-    //let va = PhysicalAddress::va_from_pa(guest_physical_address);
-    //log::debug!("EPT Violation: Guest Virtual Address: {:#x}", va);
+    // dump_primary_ept_entries(vm, guest_pa)?;
 
-    // Log the detailed information about the EPT violation
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
-    log::debug!("Exit Qualification for EPT Violations: {}", ept_violation_qualification);
+    trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
+    trace!("Faulting Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    // If the page is Read/Write, then we need to swap it to the secondary EPTP
-    if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
-        //log::trace!("EPT Violation: Execute acccess attempted on Guest Physical Address: {:#x} / Guest Virtual Address: {:#x}", guest_physical_address, va);
-        // Change to the secondary EPTP and invalidate the EPT cache.
-        // The hooked page that is Execute-Only will be executed from the secondary EPTP.
-        // if Read or Write occurs on that page, then a vmexit will occur
-        // and we can swap the page back to the primary EPTP, (original page) with RW permissions.
-        let secondary_eptp = unsafe { vm.shared_data.as_ref().secondary_eptp };
-        vmwrite(vmcs::control::EPTP_FULL, secondary_eptp);
-        invept_all_contexts();
-        //invept_single_context(secondary_eptp);
+    let ept_hook = vm
+        .hook_manager
+        .find_hook_by_guest_page_pa_as_mut(PAddr::from(guest_pa).align_down_to_base_page().as_u64())
+        .ok_or(HypervisorError::HookNotFound)?;
+
+    if ept_violation_qualification.instruction_fetch && !ept_violation_qualification.executable {
+        // if the instruction fetch is true and the page is not executable, we need to swap the page to a shadow page.
+        //   Instruction Fetch: true,
+        //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
+        trace!("Execution attempt on non-executable page, switching to shadow page.");
+        info!("Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).");
+        info!("Execution attempt on non-executable page, switching to hooked shadow-copy page.");
+        vm.primary_ept.swap_page(
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
+            AccessType::EXECUTE,
+            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+        )?;
+        info!("Page swapped successfully!");
+    } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
+        // if the instruction fetch is false and the page is executable, we need to swap the page to a shadow page.
+        //   Instruction Fetch: false,
+        //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
+        // trace!("Read/Write attempt on execute-only page, restoring original page.");
+        vm.primary_ept.swap_page(
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            AccessType::READ_WRITE,
+            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+        )?;
     }
 
-    // If the page is Execute-Only, then we need to swap it back to the primary EPTP
-    if !ept_violation_qualification.readable && !ept_violation_qualification.writable && ept_violation_qualification.executable {
-        // Change to the primary EPTP and invalidate the EPT cache.
-        // The original page that is Read-Write-Only will be executed from the primary EPTP.
-        // if Execute occurs on that page, then a vmexit will occur
-        // and we can swap the page back to the secondary EPTP, (hooked page) with X permissions.
-        let primary_eptp = unsafe { vm.shared_data.as_ref().primary_eptp };
-        vmwrite(vmcs::control::EPTP_FULL, primary_eptp);
-        invept_all_contexts();
-        //invept_single_context(primary_eptp);
-    }
-
-    log::debug!("EPT Violation handled successfully!");
+    trace!("EPT Violation handled successfully!");
 
     // Do not increment RIP, since we want it to execute the same instruction again.
-    ExitType::Continue
+    Ok(ExitType::Continue)
 }
 
 /// Handles an EPT misconfiguration VM exit.
@@ -73,23 +79,54 @@ pub fn handle_ept_violation(vm: &mut Vm) -> ExitType {
 /// unpredictable behavior or a crashed operating system.
 ///
 /// Reference: 29.3.3.1 EPT Misconfigurations
-#[rustfmt::skip]
-pub fn handle_ept_misconfiguration() -> ExitType {
-    log::debug!("Handling EPT Misconfiguration VM exit...");
+pub fn handle_ept_misconfiguration(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
+    trace!("Handling EPT Misconfiguration VM exit...");
 
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
-    // Log the critical error information.
-    log::trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+    trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
+    dump_primary_ept_entries(vm, guest_physical_address)?;
 
     // Trigger a breakpoint exception to halt execution for debugging.
     // Continuing after this point is unsafe due to the potential for system instability.
-    unsafe {  core::arch::asm!("int3") };
+    unsafe { core::arch::asm!("int3") };
 
     // Execution should not continue beyond this point.
     // EPT misconfiguration is a fatal exception and continuing may lead to system crashes.
 
     // We may chose to exit the hypervisor here instead of triggering a breakpoint exception.
-    return ExitType::ExitHypervisor;
+    return Ok(ExitType::ExitHypervisor);
+}
+
+/// Dumps the EPT entries for the primary EPT at the specified guest physical address.
+///
+/// This function is used for debugging EPT misconfigurations and violations and prints the EPT entries for the primary EPTs.
+///
+/// # Arguments
+///
+/// * `vm` - The virtual machine instance.
+/// * `faulting_guest_pa` - The faulting guest physical address that caused the EPT misconfiguration or violation.
+pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(), HypervisorError> {
+    // Log the critical error information.
+    trace!("Faulting guest address: {:#x}", faulting_guest_pa);
+
+    // Get the hook manager from the VM.
+    let hook_manager = vm.hook_manager.as_mut();
+
+    // Align the faulting guest physical address to the base page size.
+    let faulting_guest_page_pa = PAddr::from(faulting_guest_pa).align_down_to_base_page().as_u64();
+    trace!("Faulting guest page address: {:#x}", faulting_guest_page_pa);
+
+    let ept_hook = hook_manager
+        .find_hook_by_guest_page_pa_as_ref(faulting_guest_pa)
+        .ok_or(HypervisorError::HookNotFound)?;
+
+    // Get the primary EPTs.
+    let primary_ept = &mut vm.primary_ept;
+
+    trace!("Dumping Primary EPT entries for guest physical address: {:#x}", faulting_guest_pa);
+    primary_ept.dump_ept_entries(faulting_guest_pa, ept_hook.primary_ept_pre_alloc_pt.as_ref());
+
+    Ok(())
 }

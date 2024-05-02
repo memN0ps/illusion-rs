@@ -11,10 +11,7 @@ extern crate alloc;
 
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
-    hypervisor::{
-        intel::{ept::paging::Ept, vm::box_zeroed},
-        logger::{self, SerialPort},
-    },
+    hypervisor::logger::{self, SerialPort},
     log::*,
     uefi::prelude::*,
 };
@@ -33,12 +30,7 @@ pub mod virtualize;
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     // Log the file, line, and column of the panic.
     if let Some(location) = info.location() {
-        error!(
-            "[-] Panic in {} at ({}, {}):",
-            location.file(),
-            location.line(),
-            location.column()
-        );
+        error!("[-] Panic in {} at ({}, {}):", location.file(), location.line(), location.column());
         // Log the panic message if available.
         if let Some(message) = info.message() {
             error!("[-] {}", message);
@@ -65,11 +57,10 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Initialize logging with the COM2 port and set the level filter to Trace.
-    logger::init(SerialPort::COM2, LevelFilter::Trace);
+    logger::init(SerialPort::COM1, LevelFilter::Trace);
 
     // Initialize UEFI services.
-    uefi_services::init(&mut system_table).unwrap();
-    // allocator::init(&system_table);
+    uefi::helpers::init(&mut system_table).unwrap();
 
     info!("The Matrix is an illusion");
 
@@ -82,25 +73,9 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         return Status::ABORTED;
     }
 
-    debug!("Allocating primary and secondary EPTs");
-    let mut primary_ept = unsafe { box_zeroed::<Ept>() };
-    let mut secondary_ept = unsafe { box_zeroed::<Ept>() };
-
-    debug!("Identity mapping primary and secondary EPTs");
-
-    if let Err(e) = primary_ept.build_identity() {
-        error!("Failed to identity map primary EPT: {:?}", e);
-        return Status::ABORTED;
-    }
-
-    if let Err(e) = secondary_ept.build_identity() {
-        error!("Failed to identity map secondary EPT: {:?}", e);
-        return Status::ABORTED;
-    }
-
     // Attempt to start the hypervisor on all processors.
     debug!("Starting hypervisor on all processors");
-    if let Err(e) = start_hypervisor_on_all_processors(boot_services, primary_ept, secondary_ept) {
+    if let Err(e) = start_hypervisor_on_all_processors(boot_services) {
         error!("Failed to start hypervisor on all processors: {:?}", e);
         return Status::ABORTED;
     }

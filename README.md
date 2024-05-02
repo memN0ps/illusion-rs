@@ -10,10 +10,25 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Features
 
-- :white_check_mark: **Extended Page Tables (EPT)**: Support for Memory Type Range Registers (MTRR).
-- :white_check_mark: **VM Exit Handling**: Handling of `ExceptionOrNmi (#GP, #PF, #BP, #UD)`, `InitSignal`, `StartupIpi`, `Hlt`, `Cpuid`, `Getsec`, `Vmcall`, `Vmclear`, `Vmlaunch`, `Vmptrld`, `Vmptrst`, `Vmresume`, `Vmxon`, `Vmxoff` `Rdmsr`, `Wrmsr`, `Invd`, `Rdtsc`, `EptViolation`, `EptMisconfiguration`, `Invept`, `Invvpid`, `Xsetbv`.
-- :x: **Hidden Kernel Inline Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
-- :x: **Hidden System Call (Syscall) Hooks**: PatchGuard-compatible jump (`JMP`) and breakpoint (`int3`) hooks for System Service Descriptor Table (SSDT) function entries. (Refer to [Hooks](https://github.com/memN0ps/matrix-rs/blob/main/hypervisor/src/intel/ept/hooks.rs) and [SSDT](https://github.com/memN0ps/matrix-rs/tree/main/hypervisor/src/utils/ssdt) in the Windows Blue Pill Type-2 Hypervisor in Rust (Codename: Matrix) for reusable code.)
+### PatchGuard Compatible Features
+
+- :white_check_mark: Hidden System Call (Syscall) Hooks Via System Service Descriptor Table (SSDT).
+- :white_check_mark: Hidden Kernel Inline Hooks.
+- :white_check_mark: Hidden Model Specific Registers (MSR) Hooks.
+- :x: Hidden Interrupt Descriptor Table (IDT) Hooks.
+
+### Microsoft Hyper-V Compatible Features
+
+- :white_check_mark: Support for running as a nested hypervisor under Microsoft Hyper-V (Type-2) with Virtualization Based Security (VBS) Enabled.
+- :x: Support for running as the primary hypervisor on top of Microsoft Hyper-V (Type-1) with Virtualization Based Security (VBS) Enabled.
+
+### VM Exit Handling
+
+- :white_check_mark: VM Exit Handling: `ExceptionOrNmi (#GP, #PF, #BP, #UD)` (0), `InitSignal` (3), `StartupIpi` (4), `Cpuid` (10), `Getsec` (11), `Hlt` (12), `Invd` (13), `Vmcall` (18), `Vmclear` (19), `Vmlaunch` (20), `Vmptrld` (21), `Vmptrst` (22), `Vmresume` (24), `Vmxon` (27), `Vmxoff` (26), `Rdmsr` (31), `Wrmsr` (32), `MonitorTrapFlag` (37), `Rdtsc` (49), `EptViolation` (48), `EptMisconfiguration` (50), `Invept` (53), `Invvpid` (55), `Xsetbv` (55).
+
+## Hypervisor Detection
+
+- :x: Neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
 
 ## Supported Hardware
 
@@ -26,18 +41,13 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Installation
 
-1. Install Rust from [here](https://www.rust-lang.org/tools/install).
-2. Switch to Rust Nightly: `rustup toolchain install nightly` and `rustup default nightly`.
-3. Install Tools: `cargo install cargo-make cargo-expand cargo-edit cargo-workspaces`.
+- Install Rust from [here](https://www.rust-lang.org/tools/install).
+- Install cargo-make: `cargo install cargo-make`
 
 ## Building the Project
 
-- Development: `cargo build --target x86_64-unknown-uefi --profile dev`.
-- Release: `cargo build --target x86_64-unknown-uefi --profile release`.
-
-## Showcase
-
-![Check HV Vendor](images/check-hv-vendor.png)
+- Debug: `cargo make build-debug`.
+- Release: `cargo make build-release`.
 
 ## Acknowledgments, References, and Motivation
 
@@ -91,7 +101,7 @@ Special thanks to:
 - [Namazso (@namazso)](https://github.com/namazso)
 - [Matthias @not-matthias](https://github.com/not-matthias/)
 - [@felix-rs / @joshuа](https://github.com/felix-rs)
-- Jess (@jessiep_)
+- [Jess (@jessiep_)](https://github.com/Intege-rs)
 - [Ryan McCrystal / @rmccrystal](https://github.com/rmccrystal)
 - [Jim Colerick (@vmprotect)](https://github.com/thug-shaker)
 

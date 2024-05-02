@@ -8,14 +8,16 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::ept::mtrr::{MemoryType, Mtrr},
+        intel::{
+            invept::invept_all_contexts,
+            invvpid::invvpid_all_contexts,
+            mtrr::{MemoryType, Mtrr},
+        },
     },
     bitfield::bitfield,
     core::ptr::addr_of,
     log::*,
-    x86::bits64::paging::{
-        pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE,
-    },
+    x86::bits64::paging::{pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE},
 };
 
 /// Represents the entire Extended Page Table structure.
@@ -32,10 +34,8 @@ pub struct Ept {
     pdpt: Pdpt,
     /// Array of Page Directory Table (PDT).
     pd: [Pd; 512],
-    /// Array of Page Tables (PT).
-    /// We reserve 1-63 PTs for splitting large 2MB pages into 512 smaller 4KB pages for a given guest physical address (`split_2mb_to_4kb`)
-    /// Pt[0] is used for the first 2MB of the physical address space, when calling `build_identity`
-    pt: [Pt; 64],
+    /// Page Table (PT).
+    pt: Pt,
 }
 
 impl Ept {
@@ -79,10 +79,10 @@ impl Ept {
                     pde.set_readable(true);
                     pde.set_writable(true);
                     pde.set_executable(true);
-                    pde.set_pfn(addr_of!(self.pt[0]) as u64 >> BASE_PAGE_SHIFT); // Use Pt[0] for the first 2MB
+                    pde.set_pfn(addr_of!(self.pt) as u64 >> BASE_PAGE_SHIFT);
 
-                    // Configure PT entries for the first 2MB, respecting MTRR settings, using Pt[0].
-                    for pte in &mut self.pt[0].0.entries {
+                    // Configure the PT entries for the first 2MB, respecting MTRR settings.
+                    for pte in &mut self.pt.0.entries {
                         let memory_type = mtrr
                             .find(pa..pa + BASE_PAGE_SIZE as u64)
                             .ok_or(HypervisorError::MemoryTypeResolutionError)?;
@@ -121,24 +121,13 @@ impl Ept {
     /// # Arguments
     ///
     /// * `guest_pa`: The guest physical address within the 2MB page that needs to be split.
-    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
-    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
+    /// * `pt`: The page table to use for the split operation.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn split_2mb_to_4kb(
-        &mut self,
-        guest_pa: u64,
-        pt_table_index: usize,
-    ) -> Result<(), HypervisorError> {
-        trace!("Splitting 2mb page into 4kb pages: {:x}", guest_pa);
-
-        // Ensure the PT index is valid.
-        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
-            error!("Invalid PT index: {}", pt_table_index);
-            return Err(HypervisorError::InvalidPtIndex);
-        }
+    pub fn split_2mb_to_4kb(&mut self, guest_pa: u64, pt: &mut Pt) -> Result<(), HypervisorError> {
+        trace!("Splitting 2mb page into 4kb pages: {:#x}", guest_pa);
 
         let guest_pa = VAddr::from(guest_pa);
 
@@ -157,26 +146,33 @@ impl Ept {
         // Get the memory type of the large page, before we unmap (reset) it.
         let memory_type = pde.memory_type();
 
-        // Unmap the 2MB page by resetting the page directory entry.
-        Self::unmap_2mb(pde);
+        // Zero out the PD entry to ensure it's clean.
+        *pde = Entry(0);
+
+        trace!("Dumping EPT entries while splitting......");
 
         // Map the unmapped physical memory to 4KB pages.
-        for (i, pte) in &mut self.pt[pt_table_index].0.entries.iter_mut().enumerate() {
+        for (i, pte) in &mut pt.0.entries.iter_mut().enumerate() {
+            // Zero out the PT entry to ensure it's clean.
+            *pte = Entry(0);
+
             let pa = (guest_pa.as_usize() + i * BASE_PAGE_SIZE) as u64;
             pte.set_readable(true);
             pte.set_writable(true);
             pte.set_executable(true);
             pte.set_memory_type(memory_type);
             pte.set_pfn(pa >> BASE_PAGE_SHIFT);
+
+            // trace!("PTE at index {}: {:#x?}", i, pte);
         }
 
         // Update the PDE to point to the new page table.
         pde.set_readable(true);
         pde.set_writable(true);
         pde.set_executable(true);
-        pde.set_memory_type(memory_type);
+        pde.set_memory_type(0); // Table 29-6. Format of an EPT Page-Directory Entry (PDE) that References an EPT Page Table: 6:3 Reserved (must be 0)
         pde.set_large(false); // This is no longer a large page.
-        pde.set_pfn(addr_of!(self.pt[pt_table_index]) as u64 >> BASE_PAGE_SHIFT);
+        pde.set_pfn((pt as *mut _ as u64) >> BASE_PAGE_SHIFT);
 
         Ok(())
     }
@@ -191,25 +187,13 @@ impl Ept {
     ///
     /// * `guest_pa` - Guest physical address of the page whose permissions are to be changed.
     /// * `access_type` - The new access permissions to set for the page.
-    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
-    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
+    /// * `pt` - The page table to modify. This is required to update 4KB pages.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    pub fn modify_page_permissions(
-        &mut self,
-        guest_pa: u64,
-        access_type: AccessType,
-        pt_table_index: usize,
-    ) -> Result<(), HypervisorError> {
-        trace!("Modifying permissions for GPA {:x}", guest_pa);
-
-        // Ensure the PT index is valid.
-        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
-            error!("Invalid PT index: {}", pt_table_index);
-            return Err(HypervisorError::InvalidPtIndex);
-        }
+    pub fn modify_page_permissions(&mut self, guest_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
+        trace!("Modifying permissions for GPA {:#x}", guest_pa);
 
         let guest_pa = VAddr::from(guest_pa);
 
@@ -226,13 +210,13 @@ impl Ept {
         let pde = &mut self.pd[pdpt_index].0.entries[pd_index];
 
         if pde.large() {
-            trace!("Changing the permissions of a 2mb page");
+            trace!("Changing the permissions of a 2MB page");
             pde.set_readable(access_type.contains(AccessType::READ));
             pde.set_writable(access_type.contains(AccessType::WRITE));
             pde.set_executable(access_type.contains(AccessType::EXECUTE));
         } else {
-            trace!("Changing the permissions of a 4kb page");
-            let pte = &mut self.pt[pt_table_index].0.entries[pt_index];
+            trace!("Changing the permissions of a 4KB page");
+            let pte = &mut pt.0.entries[pt_index];
             pte.set_readable(access_type.contains(AccessType::READ));
             pte.set_writable(access_type.contains(AccessType::WRITE));
             pte.set_executable(access_type.contains(AccessType::EXECUTE));
@@ -250,36 +234,22 @@ impl Ept {
     ///
     /// * `guest_pa` - The guest physical address that needs to be remapped.
     /// * `host_pa` - The new host physical address to map the guest physical address to.
-    /// * `pt_table_index`: The index within the `pt` array of Page Tables to be used for this operation.
-    /// Must be in the range [1, 63] as `pt[0]` is reserved for the first 2MB of physical address space.
+    /// * `pt` - The page table to modify. This is required to update 4KB pages.
     ///
     /// # Returns
     ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful. In case of failure,
-    /// a `HypervisorError` is returned, detailing the nature of the error.
-    pub fn remap_gpa_to_hpa(
-        &mut self,
-        guest_pa: u64,
-        host_pa: u64,
-        pt_table_index: usize,
-    ) -> Result<(), HypervisorError> {
-        trace!("Remapping GPA {:x} to HPA {:x}", guest_pa, host_pa);
-
-        // Ensure the PT index is valid.
-        if pt_table_index == 0 || pt_table_index >= self.pt.len() {
-            error!("Invalid PT index: {}", pt_table_index);
-            return Err(HypervisorError::InvalidPtIndex);
-        }
+    /// A `Result<u64, HypervisorError>` indicating if the operation was successful.
+    /// On success, returns the old host physical address that was previously mapped to the guest physical address.
+    /// In case of failure, a `HypervisorError` is returned, detailing the nature of the error.
+    pub fn remap_gpa_to_hpa(&mut self, guest_pa: u64, host_pa: u64, pt: &mut Pt) -> Result<u64, HypervisorError> {
+        trace!("Remapping GPA {:#x} to HPA {:#x}", guest_pa, host_pa);
 
         let guest_pa = VAddr::from(guest_pa);
         let host_pa = VAddr::from(host_pa);
 
         // Ensure both addresses are page aligned
         if !guest_pa.is_base_page_aligned() || !host_pa.is_base_page_aligned() {
-            error!(
-                "Addresses are not aligned: GPA {:#x}, HPA {:#x}",
-                guest_pa, host_pa
-            );
+            error!("Addresses are not aligned: GPA {:#x}, HPA {:#x}", guest_pa, host_pa);
             return Err(HypervisorError::UnalignedAddressError);
         }
 
@@ -297,54 +267,85 @@ impl Ept {
         }
 
         // Access the corresponding PT entry
-        let pte = &mut self.pt[pt_table_index].0.entries[pt_index];
+        let pte = &mut pt.0.entries[pt_index];
+        let old_hpa = pte.pfn() << BASE_PAGE_SHIFT; // Calculate the old HPA from the Page Frame Number
 
         // Update the PTE to point to the new HPA
         pte.set_pfn(host_pa >> BASE_PAGE_SHIFT);
-        trace!(
-            "Updated PTE for GPA {:x} to point to HPA {:x}",
-            guest_pa,
-            host_pa
-        );
+        trace!("Updated PTE for GPA {:#x} from old HPA {:#x} to new HPA {:#x}", guest_pa, old_hpa, host_pa);
 
-        Ok(())
+        Ok(old_hpa)
     }
 
-    /// Unmaps a 2MB page by clearing the corresponding page directory entry.
-    ///
-    /// This function clears the entry, effectively removing any mapping for the 2MB page.
-    /// It's used when transitioning a region of memory from a single large page to multiple smaller pages or simply freeing the page.
+    pub fn dump_ept_entries(&self, guest_pa: u64, pt: &Pt) {
+        let guest_pa = VAddr::from(guest_pa);
+        let pdpt_index = pdpt_index(guest_pa);
+        let pd_index = pd_index(guest_pa);
+        let pt_index = pt_index(guest_pa);
+
+        // Trace the PDPT entry to access the PD address
+        let pdpte = &self.pdpt.0.entries[pdpt_index];
+        trace!("PDPT at index {}: {:#x?}", pdpt_index, pdpte);
+
+        // Calculate the physical address of the PD table
+        let pd_address = pdpte.pfn() << BASE_PAGE_SHIFT;
+        trace!("PD located at physical address: {:#x}", pd_address);
+
+        // Access the PDE within the PD
+        let pde = &self.pd[pdpt_index].0.entries[pd_index];
+        trace!("PDE at index {}: {:#x?}", pd_index, pde);
+
+        if pde.large() {
+            trace!("This is a large page, no PT involved.");
+        } else {
+            // For non-large pages, calculate the physical address of the PT
+            let pt_address = pde.pfn() << BASE_PAGE_SHIFT;
+            trace!("PT located at physical address: {:#x}", pt_address);
+
+            // Trace the PTE within the PT
+            let pte = pt.0.entries[pt_index];
+            trace!("PTE at index {}: {:#x?}", pt_index, pte);
+        }
+    }
+
+    /// Updates the EPT mapping between a guest physical address and a specified host physical address,
+    /// and modifies the page access permissions according to the provided type.
     ///
     /// # Arguments
     ///
-    /// * `entry`: Mutable reference to the page directory entry to unmap.
-    pub fn unmap_2mb(entry: &mut Entry) {
-        if !entry.readable() {
-            // The page is already not present; no action needed.
-            return;
+    /// * `guest_pa` - The guest physical address to remap.
+    /// * `host_pa` - The new host physical address to map to the guest physical address.
+    /// * `access_type` - The access permissions to set for the mapped page.
+    /// * `pt` - The page table to use for the remap operation.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), HypervisorError>` - The result of the operation, `Ok` if successful, otherwise a `HypervisorError`.
+    pub fn swap_page(&mut self, guest_pa: u64, host_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
+        let guest_pa = VAddr::from(guest_pa);
+        let host_pa = VAddr::from(host_pa);
+
+        // Ensure both addresses are page aligned
+        if !guest_pa.is_base_page_aligned() || !host_pa.is_base_page_aligned() {
+            error!("Addresses are not aligned: GPA {:#x}, HPA {:#x}", guest_pa, host_pa);
+            return Err(HypervisorError::UnalignedAddressError);
         }
 
-        // Unmap the large page and clear the flags
-        entry.set_readable(false);
-        entry.set_writable(false);
-        entry.set_executable(false);
-        entry.set_memory_type(0);
-        entry.set_large(false);
-        entry.set_pfn(0); // Reset the Page Frame Number
-    }
+        // Modify the permissions for the guest physical address.
+        trace!("Modifying permissions for GPA {:#x} to {:?}", guest_pa, access_type);
+        self.modify_page_permissions(guest_pa.as_u64(), access_type, pt)?;
 
-    /// Unmaps a 4KB page, typically involved in deconstructing finer-grained page tables.
-    ///
-    /// This function wraps the unmap_2mb function, as the actual unmap logic is similar.
-    /// It's used for unmap operations specifically targeting 4KB pages.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry`: Mutable reference to the page directory entry of the 4KB page to unmap.
-    #[allow(dead_code)]
-    fn unmap_4kb(entry: &mut Entry) {
-        // Delegate to the unmap_2mb function as the unmap logic is the same.
-        Self::unmap_2mb(entry);
+        // Remap the guest physical address to the new host physical address in the primary EPT.
+        trace!("Remapping GPA {:#x} to HPA {:#x} in the primary EPT", guest_pa, host_pa);
+        self.remap_gpa_to_hpa(guest_pa.as_u64(), host_pa.as_u64(), pt)?;
+
+        // Invalidate the EPT cache for all contexts.
+        invept_all_contexts();
+
+        // Invalidate the VPID cache for all contexts.
+        invvpid_all_contexts();
+
+        Ok(())
     }
 
     /// Creates an Extended Page Table Pointer (EPTP) with a Write-Back memory type and a 4-level page walk.
@@ -413,7 +414,7 @@ struct Pd(Table);
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: Format of an EPT Page-Table Entry that Maps a 4-KByte Page
 #[derive(Debug, Clone, Copy)]
-struct Pt(Table);
+pub struct Pt(Table);
 
 /// General struct to represent a table in the EPT paging structure.
 ///

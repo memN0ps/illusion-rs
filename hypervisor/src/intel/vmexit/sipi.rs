@@ -37,10 +37,7 @@ pub fn handle_sipi_signal(guest_registers: &mut GuestRegisters) -> ExitType {
     guest_registers.rip = 0x0u64;
     vmwrite(vmcs::guest::RIP, guest_registers.rip);
 
-    vmwrite(
-        vmcs::guest::ACTIVITY_STATE,
-        GuestActivityState::Active as u32,
-    );
+    vmwrite(vmcs::guest::ACTIVITY_STATE, GuestActivityState::Active as u32);
 
     ExitType::Continue
 }

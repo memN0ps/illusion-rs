@@ -6,8 +6,9 @@
 //! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/vm.rs
 
 use {
-    bitfield::bitfield, core::arch::asm, x86::bits64::rflags::RFlags,
-    x86::segmentation::SegmentSelector,
+    bitfield::bitfield,
+    core::arch::asm,
+    x86::{bits64::rflags::RFlags, segmentation::SegmentSelector},
 };
 
 /// Converts native segment access rights to VMX format.

@@ -7,7 +7,7 @@ use uefi::{prelude::*, table::boot::LoadImageSource};
 
 #[entry]
 unsafe fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    if let Err(error) = uefi_services::init(&mut system_table) {
+    if let Err(error) = uefi::helpers::init(&mut system_table) {
         log::error!("Failed to initialize UEFI services ({:?})", error);
         return Status::ABORTED;
     }

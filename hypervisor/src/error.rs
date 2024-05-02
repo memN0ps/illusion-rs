@@ -83,9 +83,6 @@ pub enum HypervisorError {
     #[error("Failed to find original instructions")]
     NoInstructions,
 
-    #[error("Failed to encode trampoline")]
-    EncodingFailed,
-
     #[error("Found rip-relative instruction which is not supported")]
     RelativeInstruction,
 
@@ -100,9 +97,6 @@ pub enum HypervisorError {
 
     #[error("Primary EPT not provided")]
     PrimaryEPTNotProvided,
-
-    #[error("Secondary EPT not provided")]
-    SecondaryEPTNotProvided,
 
     #[error("Invalid PML4 entry")]
     InvalidPml4Entry,
@@ -152,6 +146,12 @@ pub enum HypervisorError {
     #[error("Failed to get kernel base")]
     GetKernelBaseFailed,
 
+    #[error("Failed to get kernel size")]
+    FailedToGetKernelSize,
+
+    #[error("Failed to get export hash")]
+    FailedToGetExport,
+
     #[error("Failed to parse hexadecimal string")]
     HexParseError,
 
@@ -164,6 +164,33 @@ pub enum HypervisorError {
     #[error("Large page remap error")]
     LargePageRemapError,
 
-    #[error("Invalid PT index")]
-    InvalidPtIndex,
+    #[error("Failed to get image base address")]
+    FailedToGetImageBaseAddress,
+
+    #[error("Unknown VMCALL command")]
+    UnknownVmcallCommand,
+
+    #[error("Unknown guest agent command")]
+    UnknownGuestAgentCommand,
+
+    #[error("Out of hooks")]
+    OutOfHooks,
+
+    #[error("Failed to get current hook index")]
+    FailedToGetCurrentHookIndex,
+
+    #[error("Too many hooks")]
+    TooManyHooks,
+
+    #[error("Failed to get current hook")]
+    HookNotFound,
+
+    #[error("Failed to get current inline hook")]
+    InlineHookNotFound,
+
+    #[error("Old RFLAGS not set")]
+    OldRflagsNotSet,
+
+    #[error("MTF counter not set")]
+    MtfCounterNotSet,
 }

@@ -174,7 +174,6 @@ impl core::fmt::Display for VmxBasicExitReason {
     /// Provides a descriptive string for a `VmxBasicExitReason` variant.
     ///
     /// This implementation aids in debugging by providing a human-readable description of each exit reason.
-    #[rustfmt::skip]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let description = match *self {
             VmxBasicExitReason::ExceptionOrNmi => "Exception or non-maskable interrupt (NMI)",
@@ -336,7 +335,6 @@ impl core::fmt::Display for VmInstructionError {
     /// Provides a descriptive string for a `VmInstructionError` variant.
     ///
     /// This implementation aids in debugging by providing a human-readable description of each instruction error.
-    #[rustfmt::skip]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         use VmInstructionError::*;
         let description = match *self {
@@ -374,7 +372,7 @@ impl core::fmt::Display for VmInstructionError {
 ///
 /// This struct interprets the exit qualification for EPT Violations as described in
 /// Intel® 64 and IA-32 Architectures Software Developer's Manual: Table 28-7. Exit Qualification for EPT Violations (Contd.)
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct EptViolationExitQualification {
     pub data_read: bool,
     pub data_write: bool,
@@ -421,37 +419,25 @@ impl EptViolationExitQualification {
     }
 }
 
-impl core::fmt::Display for EptViolationExitQualification {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(
-            f,
-            "EPT Violation Exit Qualification: {{ \
-            Data Read: {}, Data Write: {}, Instruction Fetch: {}, Readable: {}, \
-            Writable: {}, Executable: {}, User Mode Executable: {}, \
-            Guest Linear Address Valid: {}, Guest Physical Access: {}, \
-            Supervisor/User Mode: {}, Linear Address Read/Write: {}, \
-            Linear Address Executable: {}, NMI Unblocking due to IRET: {}, \
-            Shadow Stack Access: {}, Supervisor Shadow Stack Control: {}, \
-            Caused by Guest Paging Verification: {}, Asynchronous Access: {} \
-            }}",
-            self.data_read,
-            self.data_write,
-            self.instruction_fetch,
-            self.readable,
-            self.writable,
-            self.executable,
-            self.user_mode_executable,
-            self.guest_linear_address_valid,
-            self.guest_physical_access,
-            self.supervisor_user_mode,
-            self.linear_address_read_write,
-            self.linear_address_executable,
-            self.nmi_unblocking_due_to_iret,
-            self.shadow_stack_access,
-            self.supervisor_shadow_stack_control,
-            self.caused_by_guest_paging_verification,
-            self.asynchronous_access
-        )
+impl core::fmt::Debug for EptViolationExitQualification {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("EptViolationExitQualification")
+            .field("Data Read", &self.data_read)
+            .field("Data Write", &self.data_write)
+            .field("Instruction Fetch", &self.instruction_fetch)
+            .field("Page Permissions", &format_args!("R:{} W:{} X:{}", self.readable, self.writable, self.executable))
+            .field("User Mode Executable", &self.user_mode_executable)
+            .field("Guest Linear Address Valid", &self.guest_linear_address_valid)
+            .field("Guest Physical Access", &self.guest_physical_access)
+            .field("Supervisor/User Mode", &self.supervisor_user_mode)
+            .field("Linear Address Read/Write", &self.linear_address_read_write)
+            .field("Linear Address Executable", &self.linear_address_executable)
+            .field("NMI Unblocking due to IRET", &self.nmi_unblocking_due_to_iret)
+            .field("Shadow Stack Access", &self.shadow_stack_access)
+            .field("Supervisor Shadow Stack Control", &self.supervisor_shadow_stack_control)
+            .field("Caused by Guest Paging Verification", &self.caused_by_guest_paging_verification)
+            .field("Asynchronous Access", &self.asynchronous_access)
+            .finish()
     }
 }
 
@@ -631,9 +617,9 @@ impl VmExitInterruptionInformation {
         Some(VmExitInterruptionInformation {
             vector,
             interruption_type,
-            error_code_valid: (value & (1 << 11)) != 0, // Check if error code is valid (bit 11).
+            error_code_valid: (value & (1 << 11)) != 0,           // Check if error code is valid (bit 11).
             nmi_unblocking_due_to_iret: (value & (1 << 12)) != 0, // Check for NMI unblocking due to IRET (bit 12).
-            valid: (value & (1 << 31)) != 0, // Check if the interruption information is valid (bit 31).
+            valid: (value & (1 << 31)) != 0,                      // Check if the interruption information is valid (bit 31).
         })
     }
 }
