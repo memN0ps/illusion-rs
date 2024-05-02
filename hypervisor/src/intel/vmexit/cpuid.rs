@@ -11,12 +11,12 @@ use {
         },
     },
     bitfield::BitMut,
-    core::ops::RangeInclusive,
     log::*,
     x86::cpuid::cpuid,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
 /// Enum representing the various CPUID leaves for feature and interface discovery.
 /// Reference: https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/tlfs/feature-discovery
 pub enum CpuidLeaf {
@@ -89,7 +89,7 @@ enum FeatureBits {
 pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling CPUID VM exit...");
 
-    const HYPERV_CPUID_LEAF_RANGE: RangeInclusive<u32> = 0x40000000..=0x4FFFFFFF;
+    // const HYPERV_CPUID_LEAF_RANGE: RangeInclusive<u32> = 0x40000000..=0x4FFFFFFF;
 
     let leaf = vm.guest_registers.rax as u32;
     let sub_leaf = vm.guest_registers.rcx as u32;
@@ -104,12 +104,13 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             trace!("CPUID leaf 0x0 detected (Vendor Identification).");
         }
         leaf if leaf == CpuidLeaf::FeatureInformation as u32 => {
-            trace!("CPUID leaf 0x1 detected (Feature Information).");
-            // Check if the guest is querying for hypervisor presence.
-            if sub_leaf == 0 {
-                // Set the hypervisor present bit in ECX to indicate the presence of a hypervisor.
-                cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, true);
-            }
+            trace!("CPUID leaf 1 detected (Standard Feature Information).");
+
+            // Hide hypervisor presence by setting the appropriate bit in ECX.
+            // cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
+
+            // Hide VMX support by setting the appropriate bit in ECX.
+            cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
         }
         leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
             trace!("CPUID leaf 0x2 detected (Cache Information).");
@@ -138,32 +139,16 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
             trace!("CPUID leaf 0x7 detected (Extended Feature Information).");
         }
-        leaf if HYPERV_CPUID_LEAF_RANGE.contains(&leaf) => {
-            trace!("Hypervisor specific CPUID leaf 0x{leaf:X} detected.");
-            // Depending on your specific implementation, you may need to modify or mask the results
-            // For example, for the Hypervisor Vendor leaf:
-            if leaf == CpuidLeaf::HypervisorVendor as u32 {
-                // Provide a customized vendor ID signature
-                cpuid_result.eax = 0; // Set to a meaningful max CPUID leaf value or leave it for default behavior
-                cpuid_result.ebx = 0x756c6c49; // "ullI" - part of "Illusion" (in reverse due to little-endian storage)
-                cpuid_result.ecx = 0x6e6f6973; // "nois" - remaining part of "Illusion"
-                cpuid_result.edx = 0x00000000; // Filled with null bytes as no further characters to encode
-            } else {
-                // Default handling for unrecognized but within range leaves
-                cpuid_result.eax = 0;
-                cpuid_result.ebx = 0;
-                cpuid_result.ecx = 0;
-                cpuid_result.edx = 0;
-            }
+        leaf if leaf == CpuidLeaf::HypervisorVendor as u32 => {
+            trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
+            // Set the CPUID response to provide the hypervisor's vendor ID signature.
+            // We use the signature "Illusion" encoded in a little-endian format.
+            cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
+            cpuid_result.ebx = 0x756c6c49; // "ullI", part of "Illusion" (in reverse order due to little-endian storage).
+            cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
+            cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
         }
-        _ => {
-            trace!("Unhandled or unknown CPUID leaf 0x{leaf:X}. Treating as reserved.");
-            // Mask off the results to avoid exposing unsupported features
-            cpuid_result.eax = 0;
-            cpuid_result.ebx = 0;
-            cpuid_result.ecx = 0;
-            cpuid_result.edx = 0;
-        }
+        _ => trace!("Unhandled or unknown CPUID leaf 0x{leaf:X}. Treating as reserved."),
     }
 
     // Update the guest registers with the results
