@@ -101,7 +101,7 @@ Special thanks to:
 - [Namazso (@namazso)](https://github.com/namazso)
 - [Matthias @not-matthias](https://github.com/not-matthias/)
 - [@felix-rs / @joshuа](https://github.com/felix-rs)
-- Jess (@jessiep_)
+- [Jess (@jessiep_)](https://github.com/Intege-rs)
 - [Ryan McCrystal / @rmccrystal](https://github.com/rmccrystal)
 - [Jim Colerick (@vmprotect)](https://github.com/thug-shaker)
 
