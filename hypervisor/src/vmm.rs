@@ -10,7 +10,7 @@ use {
         intel::{
             bitmap::MsrAccessType,
             capture::GuestRegisters,
-            support::{vmread, vmwrite},
+            support::{rdmsr, vmread, vmwrite},
             vm::Vm,
             vmerror::VmxBasicExitReason,
             vmexit::{
@@ -34,7 +34,10 @@ use {
         },
     },
     log::*,
-    x86::vmx::vmcs::{guest, ro},
+    x86::{
+        msr::IA32_VMX_EPT_VPID_CAP,
+        vmx::vmcs::{guest, ro},
+    },
 };
 
 /// Initiates the hypervisor, activating VMX and setting up the initial VM state.
@@ -180,6 +183,9 @@ fn check_supported_cpu() -> Result<(), HypervisorError> {
     has_mtrr()?;
     info!("Memory Type Range Registers (MTRRs) are supported");
 
+    check_ept_support()?;
+    info!("Extended Page Tables (EPT) are supported");
+
     Ok(())
 }
 
@@ -211,6 +217,61 @@ fn has_vmx_support() -> Result<(), HypervisorError> {
         }
     }
     Err(HypervisorError::VMXUnsupported)
+}
+
+/// Checks for Extended Page Tables (EPT) support on the CPU.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if EPT is supported, otherwise `Err(HypervisorError::EPTUnsupported)`.
+///
+/// Credits Satoshi Tanda: https://github.com/tandasat/MiniVisorPkg/blob/master/Sources/MiniVisor.c#L534-L550
+fn check_ept_support() -> Result<(), HypervisorError> {
+    /// [Bit 6] Indicates support for a page-walk length of 4.
+    const PAGE_WALK_LENGTH_4: u64 = 1 << 6;
+
+    /// [Bit 14] When set to 1, the logical processor allows software to configure the EPT paging-structure memory type to be * write-back (WB).
+    const MEMORY_TYPE_WRITE_BACK: u64 = 1 << 14;
+
+    /// [Bit 16] When set to 1, the logical processor allows software to configure a EPT PDE to map a 2-Mbyte page (by setting * bit 7 in the EPT PDE).
+    const PDE_2MB_PAGES: u64 = 1 << 16;
+
+    /// [Bit 20] If bit 20 is read as 1, the INVEPT instruction is supported.
+    const INVEPT: u64 = 1 << 20;
+
+    /// [Bit 25] When set to 1, the single-context INVEPT type is supported.
+    const INVEPT_SINGLE_CONTEXT: u64 = 1 << 25;
+
+    /// [Bit 26] When set to 1, the all-context INVEPT type is supported.
+    const INVEPT_ALL_CONTEXTS: u64 = 1 << 26;
+
+    /// [Bit 32] When set to 1, the INVVPID instruction is supported.
+    const INVVPID: u64 = 1 << 32;
+
+    /// [Bit 41] When set to 1, the single-context INVVPID type is supported.
+    const INVVPID_SINGLE_CONTEXT: u64 = 1 << 41;
+
+    /// [Bit 42] When set to 1, the all-context INVVPID type is supported.
+    const INVVPID_ALL_CONTEXTS: u64 = 1 << 42;
+
+    let ept_vpid_cap = rdmsr(IA32_VMX_EPT_VPID_CAP);
+
+    // Construct a combined mask for all required features for simplicity
+    let required_features = PAGE_WALK_LENGTH_4
+        | MEMORY_TYPE_WRITE_BACK
+        | PDE_2MB_PAGES
+        | INVEPT
+        | INVEPT_SINGLE_CONTEXT
+        | INVEPT_ALL_CONTEXTS
+        | INVVPID
+        | INVVPID_SINGLE_CONTEXT
+        | INVVPID_ALL_CONTEXTS;
+
+    if ept_vpid_cap & required_features != required_features {
+        return Err(HypervisorError::EPTUnsupported);
+    }
+
+    Ok(())
 }
 
 /// Checks for Memory Type Range Registers (MTRRs) support on the CPU.

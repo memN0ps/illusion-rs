@@ -8,6 +8,9 @@ pub enum HypervisorError {
     #[error("VMX is not supported")]
     VMXUnsupported,
 
+    #[error("EPT is not supported")]
+    EPTUnsupported,
+
     #[error("MTRRs are not supported")]
     MTRRUnsupported,
 
