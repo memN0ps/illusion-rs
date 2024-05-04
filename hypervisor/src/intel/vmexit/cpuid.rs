@@ -148,7 +148,16 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
             cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
         }
-        _ => trace!("Unhandled or unknown CPUID leaf 0x{leaf:X}. Treating as reserved."),
+        leaf if leaf == CpuidLeaf::HypervisorInterface as u32 && cfg!(feature = "hyperv") => {
+            trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
+            // Return information indicating the hypervisor's interface.
+            // Here, we specify that our hypervisor does not conform to the Microsoft hypervisor interface ("Hv#1").
+            cpuid_result.eax = 0x00000000; // Interface signature indicating non-conformance to Microsoft interface.
+            cpuid_result.ebx = 0x00000000; // Reserved field set to zero.
+            cpuid_result.ecx = 0x00000000; // Reserved field set to zero.
+            cpuid_result.edx = 0x00000000; // Reserved field set to zero.
+        }
+        _ => trace!("CPUID leaf 0x{leaf:X}."),
     }
 
     // Update the guest registers with the results
