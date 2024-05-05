@@ -50,13 +50,13 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     // Set the current hook to the EPT hook for handling MTF exit
 
     let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
-        info!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
+        trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
 
-        // log_nt_query_system_information_params(&vm.guest_registers);
+        log_nt_query_system_information_params(&vm.guest_registers);
 
         // log_nt_create_file_params(&vm.guest_registers);
 
-        log_nt_open_process_params(&vm.guest_registers);
+        // log_nt_open_process_params(&vm.guest_registers);
 
         // log_mm_is_address_valid_params(&vm.guest_registers);
 
@@ -73,7 +73,8 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
 
-        // Ensure all data mutations to vm are done before calling this
+        // Ensure all data mutations to vm are done before calling this.
+        // This function will update the guest interrupt flag to prevent interrupts while single-stepping
         update_guest_interrupt_flag(vm, false)?;
 
         Ok(ExitType::Continue)

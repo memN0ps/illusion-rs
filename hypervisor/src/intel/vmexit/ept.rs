@@ -1,7 +1,16 @@
 use {
     crate::{
         error::HypervisorError,
-        intel::{ept::AccessType, support::vmread, vm::Vm, vmerror::EptViolationExitQualification, vmexit::ExitType},
+        intel::{
+            ept::AccessType,
+            support::vmread,
+            vm::Vm,
+            vmerror::EptViolationExitQualification,
+            vmexit::{
+                mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},
+                ExitType,
+            },
+        },
     },
     log::*,
     x86::{bits64::paging::PAddr, vmx::vmcs},
@@ -29,31 +38,42 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         .find_hook_by_guest_page_pa_as_mut(PAddr::from(guest_pa).align_down_to_base_page().as_u64())
         .ok_or(HypervisorError::HookNotFound)?;
 
-    if ept_violation_qualification.instruction_fetch && !ept_violation_qualification.executable {
+    if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
         // if the instruction fetch is true and the page is not executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: true,
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
-        trace!("Execution attempt on non-executable page, switching to shadow page.");
-        info!("Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).");
-        info!("Execution attempt on non-executable page, switching to hooked shadow-copy page.");
+        trace!("Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).");
+        trace!("Execution attempt on non-executable page, switching to hooked shadow-copy page.");
         vm.primary_ept.swap_page(
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
             AccessType::EXECUTE,
             ept_hook.primary_ept_pre_alloc_pt.as_mut(),
         )?;
-        info!("Page swapped successfully!");
-    } else if !ept_violation_qualification.instruction_fetch && ept_violation_qualification.executable {
+        trace!("Page swapped successfully!");
+    } else if ept_violation_qualification.executable && !ept_violation_qualification.readable && !ept_violation_qualification.writable {
         // if the instruction fetch is false and the page is executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: false,
         //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
-        // trace!("Read/Write attempt on execute-only page, restoring original page.");
+        trace!("Read/Write attempt on execute-only page, restoring original page.");
+        trace!("Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).");
         vm.primary_ept.swap_page(
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            AccessType::READ_WRITE,
+            AccessType::READ_WRITE_EXECUTE,
             ept_hook.primary_ept_pre_alloc_pt.as_mut(),
         )?;
+
+        // We make this read-write-execute to allow the instruction performing a read-write
+        // operation and then switch back to execute-only shadow page from handle_mtf vmexit
+        ept_hook.mtf_counter = Some(1);
+
+        // Set the monitor trap flag and initialize counter to the number of overwritten instructions
+        set_monitor_trap_flag(true);
+
+        // Ensure all data mutations to vm are done before calling this.
+        // This function will update the guest interrupt flag to prevent interrupts while single-stepping
+        update_guest_interrupt_flag(vm, false)?;
     }
 
     trace!("EPT Violation handled successfully!");
