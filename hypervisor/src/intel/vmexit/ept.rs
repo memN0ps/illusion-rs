@@ -35,7 +35,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     let ept_hook = vm
         .hook_manager
-        .find_hook_by_guest_page_pa_as_mut(PAddr::from(guest_pa).align_down_to_base_page().as_u64())
+        .find_hook_by_guest_page_pa_as_ref(PAddr::from(guest_pa).align_down_to_base_page().as_u64())
         .ok_or(HypervisorError::HookNotFound)?;
 
     if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
@@ -48,7 +48,10 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
             AccessType::EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            vm.primary_ept_pre_alloc_pts
+                .get_mut(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                .as_mut(),
         )?;
         trace!("Page swapped successfully!");
     } else if ept_violation_qualification.executable && !ept_violation_qualification.readable && !ept_violation_qualification.writable {
@@ -61,12 +64,15 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             ept_hook.guest_pa.align_down_to_base_page().as_u64(),
             AccessType::READ_WRITE_EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
+            vm.primary_ept_pre_alloc_pts
+                .get_mut(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                .as_mut(),
         )?;
 
         // We make this read-write-execute to allow the instruction performing a read-write
         // operation and then switch back to execute-only shadow page from handle_mtf vmexit
-        ept_hook.mtf_counter = Some(1);
+        vm.hook_manager.mtf_counter = Some(1);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
@@ -131,22 +137,21 @@ pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(
     // Log the critical error information.
     trace!("Faulting guest address: {:#x}", faulting_guest_pa);
 
-    // Get the hook manager from the VM.
-    let hook_manager = vm.hook_manager.as_mut();
-
     // Align the faulting guest physical address to the base page size.
     let faulting_guest_page_pa = PAddr::from(faulting_guest_pa).align_down_to_base_page().as_u64();
     trace!("Faulting guest page address: {:#x}", faulting_guest_page_pa);
-
-    let ept_hook = hook_manager
-        .find_hook_by_guest_page_pa_as_ref(faulting_guest_pa)
-        .ok_or(HypervisorError::HookNotFound)?;
 
     // Get the primary EPTs.
     let primary_ept = &mut vm.primary_ept;
 
     trace!("Dumping Primary EPT entries for guest physical address: {:#x}", faulting_guest_pa);
-    primary_ept.dump_ept_entries(faulting_guest_pa, ept_hook.primary_ept_pre_alloc_pt.as_ref());
+    primary_ept.dump_ept_entries(
+        faulting_guest_pa,
+        vm.primary_ept_pre_alloc_pts
+            .get_mut(vm.hook_manager.current_hook_index)
+            .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+            .as_mut(),
+    );
 
     Ok(())
 }

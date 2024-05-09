@@ -122,11 +122,11 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 // info!("Hooking MmIsAddressValid with inline hook");
                 // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
-                info!("Hooking NtCreateFile with syscall number 0x055");
-                kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                // info!("Hooking NtCreateFile with syscall number 0x055");
+                // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
-                //info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                //kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                info!("Hooking NtQuerySystemInformation with syscall number 0x36");
+                kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
 
                 //info!("Hooking NtOpenProcess with syscall number 0x26");
                 //kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;

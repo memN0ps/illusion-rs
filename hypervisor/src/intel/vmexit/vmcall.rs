@@ -48,27 +48,27 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("VMCALL command number: {:#x}", vmcall_number);
 
     // Set the current hook to the EPT hook for handling MTF exit
-
-    let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_mut(vm.guest_registers.rip) {
+    let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_ref(vm.guest_registers.rip) {
         trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
-
         log_nt_query_system_information_params(&vm.guest_registers);
-
         // log_nt_create_file_params(&vm.guest_registers);
-
         // log_nt_open_process_params(&vm.guest_registers);
-
         // log_mm_is_address_valid_params(&vm.guest_registers);
 
-        let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
-
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
-        vm.primary_ept
-            .swap_page(guest_page_pa, guest_page_pa, AccessType::READ_WRITE_EXECUTE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        vm.primary_ept.swap_page(
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            AccessType::READ_WRITE_EXECUTE,
+            vm.primary_ept_pre_alloc_pts
+                .get_mut(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                .as_mut(),
+        )?;
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
         let instruction_count = unsafe { calculate_instruction_count(ept_hook.guest_pa.as_u64(), ept_hook.inline_hook.unwrap().hook_size()) as u64 };
-        ept_hook.mtf_counter = Some(instruction_count);
+        vm.hook_manager.mtf_counter = Some(instruction_count);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);

@@ -25,33 +25,42 @@ use {
 /// * `Result<ExitType, HypervisorError>`: Ok with the appropriate exit type or an error.
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
-    if let Some(ept_hook) = vm.hook_manager.find_hook_by_index(vm.hook_manager.current_hook_index) {
-        if let Some(ref mut counter) = ept_hook.mtf_counter {
-            *counter = counter.saturating_sub(1); // Safely decrement the counter
-            trace!("MTF counter decremented to {}", *counter);
 
-            if *counter == 0 {
-                set_monitor_trap_flag(false);
-                // Now vm is not borrowed, can pass vm to functions separately
-                vm.primary_ept.swap_page(
-                    ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-                    ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
-                    AccessType::EXECUTE,
-                    &mut ept_hook.primary_ept_pre_alloc_pt,
-                )?;
-                restore_guest_interrupt_flag(vm)?;
-                trace!("Monitor Trap Flag disabled, original execution restored.");
-            } else {
-                set_monitor_trap_flag(true); // Keep MTF enabled if there are more steps
-            }
+    if let Some(counter) = vm.hook_manager.mtf_counter.as_mut() {
+        trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
+        trace!("MTF counter before decrement: {}", *counter);
+        *counter = counter.saturating_sub(1); // Safely decrement the counter
+        trace!("MTF counter after decremented: {}", *counter);
+
+        // If the counter is zero, we have completed the single-stepping process, restore the hook.
+        if *counter == 0 {
+            set_monitor_trap_flag(false);
+
+            let ept_hook = vm
+                .hook_manager
+                .find_hook_by_index_as_ref(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::HookNotFound)?;
+
+            // Restore the hook to continue monitoring
+            vm.primary_ept.swap_page(
+                ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+                ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
+                AccessType::EXECUTE,
+                vm.primary_ept_pre_alloc_pts
+                    .get_mut(vm.hook_manager.current_hook_index)
+                    .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                    .as_mut(),
+            )?;
+
+            restore_guest_interrupt_flag(vm)?;
         } else {
-            error!("No active MTF counter found, possibly an error in state management.");
-            return Err(HypervisorError::MtfCounterNotSet);
+            set_monitor_trap_flag(true); // Keep MTF enabled if there are more steps
         }
     } else {
-        error!("No current hook set, unable to handle MTF exit.");
-        return Err(HypervisorError::HookNotFound);
+        error!("No active MTF counter found, possibly an error in state management.");
+        return Err(HypervisorError::MtfCounterNotSet);
     }
+
     Ok(ExitType::Continue)
 }
 

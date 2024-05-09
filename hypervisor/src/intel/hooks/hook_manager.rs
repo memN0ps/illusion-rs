@@ -43,14 +43,21 @@ pub struct HookManager {
     /// The old RFLAGS value before turning off the interrupt flag.
     /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
     pub old_rflags: Option<u64>,
+
+    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
+    pub mtf_counter: Option<u64>,
 }
 
 impl HookManager {
     /// Creates a new instance of `HookManager`.
     ///
+    /// # Arguments
+    ///
+    /// * `primary_ept_pre_alloc_pts` - A mutable reference to a vector of pre-allocated page tables.
+    ///
     /// # Returns
     /// A result containing a boxed `HookManager` instance or an error of type `HypervisorError`.
-    pub fn new() -> Result<Box<Self>, HypervisorError> {
+    pub fn new(primary_ept_pre_alloc_pts: &mut Vec<Box<Pt>>) -> Result<Box<Self>, HypervisorError> {
         trace!("Initializing hook manager");
 
         let mut ept_hooks = Vec::new();
@@ -64,10 +71,13 @@ impl HookManager {
             let primary_ept_pre_alloc_pt = unsafe { box_zeroed::<Pt>() };
 
             // Create a new ept hook and push it to the hook manager.
-            let ept_hook = EptHook::new(host_shadow_page, primary_ept_pre_alloc_pt);
+            let ept_hook = EptHook::new(host_shadow_page);
 
-            // Save the hook in the hook manager.
+            // Save the hook in the vector of ept hooks.
             ept_hooks.push(ept_hook);
+
+            // Save the pre-allocated page table in the vector of pre-allocated page tables.
+            primary_ept_pre_alloc_pts.push(primary_ept_pre_alloc_pt);
         }
 
         Ok(Box::new(Self {
@@ -77,6 +87,7 @@ impl HookManager {
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
             old_rflags: None,
+            mtf_counter: None,
         }))
     }
 
@@ -85,9 +96,9 @@ impl HookManager {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
-    /// * guest_va - The virtual address of the function or page to be hooked.
-    /// * hook_handler - The handler function to be called when the hooked function is executed.
-    /// * ept_hook_type - The type of EPT hook to be installed.
+    /// * `guest_va` - The virtual address of the function or page to be hooked.
+    /// * `hook_handler` - The handler function to be called when the hooked function is executed.
+    /// * `ept_hook_type` - The type of EPT hook to be installed.
     ///
     /// # Returns
     ///
@@ -99,11 +110,12 @@ impl HookManager {
 
         // Set the current hook index
         trace!("Current Hook Index: {}", vm.hook_manager.current_hook_index);
+        trace!("Next Hook Index Before Increment: {}", vm.hook_manager.next_hook_index);
         vm.hook_manager.current_hook_index = vm.hook_manager.next_hook_index;
 
         // Increment index to prepare for the next ept_hook call
         vm.hook_manager.next_hook_index += 1;
-        trace!("Next Hook Index: {}", vm.hook_manager.next_hook_index);
+        trace!("Next Hook Index After Increment: {}", vm.hook_manager.next_hook_index);
 
         // Setup the hook based on the type
         match ept_hook_type {
@@ -124,16 +136,27 @@ impl HookManager {
 
         // Split the guest 2MB page into 4KB pages for the primary EPT.
         trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-        vm.primary_ept
-            .split_2mb_to_4kb(guest_large_page_pa, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        vm.primary_ept.split_2mb_to_4kb(
+            guest_large_page_pa,
+            vm.primary_ept_pre_alloc_pts
+                .get_mut(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                .as_mut(),
+        )?;
 
         // Align the guest function or page address to the base page size.
         let guest_page_pa = ept_hook.guest_pa.align_down_to_base_page().as_u64();
 
         // Modify the page permission in the primary EPT to ReadWrite for the guest page.
         trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
-        vm.primary_ept
-            .modify_page_permissions(guest_page_pa, AccessType::READ_WRITE, ept_hook.primary_ept_pre_alloc_pt.as_mut())?;
+        vm.primary_ept.modify_page_permissions(
+            guest_page_pa,
+            AccessType::READ_WRITE,
+            vm.primary_ept_pre_alloc_pts
+                .get_mut(vm.hook_manager.current_hook_index)
+                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
+                .as_mut(),
+        )?;
 
         // Invalidate the EPT cache for all contexts.
         invept_all_contexts();
@@ -155,7 +178,7 @@ impl HookManager {
     /// # Returns
     ///
     /// * `Option<&mut EptHook>` - A mutable reference to the hook if found, or `None` if the index is out of bounds.
-    pub fn find_hook_by_index(&mut self, index: usize) -> Option<&mut EptHook> {
+    pub fn find_hook_by_index_as_mut(&mut self, index: usize) -> Option<&mut EptHook> {
         self.ept_hooks.get_mut(index).map(|hook| &mut **hook)
     }
 
@@ -182,13 +205,9 @@ impl HookManager {
     ///
     /// * `Option<&mut EptHook>` - A mutable reference to the hook if found, or `None` if not found.
     pub fn find_hook_by_guest_va_as_mut(&mut self, guest_va: u64) -> Option<&mut EptHook> {
-        self.ept_hooks.iter_mut().find_map(|hook| {
-            if hook.guest_va.as_u64() == guest_va {
-                Some(&mut **hook) // Dereference the Box to get a mutable reference to EptHook
-            } else {
-                None
-            }
-        })
+        self.ept_hooks
+            .iter_mut()
+            .find_map(|hook| if hook.guest_va.as_u64() == guest_va { Some(&mut **hook) } else { None })
     }
 
     /// Tries to find a hook for the specified hook guest virtual address.
@@ -199,15 +218,11 @@ impl HookManager {
     ///
     /// # Returns
     ///
-    /// * `Option<&mut EptHook>` - A reference to the hook if found, or `None` if not found.
-    pub fn find_hook_by_guest_va_as_ref(&mut self, guest_va: u64) -> Option<&EptHook> {
-        self.ept_hooks.iter_mut().find_map(|hook| {
-            if hook.guest_va.as_u64() == guest_va {
-                Some(&**hook) // Dereference the Box to get a mutable reference to EptHook
-            } else {
-                None
-            }
-        })
+    /// * `Option<&EptHook>` - A reference to the hook if found, or `None` if not found.
+    pub fn find_hook_by_guest_va_as_ref(&self, guest_va: u64) -> Option<&EptHook> {
+        self.ept_hooks
+            .iter()
+            .find_map(|hook| if hook.guest_va.as_u64() == guest_va { Some(&**hook) } else { None })
     }
 
     /// Tries to find a hook for the specified hook guest page physical address.
@@ -238,8 +253,8 @@ impl HookManager {
     /// # Returns
     ///
     /// * `Option<&mut EptHook>` - A reference to the hook if found, or `None` if not found.
-    pub fn find_hook_by_guest_page_pa_as_ref(&mut self, guest_page_pa: u64) -> Option<&EptHook> {
-        self.ept_hooks.iter_mut().find_map(|hook| {
+    pub fn find_hook_by_guest_page_pa_as_ref(&self, guest_page_pa: u64) -> Option<&EptHook> {
+        self.ept_hooks.iter().find_map(|hook| {
             if hook.guest_pa.align_down_to_base_page().as_u64() == guest_page_pa {
                 Some(&**hook)
             } else {

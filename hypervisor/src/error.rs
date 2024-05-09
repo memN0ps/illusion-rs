@@ -196,4 +196,7 @@ pub enum HypervisorError {
 
     #[error("MTF counter not set")]
     MtfCounterNotSet,
+
+    #[error("Invalid pre-allocated page table index")]
+    InvalidPreAllocPtIndex,
 }

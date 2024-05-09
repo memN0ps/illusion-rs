@@ -8,7 +8,6 @@
 use {
     crate::intel::{
         addresses::PhysicalAddress,
-        ept::Pt,
         hooks::inline::{InlineHook, InlineHookType},
         page::Page,
     },
@@ -37,9 +36,6 @@ pub enum EptHookType {
 /// modifying the Extended Page Tables (EPT) to facilitate the hooking mechanism.
 #[derive(Debug, Clone)]
 pub struct EptHook {
-    /// The Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT (Pre-Allocated).
-    pub primary_ept_pre_alloc_pt: Box<Pt>,
-
     /// Guest physical address of the function or page to be copied.
     pub guest_pa: PAddr,
 
@@ -61,9 +57,6 @@ pub struct EptHook {
     /// The type of hook to be installed.
     pub hook_type: EptHookType,
 
-    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
-    pub mtf_counter: Option<u64>,
-
     /// The inline hook configuration for the hook.
     pub inline_hook: Option<InlineHook>,
 }
@@ -74,14 +67,12 @@ impl EptHook {
     /// # Arguments
     ///
     /// * `host_shadow_page` - The pre-allocated host shadow page for the hook.
-    /// * `primary_ept_pre_alloc_pt` - The pre-allocated Page Table (PT) for splitting the 2MB page into 4KB pages for the primary EPT.
     ///
     /// # Returns
     ///
     /// * `Box<Self>` - The new instance of `EptHook`.
-    pub fn new(host_shadow_page: Box<Page>, primary_ept_pre_alloc_pt: Box<Pt>) -> Box<Self> {
+    pub fn new(host_shadow_page: Box<Page>) -> Box<Self> {
         let hooks = Self {
-            primary_ept_pre_alloc_pt,
             guest_pa: PAddr::zero(),
             guest_va: VAddr::zero(),
             host_shadow_page,
@@ -90,7 +81,6 @@ impl EptHook {
             hook_handler: core::ptr::null(),
             hook_type: EptHookType::Function(InlineHookType::Int3),
             inline_hook: None,
-            mtf_counter: None,
         };
         Box::new(hooks)
     }
