@@ -13,7 +13,7 @@ use {
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             capture::GuestRegisters,
             descriptor::Descriptors,
-            ept::{Ept, Pt},
+            ept::Ept,
             hooks::hook_manager::HookManager,
             paging::PageTables,
             support::{rdmsr, vmclear, vmptrld, vmread},
@@ -22,7 +22,7 @@ use {
             vmlaunch::launch_vm,
         },
     },
-    alloc::{boxed::Box, vec::Vec},
+    alloc::boxed::Box,
     bit_field::BitField,
     log::*,
     x86::{bits64::rflags::RFlags, vmx::vmcs},
@@ -57,9 +57,6 @@ pub struct Vm {
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
-
-    /// Page Tables for splitting 2MB pages into 4KB pages for the primary EPT.
-    pub primary_ept_pre_alloc_pts: Vec<Box<Pt>>,
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
@@ -105,14 +102,11 @@ impl Vm {
         trace!("Creating primary EPTP with WB and 4-level walk");
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
-        trace!("Pre-allocating Page Tables for 2MB to 4KB split");
-        let mut primary_ept_pre_alloc_pts = Vec::new();
-
         trace!("Modifying MSR interception for LSTAR MSR write access");
         msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
         trace!("Creating EPT hook manager");
-        let hook_manager = HookManager::new(&mut primary_ept_pre_alloc_pts)?;
+        let hook_manager = HookManager::new()?;
 
         trace!("VM created");
 
@@ -125,7 +119,6 @@ impl Vm {
             msr_bitmap,
             primary_ept,
             primary_eptp,
-            primary_ept_pre_alloc_pts,
             guest_registers: guest_registers.clone(),
             has_launched: false,
         })

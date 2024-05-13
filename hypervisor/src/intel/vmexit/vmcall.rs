@@ -16,6 +16,7 @@ use {
         },
     },
     log::*,
+    x86::bits64::paging::PAddr,
 };
 
 /// Represents various VMCALL commands that a guest can issue to the hypervisor.
@@ -45,29 +46,43 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
 
     let vmcall_number = vm.guest_registers.rax;
-    trace!("VMCALL command number: {:#x}", vmcall_number);
+    trace!("Guest RAX - VMCALL command number: {:#x}", vmcall_number);
+    trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
+
+    let guest_pa = PAddr::from(vm.guest_registers.rip);
+    trace!("Guest PA: {:#x}", guest_pa.as_u64());
 
     // Set the current hook to the EPT hook for handling MTF exit
-    let exit_type = if let Some(ept_hook) = vm.hook_manager.find_hook_by_guest_va_as_ref(vm.guest_registers.rip) {
-        trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", ept_hook.guest_pa, vm.guest_registers.rip);
+    let exit_type = if let Some(shadow_page) = vm.hook_manager.memory_manager.get_shadow_page(guest_pa.as_u64()) {
+        trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_pa, vm.guest_registers.rip);
         log_nt_query_system_information_params(&vm.guest_registers);
         // log_nt_create_file_params(&vm.guest_registers);
         // log_nt_open_process_params(&vm.guest_registers);
         // log_mm_is_address_valid_params(&vm.guest_registers);
 
+        let shadow_page_pa = shadow_page.as_ptr() as u64;
+        trace!("Shadow Page PA: {:#x}", shadow_page_pa);
+
+        let mut pt_ptr = vm
+            .hook_manager
+            .memory_manager
+            .get_page_table(guest_pa.as_u64())
+            .ok_or(HypervisorError::PageTableNotFound)?;
+        trace!("Page Table PA: {:#x}", pt_ptr.as_ptr() as u64);
+
+        let pre_alloc_pt = unsafe { pt_ptr.as_mut() };
+
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
         vm.primary_ept.swap_page(
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
+            guest_pa.align_down_to_base_page().as_u64(),
+            guest_pa.align_down_to_base_page().as_u64(),
             AccessType::READ_WRITE_EXECUTE,
-            vm.primary_ept_pre_alloc_pts
-                .get_mut(vm.hook_manager.current_hook_index)
-                .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
-                .as_mut(),
+            pre_alloc_pt,
         )?;
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
-        let instruction_count = unsafe { calculate_instruction_count(ept_hook.guest_pa.as_u64(), ept_hook.inline_hook.unwrap().hook_size()) as u64 };
+        // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)
+        let instruction_count = unsafe { calculate_instruction_count(guest_pa.as_u64(), 3) as u64 };
         vm.hook_manager.mtf_counter = Some(instruction_count);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions

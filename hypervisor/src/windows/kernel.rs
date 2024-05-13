@@ -3,7 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
-            hooks::{hook::EptHookType, hook_manager::HookManager},
+            hooks::hook_manager::{EptHookType, HookManager},
             vm::Vm,
         },
         windows::{
@@ -62,13 +62,7 @@ impl KernelHook {
     /// # Returns
     ///
     /// * `Ok(())` - The hook was installed successfully.
-    pub fn setup_kernel_inline_hook(
-        &mut self,
-        vm: &mut Vm,
-        function_name: &str,
-        hook_handler: *const (),
-        ept_hook_type: EptHookType,
-    ) -> Result<(), HypervisorError> {
+    pub fn setup_kernel_inline_hook(&mut self, vm: &mut Vm, function_name: &str, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         trace!("Setting up hook for function: {}", function_name);
 
         let function_va = unsafe {
@@ -82,7 +76,7 @@ impl KernelHook {
 
         trace!("Function address: {:#x}", function_va as u64);
 
-        HookManager::ept_hook(vm, function_va as u64, hook_handler, ept_hook_type)?;
+        HookManager::ept_hook_function(vm, function_va as u64, ept_hook_type)?;
 
         info!("Windows kernel inline hook installed successfully");
 
@@ -107,7 +101,6 @@ impl KernelHook {
         vm: &mut Vm,
         syscall_number: i32,
         get_from_win32k: bool,
-        hook_handler: *const (),
         ept_hook_type: EptHookType,
     ) -> Result<(), HypervisorError> {
         trace!("Setting up hook for syscall: {}", syscall_number);
@@ -121,7 +114,7 @@ impl KernelHook {
 
         trace!("Function address: {:#x}", ssdt_hook.guest_function_va as u64);
 
-        HookManager::ept_hook(vm, ssdt_hook.guest_function_va as u64, hook_handler, ept_hook_type)?;
+        HookManager::ept_hook_function(vm, ssdt_hook.guest_function_va as u64, ept_hook_type)?;
 
         trace!("Windows Kernel SSDT hook installed successfully");
 

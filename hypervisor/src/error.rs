@@ -199,4 +199,22 @@ pub enum HypervisorError {
 
     #[error("Invalid pre-allocated page table index")]
     InvalidPreAllocPtIndex,
+
+    #[error("Failed to allocate shadow pages for memory manager")]
+    ShadowPageAllocationError,
+
+    #[error("Failed to allocate page tables for memory manager")]
+    PageTablesAllocationError,
+
+    #[error("Shadow pages unavailable")]
+    ShadowPagesUnavailable,
+
+    #[error("Page tables unavailable")]
+    PageTablesUnavailable,
+
+    #[error("Shadow page not found")]
+    ShadowPageNotFound,
+
+    #[error("Page table not found")]
+    PageTableNotFound,
 }

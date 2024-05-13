@@ -14,12 +14,6 @@ pub struct InlineHook {
     /// The physical address of the shadow function.
     pub shadow_function_pa: *mut u8,
 
-    /// The virtual address of the guest function.
-    pub guest_function_va: *mut u8,
-
-    /// The address of the hook handler.
-    pub hook_handler: *mut u8,
-
     /// The type of hook we are using.
     pub hook_type: InlineHookType,
 }
@@ -31,19 +25,16 @@ impl InlineHook {
     ///
     /// * `shadow_function_pa` - The physical address of the shadow function.
     /// * `hook_type` - The type of hook we are using.
-    /// * `trampoline_page` - The pre-allocated trampoline page for the hook.
     ///
     /// # Returns
     ///
     /// * `Self` - The new hook configuration.
-    pub fn new(shadow_function_pa: *mut u8, guest_function_va: *mut u8, hook_handler: *mut u8, hook_type: InlineHookType) -> Self {
+    pub fn new(shadow_function_pa: *mut u8, hook_type: InlineHookType) -> Self {
         trace!("Creating a new hook configuration");
 
         Self {
             shadow_function_pa,
-            guest_function_va,
             hook_type,
-            hook_handler,
         }
     }
 

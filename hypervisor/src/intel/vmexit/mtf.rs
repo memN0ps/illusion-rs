@@ -9,7 +9,7 @@ use {
         },
     },
     log::*,
-    x86::vmx::vmcs,
+    x86::{current::paging::PAddr, vmx::vmcs},
     x86_64::registers::rflags::RFlags,
 };
 
@@ -36,21 +36,29 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
         if *counter == 0 {
             set_monitor_trap_flag(false);
 
-            let ept_hook = vm
+            let guest_pa = PAddr::from(vm.guest_registers.rip);
+            trace!("Guest PA: {:#x}", guest_pa.as_u64());
+
+            let shadow_page_pa = vm
                 .hook_manager
-                .find_hook_by_index_as_ref(vm.hook_manager.current_hook_index)
-                .ok_or(HypervisorError::HookNotFound)?;
+                .memory_manager
+                .get_shadow_page(guest_pa.as_u64())
+                .ok_or(HypervisorError::ShadowPageNotFound)?
+                .as_ptr() as u64;
+            trace!("Shadow Page PA: {:#x}", shadow_page_pa);
+
+            let mut pt_ptr = vm
+                .hook_manager
+                .memory_manager
+                .get_page_table(guest_pa.as_u64())
+                .ok_or(HypervisorError::PageTableNotFound)?;
+            trace!("Page Table PA: {:#x}", pt_ptr.as_ptr() as u64);
+
+            let pre_alloc_pt = unsafe { pt_ptr.as_mut() };
 
             // Restore the hook to continue monitoring
-            vm.primary_ept.swap_page(
-                ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-                ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
-                AccessType::EXECUTE,
-                vm.primary_ept_pre_alloc_pts
-                    .get_mut(vm.hook_manager.current_hook_index)
-                    .ok_or(HypervisorError::InvalidPreAllocPtIndex)?
-                    .as_mut(),
-            )?;
+            vm.primary_ept
+                .swap_page(guest_pa.align_down_to_base_page().as_u64(), shadow_page_pa, AccessType::EXECUTE, pre_alloc_pt)?;
 
             restore_guest_interrupt_flag(vm)?;
         } else {
