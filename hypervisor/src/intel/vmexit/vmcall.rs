@@ -5,6 +5,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            addresses::PhysicalAddress,
             capture::GuestRegisters,
             ept::AccessType,
             events::EventInjection,
@@ -49,36 +50,31 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Guest RAX - VMCALL command number: {:#x}", vmcall_number);
     trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    let guest_pa = PAddr::from(vm.guest_registers.rip);
+    let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip));
     trace!("Guest PA: {:#x}", guest_pa.as_u64());
 
+    let guest_page_pa = guest_pa.align_down_to_base_page();
+    trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
+
     // Set the current hook to the EPT hook for handling MTF exit
-    let exit_type = if let Some(shadow_page) = vm.hook_manager.memory_manager.get_shadow_page(guest_pa.as_u64()) {
+    let exit_type = if let Some(shadow_page_pa) = vm.hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
+        trace!("Shadow Page PA: {:#x}", shadow_page_pa);
+
         trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_pa, vm.guest_registers.rip);
         log_nt_query_system_information_params(&vm.guest_registers);
         // log_nt_create_file_params(&vm.guest_registers);
         // log_nt_open_process_params(&vm.guest_registers);
         // log_mm_is_address_valid_params(&vm.guest_registers);
 
-        let shadow_page_pa = shadow_page.as_ptr() as u64;
-        trace!("Shadow Page PA: {:#x}", shadow_page_pa);
-
-        let mut pt_ptr = vm
+        let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
-            .get_page_table(guest_pa.as_u64())
+            .get_page_table_as_mut(guest_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
-        trace!("Page Table PA: {:#x}", pt_ptr.as_ptr() as u64);
-
-        let pre_alloc_pt = unsafe { pt_ptr.as_mut() };
 
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag
-        vm.primary_ept.swap_page(
-            guest_pa.align_down_to_base_page().as_u64(),
-            guest_pa.align_down_to_base_page().as_u64(),
-            AccessType::READ_WRITE_EXECUTE,
-            pre_alloc_pt,
-        )?;
+        vm.primary_ept
+            .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
         // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)

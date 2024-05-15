@@ -2,6 +2,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
+            addresses::PhysicalAddress,
             ept::AccessType,
             support::{vmread, vmwrite},
             vm::Vm,
@@ -36,29 +37,28 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
         if *counter == 0 {
             set_monitor_trap_flag(false);
 
-            let guest_pa = PAddr::from(vm.guest_registers.rip);
+            let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip));
             trace!("Guest PA: {:#x}", guest_pa.as_u64());
 
-            let shadow_page_pa = vm
-                .hook_manager
-                .memory_manager
-                .get_shadow_page(guest_pa.as_u64())
-                .ok_or(HypervisorError::ShadowPageNotFound)?
-                .as_ptr() as u64;
+            let guest_page_pa = guest_pa.align_down_to_base_page();
+
+            let shadow_page_pa = PAddr::from(
+                vm.hook_manager
+                    .memory_manager
+                    .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+                    .ok_or(HypervisorError::ShadowPageNotFound)?,
+            );
             trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
-            let mut pt_ptr = vm
+            let pre_alloc_pt = vm
                 .hook_manager
                 .memory_manager
-                .get_page_table(guest_pa.as_u64())
+                .get_page_table_as_mut(guest_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
-            trace!("Page Table PA: {:#x}", pt_ptr.as_ptr() as u64);
-
-            let pre_alloc_pt = unsafe { pt_ptr.as_mut() };
 
             // Restore the hook to continue monitoring
             vm.primary_ept
-                .swap_page(guest_pa.align_down_to_base_page().as_u64(), shadow_page_pa, AccessType::EXECUTE, pre_alloc_pt)?;
+                .swap_page(guest_pa.align_down_to_base_page().as_u64(), shadow_page_pa.as_u64(), AccessType::EXECUTE, pre_alloc_pt)?;
 
             restore_guest_interrupt_flag(vm)?;
         } else {

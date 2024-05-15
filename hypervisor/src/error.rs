@@ -217,4 +217,10 @@ pub enum HypervisorError {
 
     #[error("Page table not found")]
     PageTableNotFound,
+
+    #[error("Page table already mapped")]
+    PageTableAlreadyMapped,
+
+    #[error("Shadow page already mapped")]
+    ShadowPageAlreadyMapped,
 }

@@ -20,9 +20,6 @@ use {
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
 };
 
-/// The maximum number of hooks supported by the hypervisor. Change this value as needed
-pub const MAX_HOOKS: usize = 64;
-
 /// Enum representing different types of hooks that can be applied.
 #[derive(Debug, Clone, Copy)]
 pub enum EptHookType {
@@ -35,15 +32,15 @@ pub enum EptHookType {
     Page,
 }
 
+/// The maximum number of hooks supported by the hypervisor. Change this value as needed.
+const MAX_ENTRIES: usize = 64;
+
 /// Represents hook manager structures for hypervisor operations.
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
-    pub memory_manager: Box<MemoryManager>,
-
-    /// The current index of the hook being installed.
-    current_hook_index: u64,
+    pub memory_manager: Box<MemoryManager<MAX_ENTRIES>>,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
     pub kernel_hook: KernelHook,
@@ -72,11 +69,10 @@ impl HookManager {
     pub fn new() -> Result<Box<Self>, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = Box::new(MemoryManager::new(MAX_HOOKS)?);
+        let memory_manager = Box::new(MemoryManager::<MAX_ENTRIES>::new()?);
 
         Ok(Box::new(Self {
             memory_manager,
-            current_hook_index: 0,
             has_cpuid_cache_info_been_called: false,
             kernel_hook: Default::default(),
             old_rflags: None,
@@ -89,7 +85,7 @@ impl HookManager {
     /// # Arguments
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
-    /// * `guest_va` - The virtual address of the function or page to be hooked.
+    /// * `guest_function_va` - The virtual address of the function or page to be hooked.
     /// * `ept_hook_type` - The type of EPT hook to be installed.
     ///
     /// # Returns
@@ -108,29 +104,45 @@ impl HookManager {
         trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
         // Check and possibly split the page before fetching the shadow page
-        if !vm.hook_manager.memory_manager.is_page_split(guest_page_pa.as_u64()) {
+        if !vm.hook_manager.memory_manager.is_guest_page_split(guest_page_pa.as_u64()) {
             trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-            let mut pt_ptr = vm
+            vm.hook_manager.memory_manager.map_guest_page_table(guest_page_pa.as_u64())?;
+
+            let pre_alloc_pt = vm
                 .hook_manager
                 .memory_manager
-                .get_or_create_page_table(guest_page_pa.as_u64(), vm.hook_manager.current_hook_index)?;
-            vm.primary_ept
-                .split_2mb_to_4kb(guest_large_page_pa.as_u64(), unsafe { pt_ptr.as_mut() })?;
+                .get_page_table_as_mut(guest_page_pa.as_u64())
+                .ok_or(HypervisorError::PageTableNotFound)?;
+
+            vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
         }
 
         // Check and possibly copy the page before setting up the shadow function
-        if !vm.hook_manager.memory_manager.is_page_copied(guest_page_pa.as_u64()) {
+        if !vm.hook_manager.memory_manager.is_shadow_page_copied(guest_page_pa.as_u64()) {
             trace!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
-            let shadow_page = vm
+            vm.hook_manager.memory_manager.map_shadow_page(guest_page_pa.as_u64())?;
+
+            let shadow_page_pa = vm
                 .hook_manager
                 .memory_manager
-                .get_or_create_shadow_page(guest_page_pa.as_u64(), vm.hook_manager.current_hook_index)?;
-            Self::unsafe_copy_guest_to_shadow(guest_page_pa, PAddr::from(shadow_page.as_ptr() as u64));
+                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+                .ok_or(HypervisorError::ShadowPageNotFound)?;
+
+            Self::unsafe_copy_guest_to_shadow(guest_page_pa, PAddr::from(shadow_page_pa));
         }
 
-        // Retrieve shadow page and page table after ensuring they are set up
-        let shadow_page_pa = PAddr::from(vm.hook_manager.memory_manager.get_shadow_page(guest_page_pa.as_u64()).unwrap().as_ptr() as u64);
-        let mut pt_ptr = vm.hook_manager.memory_manager.get_page_table(guest_page_pa.as_u64()).unwrap();
+        let shadow_page_pa = PAddr::from(
+            vm.hook_manager
+                .memory_manager
+                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+                .ok_or(HypervisorError::ShadowPageNotFound)?,
+        );
+
+        let pre_alloc_pt = vm
+            .hook_manager
+            .memory_manager
+            .get_page_table_as_mut(guest_page_pa.as_u64())
+            .ok_or(HypervisorError::PageTableNotFound)?;
 
         match ept_hook_type {
             EptHookType::Function(inline_hook_type) => {
@@ -147,12 +159,10 @@ impl HookManager {
 
         trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
         vm.primary_ept
-            .modify_page_permissions(guest_page_pa.as_u64(), AccessType::READ_WRITE, unsafe { pt_ptr.as_mut() })?;
+            .modify_page_permissions(guest_page_pa.as_u64(), AccessType::READ_WRITE, pre_alloc_pt)?;
 
         invept_all_contexts();
         invvpid_all_contexts();
-
-        vm.hook_manager.current_hook_index += 1;
 
         trace!("EPT hook created and enabled successfully");
 
