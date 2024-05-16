@@ -133,6 +133,11 @@ impl PageTables {
 
         let page_entry = unsafe { *current_paging.add((virtual_address >> 12) & 0x1FF) };
 
+        // If the page is not present, translation fails.
+        if page_entry & 1 == 0 {
+            return None;
+        }
+
         Some((page_entry & ADDRESS_MASK) | (virtual_address & 0xFFF))
     }
 
