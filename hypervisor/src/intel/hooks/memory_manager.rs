@@ -1,3 +1,7 @@
+//! Module for managing memory allocations related to Extended Page Tables (EPT)
+//! for a hypervisor. Provides pre-allocated memory resources for EPT hooks and
+//! management functionalities to maintain and access these resources effectively.
+
 use {
     crate::{
         allocate::box_zeroed,
@@ -9,16 +13,26 @@ use {
     log::trace,
 };
 
+/// Represents a memory management system that pre-allocates and manages page tables
+/// and shadow pages for a hypervisor, using fixed-size arrays to avoid runtime allocation.
 #[derive(Debug, Clone)]
 pub struct MemoryManager<const N: usize> {
+    /// Active mappings of guest physical addresses to their respective page tables.
     active_page_tables: LinearMap<u64, Box<Pt>, N>,
+    /// Active mappings of guest physical addresses to their respective shadow pages.
     active_shadow_pages: LinearMap<u64, Box<Page>, N>,
 
+    /// Pool of pre-allocated, free page tables available for assignment.
     free_page_tables: Vec<Box<Pt>, N>,
+    /// Pool of pre-allocated, free shadow pages available for assignment.
     free_shadow_pages: Vec<Box<Page>, N>,
 }
 
 impl<const N: usize> MemoryManager<N> {
+    /// Constructs a new `MemoryManager` instance, pre-allocating all necessary resources.
+    ///
+    /// # Returns
+    /// A new instance of `MemoryManager` or an error if initial allocation fails.
     pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing memory manager");
 
@@ -49,14 +63,35 @@ impl<const N: usize> MemoryManager<N> {
         })
     }
 
+    /// Checks if a guest page is already associated with a split page table.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address to check.
+    ///
+    /// # Returns
+    /// `true` if the guest page is split, otherwise `false`.
     pub fn is_guest_page_split(&self, guest_page_pa: u64) -> bool {
         self.active_page_tables.contains_key(&guest_page_pa)
     }
 
+    /// Checks if a shadow page has been copied and is active for the given guest physical address.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address to check.
+    ///
+    /// # Returns
+    /// `true` if the shadow page is copied, otherwise `false`.
     pub fn is_shadow_page_copied(&self, guest_page_pa: u64) -> bool {
         self.active_shadow_pages.contains_key(&guest_page_pa)
     }
 
+    /// Maps a free page table to a guest physical address, removing it from the free pool.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address to map.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or an error if no free page tables are available or if already mapped.
     pub fn map_guest_page_table(&mut self, guest_page_pa: u64) -> Result<(), HypervisorError> {
         if let Some(free_pt) = self.free_page_tables.pop() {
             self.active_page_tables
@@ -68,6 +103,13 @@ impl<const N: usize> MemoryManager<N> {
         Ok(())
     }
 
+    /// Maps a free shadow page to a guest physical address, removing it from the free pool.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address to map.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or an error if no free shadow pages are available or if already mapped.
     pub fn map_shadow_page(&mut self, guest_page_pa: u64) -> Result<(), HypervisorError> {
         if let Some(free_shadow_page) = self.free_shadow_pages.pop() {
             self.active_shadow_pages
@@ -80,10 +122,24 @@ impl<const N: usize> MemoryManager<N> {
         Ok(())
     }
 
+    /// Retrieves a mutable reference to the page table associated with a guest physical address.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address.
+    ///
+    /// # Returns
+    /// An `Option` containing a mutable reference to the `Pt` if found.
     pub fn get_page_table_as_mut(&mut self, guest_page_pa: u64) -> Option<&mut Pt> {
         self.active_page_tables.get_mut(&guest_page_pa).map(|boxed_pt| &mut **boxed_pt)
     }
 
+    /// Retrieves a pointer to the shadow page associated with a guest physical address.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address.
+    ///
+    /// # Returns
+    /// An `Option` containing the memory address of the `Page` as a `u64` if found.
     pub fn get_shadow_page_as_ptr(&self, guest_page_pa: u64) -> Option<u64> {
         self.active_shadow_pages
             .get(&guest_page_pa)
