@@ -55,23 +55,29 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
 
-- **[Daax Rynd (@daaximus)](https://github.com/daaximus), [Aidan Khoury (@ajkhoury)](https://github.com/ajkhoury), [Nick Peterson (@everdox)](https://github.com/everdox)**: For their comprehensive series on hypervisor development:
+- **[Daax Rynd (@daaximus)](https://github.com/daaximus)**: For his outstanding series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations:
   - [7 Days to Virtualization](https://revers.engineering/7-days-to-virtualization-a-series-on-hypervisor-development/)
   - [MMU Virtualization via Intel EPT](https://revers.engineering/mmu-virtualization-via-intel-ept-index/)
-  - [Patchguard: Hypervisor Based Introspection [P1]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p1/)
-  - [Patchguard: Hypervisor Based Introspection [P2]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/)
-  - [Syscall Hooking Via Extended Feature Enable Register (EFER)](https://revers.engineering/syscall-hooking-via-extended-feature-enable-register-efer/)
 
-- **[Sina Karvandi (@Intel80x86)](https://github.com/SinaKarvandi)**: For the extensive Hypervisor From Scratch series:
-  - [Tutorial Series](https://rayanfam.com/tutorials/)
-  - [GitHub Repository](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/)
-
-- **[Satoshi Tanda(@tandasat)](https://github.com/tandasat/)**: His work has significantly influenced this project:
+- **[Satoshi Tanda (@tandasat)](https://github.com/tandasat)**: Satoshi Tanda's guidance, projects, and training sessions have been incredibly helpful. His detailed explanations and contributions on GitHub, along with his structured training programs, have significantly enhanced my understanding, making him a great mentor throughout my journey:
   - [Hypervisor Development for Security Researchers](https://tandasat.github.io/Hypervisor_Development_for_Security_Researchers.html)
   - [Hypervisor 101 in Rust](https://github.com/tandasat/Hypervisor-101-in-Rust)
   - Additional Projects: [Hello-VT-rp](https://github.com/tandasat/Hello-VT-rp), [DdiMon](https://github.com/tandasat/DdiMon), [HyperPlatform](https://github.com/tandasat/HyperPlatform), [MiniVisorPkg](https://github.com/tandasat/MiniVisorPkg)
- 
-- **[Matthias @not-matthias](https://github.com/not-matthias/amd_hypervisor)**: For his impactful work on the [amd_hypervisor](https://github.com/not-matthias/amd_hypervisor) project, which greatly inspired and influenced this research.
+
+- **[Jess (@jessiep_)](https://github.com/Intege-rs)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise.
+
+- **[Sina Karvandi (@Intel80x86)](https://github.com/SinaKarvandi)**: For his detailed Hypervisor From Scratch series:
+  - [Tutorial Series](https://rayanfam.com/tutorials/)
+  - [GitHub Repository](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/)
+
+- **[Matthias (@not-matthias)](https://github.com/not-matthias)**: For his impactful work on the [amd_hypervisor](https://github.com/not-matthias/amd_hypervisor) project, which greatly inspired and influenced this research.
+
+- **[Nick Peterson (@everdox)](https://github.com/everdox)**: For insightful explorations into hypervisor introspection:
+  - [Patchguard: Hypervisor Based Introspection [P1]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p1/)
+
+- **[Aidan Khoury (@ajkhoury)](https://github.com/ajkhoury)**: For insightful explorations into hypervisor introspection:
+  - [Patchguard: Hypervisor Based Introspection [P2]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/)
+  - [Syscall Hooking Via Extended Feature Enable Register (EFER)](https://revers.engineering/syscall-hooking-via-extended-feature-enable-register-efer/)
 
 #### Community and Technical Resources
 
