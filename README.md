@@ -16,6 +16,8 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - :white_check_mark: Hidden Kernel Inline Hooks.
 - :white_check_mark: Hidden Model Specific Registers (MSR) Hooks.
 - :x: Hidden Interrupt Descriptor Table (IDT) Hooks.
+- :x: Hardware Debug Breakpoints.
+- :x: Intel Processor Trace (PT).
 
 ### Microsoft Hyper-V Compatible Features
 

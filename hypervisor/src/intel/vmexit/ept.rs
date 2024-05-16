@@ -24,7 +24,23 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     let guest_pa = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
     trace!("Faulting Guest PA: {:#x}", guest_pa);
-    trace!("Faulting Guest Page PA: {:#x}", PAddr::from(guest_pa).align_down_to_base_page().as_u64());
+
+    let guest_page_pa = PAddr::from(guest_pa).align_down_to_base_page();
+    trace!("Faulting Guest Page PA: {:#x}", guest_page_pa);
+
+    let shadow_page_pa = PAddr::from(
+        vm.hook_manager
+            .memory_manager
+            .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+            .ok_or(HypervisorError::ShadowPageNotFound)?,
+    );
+    trace!("Shadow Page PA: {:#x}", shadow_page_pa.as_u64());
+
+    let pre_alloc_pt = vm
+        .hook_manager
+        .memory_manager
+        .get_page_table_as_mut(guest_page_pa.as_u64())
+        .ok_or(HypervisorError::PageTableNotFound)?;
 
     // dump_primary_ept_entries(vm, guest_pa)?;
 
@@ -33,23 +49,14 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Exit Qualification for EPT Violations: {:#?}", ept_violation_qualification);
     trace!("Faulting Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    let ept_hook = vm
-        .hook_manager
-        .find_hook_by_guest_page_pa_as_mut(PAddr::from(guest_pa).align_down_to_base_page().as_u64())
-        .ok_or(HypervisorError::HookNotFound)?;
-
     if ept_violation_qualification.readable && ept_violation_qualification.writable && !ept_violation_qualification.executable {
         // if the instruction fetch is true and the page is not executable, we need to swap the page to a shadow page.
         //   Instruction Fetch: true,
         //   Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).
         trace!("Page Permissions: R:true, W:true, X:false (readable, writable, but non-executable).");
         trace!("Execution attempt on non-executable page, switching to hooked shadow-copy page.");
-        vm.primary_ept.swap_page(
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            ept_hook.host_shadow_page_pa.align_down_to_base_page().as_u64(),
-            AccessType::EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
-        )?;
+        vm.primary_ept
+            .swap_page(guest_page_pa.as_u64(), shadow_page_pa.as_u64(), AccessType::EXECUTE, pre_alloc_pt)?;
         trace!("Page swapped successfully!");
     } else if ept_violation_qualification.executable && !ept_violation_qualification.readable && !ept_violation_qualification.writable {
         // if the instruction fetch is false and the page is executable, we need to swap the page to a shadow page.
@@ -57,16 +64,12 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         //   Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).
         trace!("Read/Write attempt on execute-only page, restoring original page.");
         trace!("Page Permissions: R:false, W:false, X:true (non-readable, non-writable, but executable).");
-        vm.primary_ept.swap_page(
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            ept_hook.guest_pa.align_down_to_base_page().as_u64(),
-            AccessType::READ_WRITE_EXECUTE,
-            ept_hook.primary_ept_pre_alloc_pt.as_mut(),
-        )?;
+        vm.primary_ept
+            .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
         // We make this read-write-execute to allow the instruction performing a read-write
         // operation and then switch back to execute-only shadow page from handle_mtf vmexit
-        ept_hook.mtf_counter = Some(1);
+        vm.hook_manager.mtf_counter = Some(1);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
@@ -131,22 +134,21 @@ pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(
     // Log the critical error information.
     trace!("Faulting guest address: {:#x}", faulting_guest_pa);
 
-    // Get the hook manager from the VM.
-    let hook_manager = vm.hook_manager.as_mut();
-
     // Align the faulting guest physical address to the base page size.
     let faulting_guest_page_pa = PAddr::from(faulting_guest_pa).align_down_to_base_page().as_u64();
     trace!("Faulting guest page address: {:#x}", faulting_guest_page_pa);
 
-    let ept_hook = hook_manager
-        .find_hook_by_guest_page_pa_as_ref(faulting_guest_pa)
-        .ok_or(HypervisorError::HookNotFound)?;
-
     // Get the primary EPTs.
     let primary_ept = &mut vm.primary_ept;
 
+    let pre_alloc_pt = vm
+        .hook_manager
+        .memory_manager
+        .get_page_table_as_mut(faulting_guest_page_pa)
+        .ok_or(HypervisorError::PageTableNotFound)?;
+
     trace!("Dumping Primary EPT entries for guest physical address: {:#x}", faulting_guest_pa);
-    primary_ept.dump_ept_entries(faulting_guest_pa, ept_hook.primary_ept_pre_alloc_pt.as_ref());
+    primary_ept.dump_ept_entries(faulting_guest_pa, pre_alloc_pt);
 
     Ok(())
 }

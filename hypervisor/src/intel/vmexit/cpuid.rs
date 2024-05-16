@@ -5,7 +5,7 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::{hook::EptHookType, inline::InlineHookType},
+            hooks::{hook_manager::EptHookType, inline::InlineHookType},
             vm::Vm,
             vmexit::ExitType,
         },
@@ -120,16 +120,16 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
                 // Setup a named function hook (example: MmIsAddressValid)
                 // info!("Hooking MmIsAddressValid with inline hook");
-                // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", EptHookType::Function(InlineHookType::Vmcall))?;
 
-                info!("Hooking NtCreateFile with syscall number 0x055");
-                kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                // info!("Hooking NtCreateFile with syscall number 0x055");
+                // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, EptHookType::Function(InlineHookType::Vmcall))?;
 
-                //info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                //kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                info!("Hooking NtQuerySystemInformation with syscall number 0x36");
+                kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, EptHookType::Function(InlineHookType::Vmcall))?;
 
                 //info!("Hooking NtOpenProcess with syscall number 0x26");
-                //kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, core::ptr::null_mut(), EptHookType::Function(InlineHookType::Vmcall))?;
+                // kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, EptHookType::Function(InlineHookType::Vmcall))?;
 
                 //info!("Hook installed successfully!");
 
