@@ -2,6 +2,7 @@
 resolver = "2"
 
 members = [
+    "client",
     "hypervisor",
     "loader",
     "uefi",
