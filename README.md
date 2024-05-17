@@ -18,10 +18,10 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - :x: Hidden Interrupt Descriptor Table (IDT) Hooks.
 - :x: Hidden Hardware Debug Register Breakpoints.
 
-## Processor-Specific Features
+### Processor-Specific Features
 
 - :white_check_mark: Extended Page Tables (EPT)
-- :white_check_mark: Memory Type Range Registers (MTRRs)
+- :white_check_mark: Memory Type Range Registers (MTRRs).
 - :x: Intel Processor Trace (PT).
 
 ### Microsoft Hyper-V Compatible Features
@@ -33,7 +33,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 - :white_check_mark: VM Exit Handling: `ExceptionOrNmi (#GP, #PF, #BP, #UD)` (0), `InitSignal` (3), `StartupIpi` (4), `Cpuid` (10), `Getsec` (11), `Hlt` (12), `Invd` (13), `Vmcall` (18), `Vmclear` (19), `Vmlaunch` (20), `Vmptrld` (21), `Vmptrst` (22), `Vmresume` (24), `Vmxon` (27), `Vmxoff` (26), `Rdmsr` (31), `Wrmsr` (32), `MonitorTrapFlag` (37), `Rdtsc` (49), `EptViolation` (48), `EptMisconfiguration` (50), `Invept` (53), `Invvpid` (55), `Xsetbv` (55).
 
-## Hypervisor Detection
+### Hypervisor Detection
 
 - :x: Neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
 
