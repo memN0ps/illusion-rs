@@ -70,6 +70,9 @@ enum FeatureBits {
     HypervisorPresentBit = 31,
 }
 
+/// The password used for authentication with the hypervisor.
+const PASSWORD: u32 = 0xDEADBEEF;
+
 /// Handles the `CPUID` VM-exit.
 ///
 /// This function is invoked when the guest executes the `CPUID` instruction.
@@ -96,6 +99,14 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     // Execute CPUID instruction on the host and retrieve the result
     let mut cpuid_result = cpuid!(leaf, sub_leaf);
+
+    // Check if the password in the ecx register is correct
+    if sub_leaf == PASSWORD {
+        debug!("Password is correct!");
+        debug!("Hooking NtQuerySystemInformation with syscall number 0x36");
+        let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
+        kernel_hook.setup_kernel_ssdt_hook(vm, leaf as _, false, EptHookType::Function(InlineHookType::Vmcall))?;
+    }
 
     trace!("CpuidLeaf: {:#x}", leaf);
 
