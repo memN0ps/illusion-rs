@@ -16,7 +16,7 @@ use {
     },
     alloc::boxed::Box,
     core::intrinsics::copy_nonoverlapping,
-    log::trace,
+    log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
 };
 
@@ -92,20 +92,20 @@ impl HookManager {
     ///
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
     pub fn ept_hook_function(vm: &mut Vm, guest_function_va: u64, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        trace!("Creating EPT hook for function at VA: {:#x}", guest_function_va);
+        debug!("Creating EPT hook for function at VA: {:#x}", guest_function_va);
 
         let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va));
-        trace!("Guest function PA: {:#x}", guest_function_pa.as_u64());
+        debug!("Guest function PA: {:#x}", guest_function_pa.as_u64());
 
         let guest_page_pa = guest_function_pa.align_down_to_base_page();
-        trace!("Guest page PA: {:#x}", guest_page_pa.as_u64());
+        debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
 
         let guest_large_page_pa = guest_function_pa.align_down_to_large_page();
-        trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
+        debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
         // Check and possibly split the page before fetching the shadow page
         if !vm.hook_manager.memory_manager.is_guest_page_split(guest_page_pa.as_u64()) {
-            trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
             vm.hook_manager.memory_manager.map_guest_page_table(guest_page_pa.as_u64())?;
 
             let pre_alloc_pt = vm
@@ -119,7 +119,7 @@ impl HookManager {
 
         // Check and possibly copy the page before setting up the shadow function
         if !vm.hook_manager.memory_manager.is_shadow_page_copied(guest_page_pa.as_u64()) {
-            trace!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
+            debug!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
             vm.hook_manager.memory_manager.map_shadow_page(guest_page_pa.as_u64())?;
 
             let shadow_page_pa = vm
@@ -147,9 +147,9 @@ impl HookManager {
         match ept_hook_type {
             EptHookType::Function(inline_hook_type) => {
                 let shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(shadow_page_pa, guest_function_pa));
-                trace!("Shadow Function PA: {:#x}", shadow_function_pa);
+                debug!("Shadow Function PA: {:#x}", shadow_function_pa);
 
-                trace!("Installing inline hook at shadow function PA: {:#x}", shadow_function_pa.as_u64());
+                debug!("Installing inline hook at shadow function PA: {:#x}", shadow_function_pa.as_u64());
                 InlineHook::new(shadow_function_pa.as_u64() as *mut u8, inline_hook_type).detour64();
             }
             EptHookType::Page => {
@@ -157,14 +157,14 @@ impl HookManager {
             }
         }
 
-        trace!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
+        debug!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
         vm.primary_ept
             .modify_page_permissions(guest_page_pa.as_u64(), AccessType::READ_WRITE, pre_alloc_pt)?;
 
         invept_all_contexts();
         invvpid_all_contexts();
 
-        trace!("EPT hook created and enabled successfully");
+        debug!("EPT hook created and enabled successfully");
 
         Ok(())
     }
