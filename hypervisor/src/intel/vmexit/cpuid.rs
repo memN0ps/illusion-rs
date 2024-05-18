@@ -73,9 +73,6 @@ enum FeatureBits {
 /// The password used for authentication with the hypervisor.
 const PASSWORD: u64 = 0xDEADBEEF;
 
-/// The special leaf value used to execute guest commands.
-const COMMAND_LEAF: u32 = 0xDEADC0DE;
-
 /// Handles the `CPUID` VM-exit.
 ///
 /// This function is invoked when the guest executes the `CPUID` instruction.
@@ -100,7 +97,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let leaf = vm.guest_registers.rax as u32;
     let sub_leaf = vm.guest_registers.rcx as u32;
 
-    if leaf == COMMAND_LEAF && vm.guest_registers.rdx == PASSWORD {
+    if vm.guest_registers.rax == PASSWORD {
         // Handle the guest command and update the CPUID result accordingly
         vm.guest_registers.rax = if handle_guest_commands(vm) {
             0x1 // Command handled successfully

@@ -9,8 +9,23 @@ use std::arch::asm;
 /// The password used for authentication with the hypervisor.
 pub const PASSWORD: u64 = 0xDEADBEEF;
 
-/// The special CPUID leaf value for command execution.
-pub const COMMAND_LEAF: u64 = 0xDEADC0DE;
+/// Enumeration of possible commands that can be issued to the hypervisor.
+///
+/// This enum represents different commands that can be sent to the hypervisor for
+/// various operations such as enabling hooks or disabling page hooks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u64)]
+#[allow(dead_code)]
+pub enum Commands {
+    /// Command to enable a kernel inline hook.
+    EnableKernelInlineHook = 0,
+    /// Command to enable a syscall inline hook.
+    EnableSyscallInlineHook = 1,
+    /// Command to disable a page hook.
+    DisablePageHook = 2,
+    /// Invalid command.
+    Invalid,
+}
 
 /// Struct to encapsulate the result of a CPUID instruction.
 #[derive(Debug)]
@@ -32,49 +47,45 @@ impl HypervisorCommunicator {
 
     /// Sends a CPUID command with the password directly using inline assembly.
     ///
-    /// This function includes the password in the `rdx` register and executes the CPUID instruction.
+    /// This function includes the password in the `rax` register and executes the CPUID instruction.
     ///
     /// # Arguments
     ///
-    /// * `leaf` - The value to be placed in the `rax` register.
-    /// * `sub_leaf` - The value to be placed in the `rcx` register.
-    /// * `r8` - The value to be placed in the `r8` register.
-    /// * `r9` - The value to be placed in the `r9` register.
+    /// * `command_rcx` - The value to be placed in the `rcx` register.
+    /// * `command_rdx` - The value to be placed in the `rdx` register.
+    /// * `command_r8` - The value to be placed in the `r8` register.
+    /// * `command_r9` - The value to be placed in the `r9` register.
     ///
     /// # Returns
     ///
     /// * `CpuidResult` - The result of the CPUID instruction.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let communicator = HypervisorCommunicator::new();
-    /// let result = communicator.call_hypervisor(COMMAND_LEAF, 0x2, 0x3, 0x4);
-    /// assert_eq!(result.eax, 1);
-    /// ```
-    pub fn call_hypervisor(&self, leaf: u64, sub_leaf: u64, r8: u64, r9: u64) -> CpuidResult {
-        let mut eax = leaf;
-        let mut ebx;
-        let mut ecx = sub_leaf;
-        let mut edx;
+    pub fn call_hypervisor(&self, command_rcx: u64, command_rdx: u64, command_r8: u64, command_r9: u64) -> CpuidResult {
+        let mut rax = PASSWORD;
+        let mut rbx;
+        let mut rcx = command_rcx;
+        let mut rdx = command_rdx;
 
         unsafe {
             asm!(
             "mov {0:r}, rbx",
             "cpuid",
             "xchg {0:r}, rbx",
-            out(reg) ebx,
-            inout("rax") eax,
-            inout("rcx") ecx,
-            lateout("rdx") edx,
-            in("rdx") PASSWORD,
-            in("r8") r8,
-            in("r9") r9,
+            out(reg) rbx,
+            inout("rax") rax,
+            inout("rcx") rcx,
+            inout("rdx") rdx,
+            in("r8") command_r8,
+            in("r9") command_r9,
             options(nostack, preserves_flags),
             );
         }
 
-        CpuidResult { eax, ebx, ecx, edx }
+        CpuidResult {
+            eax: rax,
+            ebx: rbx,
+            ecx: rcx,
+            edx: rdx,
+        }
     }
 }
 
@@ -87,6 +98,14 @@ impl HypervisorCommunicator {
 /// # Returns
 ///
 /// * `u32` - The hash of the buffer.
+///
+/// # Example
+///
+/// ```
+/// let hash = djb2_hash(b"MmIsAddressValid");
+/// println!("Hash: {}", hash);
+/// ```
+#[allow(dead_code)]
 pub fn djb2_hash(buffer: &[u8]) -> u32 {
     let mut hash: u32 = 5381;
     for &byte in buffer {
@@ -108,7 +127,7 @@ mod tests {
     fn test_call_hypervisor_syscall_hook() {
         let communicator = HypervisorCommunicator::new();
         let syscall_number = 0x36;
-        let result = communicator.call_hypervisor(COMMAND_LEAF, 1, syscall_number as u64, 1);
+        let result = communicator.call_hypervisor(Commands::EnableSyscallInlineHook as u64, syscall_number as u64, 1, 0);
         assert_eq!(result.eax, 1);
     }
 
@@ -121,7 +140,7 @@ mod tests {
         let communicator = HypervisorCommunicator::new();
         let function_name = b"MmIsAddressValid";
         let function_hash = djb2_hash(function_name);
-        let result = communicator.call_hypervisor(COMMAND_LEAF, 0, function_hash as u64, 0);
+        let result = communicator.call_hypervisor(Commands::EnableKernelInlineHook as u64, function_hash as u64, 0, 0);
         assert_eq!(result.eax, 1);
     }
 }
