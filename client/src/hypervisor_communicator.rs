@@ -4,7 +4,7 @@
 //! using the CPUID instruction. The communication is password protected to ensure
 //! that only authorized requests are processed by the hypervisor.
 
-use x86::cpuid::cpuid;
+use std::arch::asm;
 
 /// The password used for authentication with the hypervisor.
 const PASSWORD: u32 = 0xDEADBEEF;
@@ -18,44 +18,36 @@ impl HypervisorCommunicator {
         Self
     }
 
-    /// Sends a CPUID command with the specified `eax` and `ecx` values.
+    /// Sends a CPUID command with the password directly using inline assembly.
+    ///
+    /// This function includes the password in the `rax` register and executes the CPUID instruction.
     ///
     /// # Arguments
     ///
-    /// * `eax` - The value to be placed in the `eax` register.
-    /// * `ecx` - The value to be placed in the `ecx` register.
+    /// * `rcx` - The value to be placed in the `rcx` register.
+    /// * `rdx` - The value to be placed in the `rdx` register.
+    /// * `r8` - The value to be placed in the `r8` register.
+    /// * `r9` - The value to be placed in the `r9` register.
     ///
     /// # Example
     ///
     /// ```
     /// let communicator = HypervisorCommunicator::new();
-    /// communicator.send_cpuid_command(0x4000_0001, 0x0);
+    /// communicator.call_hypervisor(0x2, 0x3, 0x4, 0x5);
     /// ```
-    pub fn send_cpuid_command(&self, eax: u32, ecx: u32) {
-        let result = cpuid!(eax, ecx);
-
-        println!(
-            "CPUID with EAX={:#010x}, ECX={:#010x} returned: EAX={:#010x}, EBX={:#010x}, ECX={:#010x}, EDX={:#010x}",
-            eax, ecx, result.eax, result.ebx, result.ecx, result.edx
-        );
-    }
-
-    /// Sends a password-protected CPUID command.
-    ///
-    /// This function includes the password in the CPUID command by setting the `ecx` register to the password value.
-    ///
-    /// # Arguments
-    ///
-    /// * `command` - The value to be placed in the `eax` register.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let communicator = HypervisorCommunicator::new();
-    /// communicator.send_protected_cpuid_command(0x4000_0001);
-    /// ```
-    pub fn send_protected_cpuid_command(&self, command: u32) {
-        self.send_cpuid_command(command, PASSWORD);
+    pub fn call_hypervisor(&self, rcx: u64, rdx: u64, r8: u64, r9: u64) {
+        unsafe {
+            asm!(
+            "mov rax, {password}",
+            "cpuid",
+            password = const PASSWORD,
+            in("rcx") rcx,
+            in("rdx") rdx,
+            in("r8") r8,
+            in("r9") r9,
+            options(noreturn)
+            );
+        }
     }
 }
 
@@ -63,23 +55,14 @@ impl HypervisorCommunicator {
 mod tests {
     use super::*;
 
-    /// Tests the `send_cpuid_command` function.
+    /// Tests the `call_hypervisor` function.
     ///
     /// This test creates a new `HypervisorCommunicator` instance and sends a CPUID command
-    /// with `eax` set to 0x0 and `ecx` set to 0x0. The function is expected to print the CPUID result.
+    /// with `rax` set to the password value and other registers set to provided values.
+    /// The function is expected to execute the CPUID instruction with the given values.
     #[test]
-    fn test_send_cpuid_command() {
+    fn test_call_hypervisor() {
         let communicator = HypervisorCommunicator::new();
-        communicator.send_cpuid_command(0x0, 0x0);
-    }
-
-    /// Tests the `send_protected_cpuid_command` function.
-    ///
-    /// This test creates a new `HypervisorCommunicator` instance and sends a password-protected CPUID command
-    /// with `eax` set to 0x4000_0001 and `ecx` set to the password value. The function is expected to print the CPUID result.
-    #[test]
-    fn test_send_protected_cpuid_command() {
-        let communicator = HypervisorCommunicator::new();
-        communicator.send_protected_cpuid_command(0x4000_0001);
+        communicator.call_hypervisor(0x2, 0x3, 0x4, 0x5);
     }
 }
