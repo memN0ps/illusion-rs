@@ -7,7 +7,7 @@ use {
             vm::Vm,
         },
         windows::{
-            nt::pe::{dbj2_hash, get_export_by_hash, get_image_base_address, get_size_of_image},
+            nt::pe::{get_export_by_hash, get_image_base_address, get_size_of_image},
             ssdt::ssdt_hook::SsdtHook,
         },
     },
@@ -62,16 +62,12 @@ impl KernelHook {
     /// # Returns
     ///
     /// * `Ok(())` - The hook was installed successfully.
-    pub fn setup_kernel_inline_hook(&mut self, vm: &mut Vm, function_name: &str, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        trace!("Setting up hook for function: {}", function_name);
+    pub fn setup_kernel_inline_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+        trace!("Setting up hook for function: {}", function_hash);
 
         let function_va = unsafe {
-            get_export_by_hash(
-                PhysicalAddress::pa_from_va(self.ntoskrnl_base_va) as _,
-                self.ntoskrnl_base_va as _,
-                dbj2_hash(function_name.as_bytes()),
-            )
-            .ok_or(HypervisorError::FailedToGetExport)?
+            get_export_by_hash(PhysicalAddress::pa_from_va(self.ntoskrnl_base_va) as _, self.ntoskrnl_base_va as _, function_hash)
+                .ok_or(HypervisorError::FailedToGetExport)?
         };
 
         trace!("Function address: {:#x}", function_va as u64);

@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod cpuid;
 pub mod ept;
 pub mod exception;
