@@ -31,6 +31,7 @@ impl Commands {
     pub fn from_u64(value: u64) -> Commands {
         match value {
             0 => Commands::EnableKernelInlineHook,
+            1 => Commands::DisableKernelInlineHook,
             _ => Commands::Invalid,
         }
     }
