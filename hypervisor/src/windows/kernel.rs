@@ -335,19 +335,20 @@ impl KernelHook {
         None
     }
 
-    /// Sets up a hook for a function in the Windows kernel or SSDT.
+    /// Sets or unsets a hook for a function in the Windows kernel.
     ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine to install the hook on.
     /// * `function_hash` - The hash of the function to hook.
     /// * `ept_hook_type` - The type of EPT hook to use.
+    /// * `enable` - A boolean flag to enable or disable the hook.
     ///
     /// # Returns
     ///
     /// * `Ok(())` - The hook was installed successfully.
     /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+    pub fn kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType, enable: bool) -> Result<(), HypervisorError> {
         trace!("Setting up EPT hook for function: {}", function_hash);
 
         if let Some(function_va) = self.get_function_va(function_hash) {
@@ -357,15 +358,18 @@ impl KernelHook {
             // Check and log syscall number for ntoskrnl
             if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.ntoskrnl_sorted_map) {
                 trace!("ntoskrnl syscall number: {}", ssn);
-            }
-            // Check and log syscall number for win32k
-            else if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.win32k_sorted_map) {
+                // Check and log syscall number for win32k
+            } else if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.win32k_sorted_map) {
                 trace!("win32k syscall number: {}", ssn);
             }
 
-            HookManager::ept_hook_function(vm, function_va, ept_hook_type)?;
+            if enable {
+                HookManager::ept_hook_function(vm, function_va, ept_hook_type)?
+            } else {
+                HookManager::ept_unhook_function(vm, function_va, ept_hook_type)?
+            }
 
-            info!("Windows kernel EPT hook installed successfully");
+            info!("Windows kernel EPT hook {} successfully", if enable { "installed" } else { "removed" });
             Ok(())
         } else {
             error!("Failed to find function for hash: {}", function_hash);

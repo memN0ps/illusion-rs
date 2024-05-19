@@ -167,6 +167,39 @@ impl HookManager {
         Ok(())
     }
 
+    /// Removes an EPT hook for a function.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine instance of the hypervisor.
+    /// * `guest_function_va` - The virtual address of the function or page to be unhooked.
+    /// * `ept_hook_type` - The type of EPT hook to be removed.
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if the hook was successfully removed, `Err(HypervisorError)` otherwise.
+    pub fn ept_unhook_function(vm: &mut Vm, guest_function_va: u64, _ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+        debug!("Removing EPT hook for function at VA: {:#x}", guest_function_va);
+
+        let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va));
+        debug!("Guest function PA: {:#x}", guest_function_pa.as_u64());
+
+        let guest_page_pa = guest_function_pa.align_down_to_base_page();
+        debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
+
+        let pre_alloc_pt = vm
+            .hook_manager
+            .memory_manager
+            .get_page_table_as_mut(guest_page_pa.as_u64())
+            .ok_or(HypervisorError::PageTableNotFound)?;
+
+        // Swap the page back and restore the original page permissions
+        vm.primary_ept
+            .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
+
+        Ok(())
+    }
+
     /// Copies the guest page to the pre-allocated host shadow page.
     ///
     /// # Arguments

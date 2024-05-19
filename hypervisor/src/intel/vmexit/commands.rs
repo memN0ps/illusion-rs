@@ -1,13 +1,11 @@
 use {
     crate::intel::{
         addresses::PhysicalAddress,
-        ept::AccessType,
         hooks::{hook_manager::EptHookType, inline::InlineHookType},
         vm::Vm,
     },
     log::*,
     shared::{ClientData, Commands},
-    x86::bits64::paging::PAddr,
 };
 
 /// Handles guest commands sent to the hypervisor.
@@ -44,7 +42,7 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
             let function_hash = client_data.function_hash;
 
             if kernel_hook
-                .setup_kernel_inline_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall))
+                .kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), true)
                 .is_ok()
             {
                 true
@@ -53,38 +51,18 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
                 false
             }
         }
-        Commands::EnableSyscallInlineHook => {
+        Commands::DisableKernelInlineHook => {
+            debug!("Unhook command received");
             let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
-            let syscall_number = client_data.syscall_number;
-            let get_from_win32k = client_data.get_from_win32k;
+            let function_hash = client_data.function_hash;
 
             if kernel_hook
-                .setup_kernel_ssdt_hook(vm, syscall_number, get_from_win32k, EptHookType::Function(InlineHookType::Vmcall))
+                .kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), false)
                 .is_ok()
             {
                 true
             } else {
-                error!("Failed to setup syscall inline hook");
-                false
-            }
-        }
-        Commands::DisablePageHook => {
-            let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rdx));
-            let guest_page_pa = guest_pa.align_down_to_base_page();
-
-            if let Some(pre_alloc_pt) = vm.hook_manager.memory_manager.get_page_table_as_mut(guest_page_pa.as_u64()) {
-                if vm
-                    .primary_ept
-                    .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)
-                    .is_ok()
-                {
-                    true
-                } else {
-                    error!("Failed to swap page");
-                    false
-                }
-            } else {
-                error!("Page table not found");
+                error!("Failed to disable kernel inline hook");
                 false
             }
         }
