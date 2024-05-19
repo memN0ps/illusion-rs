@@ -6,45 +6,9 @@ use {
         vm::Vm,
     },
     log::*,
+    shared::{ClientData, Commands},
     x86::bits64::paging::PAddr,
 };
-
-/// Enumeration of possible commands that can be issued to the hypervisor.
-///
-/// This enum represents different commands that can be sent to the hypervisor for
-/// various operations such as enabling hooks or disabling page hooks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u64)]
-pub enum Commands {
-    /// Command to enable a kernel inline hook.
-    EnableKernelInlineHook,
-    /// Command to enable a syscall inline hook.
-    EnableSyscallInlineHook,
-    /// Command to disable a page hook.
-    DisablePageHook,
-    /// Invalid command.
-    Invalid,
-}
-
-impl Commands {
-    /// Converts a `u64` value to a `Commands` enum variant.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The `u64` value to convert.
-    ///
-    /// # Returns
-    ///
-    /// * `Commands` - The corresponding `Commands` enum variant.
-    pub fn from_u64(value: u64) -> Commands {
-        match value {
-            0 => Commands::EnableKernelInlineHook,
-            1 => Commands::EnableSyscallInlineHook,
-            2 => Commands::DisablePageHook,
-            _ => Commands::Invalid,
-        }
-    }
-}
 
 /// Handles guest commands sent to the hypervisor.
 ///
@@ -60,14 +24,24 @@ impl Commands {
 /// * `bool` - `true` if the command was handled successfully, `false` otherwise.
 pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     debug!("Handling commands");
-    let command = Commands::from_u64(vm.guest_registers.rcx);
+
+    // Convert guest RCX register value to a pointer to ClientData
+    let client_data_ptr = PhysicalAddress::pa_from_va(vm.guest_registers.rcx);
+    debug!("Client data pointer: {:#x}", client_data_ptr);
+
+    // Convert the pointer to ClientData
+    let client_data = ClientData::from_ptr(client_data_ptr);
+    debug!("Client data: {:?}", client_data);
+
+    // Convert the command value to the Commands enum
+    let command = Commands::from_u64(client_data.command as _);
     debug!("Command: {:?}", command);
 
     match command {
         Commands::EnableKernelInlineHook => {
             debug!("Hook command received");
             let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
-            let function_hash = vm.guest_registers.rdx as u32;
+            let function_hash = client_data.function_hash;
 
             if kernel_hook
                 .setup_kernel_inline_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall))
@@ -81,8 +55,8 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
         }
         Commands::EnableSyscallInlineHook => {
             let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
-            let syscall_number = vm.guest_registers.rdx as i32;
-            let get_from_win32k = vm.guest_registers.r8 == 1;
+            let syscall_number = client_data.syscall_number;
+            let get_from_win32k = client_data.get_from_win32k;
 
             if kernel_hook
                 .setup_kernel_ssdt_hook(vm, syscall_number, get_from_win32k, EptHookType::Function(InlineHookType::Vmcall))
