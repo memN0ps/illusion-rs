@@ -13,22 +13,25 @@ use {
     log::trace,
 };
 
+/// The maximum number of hooks supported by the hypervisor. Change this value as needed.
+const MAX_HOOK_ENTRIES: usize = 64;
+
 /// Represents a memory management system that pre-allocates and manages page tables
 /// and shadow pages for a hypervisor, using fixed-size arrays to avoid runtime allocation.
 #[derive(Debug, Clone)]
-pub struct MemoryManager<const N: usize> {
+pub struct MemoryManager {
     /// Active mappings of guest physical addresses to their respective page tables.
-    active_page_tables: LinearMap<u64, Box<Pt>, N>,
+    active_page_tables: LinearMap<u64, Box<Pt>, MAX_HOOK_ENTRIES>,
     /// Active mappings of guest physical addresses to their respective shadow pages.
-    active_shadow_pages: LinearMap<u64, Box<Page>, N>,
+    active_shadow_pages: LinearMap<u64, Box<Page>, MAX_HOOK_ENTRIES>,
 
     /// Pool of pre-allocated, free page tables available for assignment.
-    free_page_tables: Vec<Box<Pt>, N>,
+    free_page_tables: Vec<Box<Pt>, MAX_HOOK_ENTRIES>,
     /// Pool of pre-allocated, free shadow pages available for assignment.
-    free_shadow_pages: Vec<Box<Page>, N>,
+    free_shadow_pages: Vec<Box<Page>, MAX_HOOK_ENTRIES>,
 }
 
-impl<const N: usize> MemoryManager<N> {
+impl MemoryManager {
     /// Constructs a new `MemoryManager` instance, pre-allocating all necessary resources.
     ///
     /// # Returns
@@ -36,16 +39,16 @@ impl<const N: usize> MemoryManager<N> {
     pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing memory manager");
 
-        let active_page_tables = LinearMap::<u64, Box<Pt>, N>::new();
-        let active_shadow_pages = LinearMap::<u64, Box<Page>, N>::new();
+        let active_page_tables = LinearMap::<u64, Box<Pt>, MAX_HOOK_ENTRIES>::new();
+        let active_shadow_pages = LinearMap::<u64, Box<Page>, MAX_HOOK_ENTRIES>::new();
 
-        let mut free_page_tables = Vec::<Box<Pt>, N>::new();
-        let mut free_shadow_pages = Vec::<Box<Page>, N>::new();
+        let mut free_page_tables = Vec::<Box<Pt>, MAX_HOOK_ENTRIES>::new();
+        let mut free_shadow_pages = Vec::<Box<Page>, MAX_HOOK_ENTRIES>::new();
 
         trace!("Pre-allocating page tables and shadow pages");
 
         // Pre-allocate shadow pages and page tables for hooks.
-        for _ in 0..N {
+        for _ in 0..MAX_HOOK_ENTRIES {
             let pt = unsafe { box_zeroed::<Pt>() };
             let sp = unsafe { box_zeroed::<Page>() };
 

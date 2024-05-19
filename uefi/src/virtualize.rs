@@ -16,7 +16,7 @@ use {
 /// * `guest_registers` - The guest registers to use for the hypervisor.
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
-    let host_stack = allocate_stack_space(0x10);
+    let host_stack = allocate_stack_space(0x3000);
 
     unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack) };
 }

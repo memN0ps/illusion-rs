@@ -32,15 +32,12 @@ pub enum EptHookType {
     Page,
 }
 
-/// The maximum number of hooks supported by the hypervisor. Change this value as needed.
-const MAX_HOOK_ENTRIES: usize = 64;
-
 /// Represents hook manager structures for hypervisor operations.
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
-    pub memory_manager: Box<MemoryManager<MAX_HOOK_ENTRIES>>,
+    pub memory_manager: Box<MemoryManager>,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
     pub kernel_hook: Box<KernelHook>,
@@ -69,7 +66,7 @@ impl HookManager {
     pub fn new() -> Result<Box<Self>, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = Box::new(MemoryManager::<MAX_HOOK_ENTRIES>::new()?);
+        let memory_manager = Box::new(MemoryManager::new()?);
         let kernel_hook = Box::new(KernelHook::new()?);
 
         Ok(Box::new(Self {

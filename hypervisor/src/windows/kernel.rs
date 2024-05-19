@@ -178,7 +178,7 @@ impl KernelHook {
             (*export_directory).NumberOfNames as _,
         );
 
-        debug!("(*export_directory).NumberOfNames: {:#x}", (*export_directory).NumberOfNames);
+        debug!("NumberOfNames: {}", (*export_directory).NumberOfNames);
 
         for i in 0..(*export_directory).NumberOfNames {
             let name_addr = (module_base_pa as usize + names[i as usize] as usize) as *const i8;
