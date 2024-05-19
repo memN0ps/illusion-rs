@@ -24,7 +24,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum CommandsArg {
     /// Sets up a kernel inline hook
-    InlineHook {
+    EnableKernelInlineHook {
         /// The name of the function to hook
         #[arg(short, long)]
         function: String,
@@ -41,7 +41,7 @@ fn main() {
     let cli = Cli::parse();
     let communicator = HypervisorCommunicator::new();
     match &cli.command {
-        CommandsArg::InlineHook { function: function_name } => {
+        CommandsArg::EnableKernelInlineHook { function: function_name } => {
             let function_hash = djb2_hash(function_name.as_bytes());
             println!("Function: {} Hash: {:#x}", function_name, function_hash);
 
