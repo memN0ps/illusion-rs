@@ -6,12 +6,9 @@ use {
             hooks::hook_manager::{EptHookType, HookManager},
             vm::Vm,
         },
-        windows::{
-            nt::{
-                pe::{djb2_hash, get_export_by_hash, get_image_base_address, get_nt_headers, get_size_of_image},
-                types::{IMAGE_DIRECTORY_ENTRY_EXPORT, PIMAGE_EXPORT_DIRECTORY},
-            },
-            ssdt::ssdt_hook::SsdtHook,
+        windows::nt::{
+            pe::{djb2_hash, get_image_base_address, get_nt_headers, get_size_of_image},
+            types::{IMAGE_DIRECTORY_ENTRY_EXPORT, PIMAGE_EXPORT_DIRECTORY},
         },
     },
     core::{ffi::CStr, slice::from_raw_parts},
@@ -214,7 +211,7 @@ impl KernelHook {
 
     /// Replaces all function names starting with "Zw" with "Nt" in the export map,
     /// and sorts the keys by their corresponding values in ascending order.
-    pub fn replace_zw_with_nt_and_sort<const N: usize>(
+    fn replace_zw_with_nt_and_sort<const N: usize>(
         export_map: &LinearMap<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>,
         sorted_map: &mut Vec<(String<MAX_FUNCTION_NAME_LENGTH>, u64), N>,
         temp_string_buffer: &mut String<MAX_FUNCTION_NAME_LENGTH>,
@@ -306,11 +303,7 @@ impl KernelHook {
     /// # Returns
     ///
     /// * `Option<u16>` - The syscall number if found, otherwise `None`.
-    pub fn get_ssn_by_hash(
-        &self,
-        function_hash: u32,
-        sorted_map: &Vec<(String<MAX_FUNCTION_NAME_LENGTH>, u64), MAX_NT_SYSCALL_ENTRIES>,
-    ) -> Option<u16> {
+    fn get_ssn_by_hash<const N: usize>(&self, function_hash: u32, sorted_map: &Vec<(String<MAX_FUNCTION_NAME_LENGTH>, u64), N>) -> Option<u16> {
         let mut syscall_number: u16 = 0;
 
         for (name, _) in sorted_map {
@@ -323,7 +316,26 @@ impl KernelHook {
         None
     }
 
-    /// Sets up a hook for a function in the Windows kernel.
+    /// Gets the function virtual address (VA) from the export maps.
+    ///
+    /// # Arguments
+    ///
+    /// * `function_hash` - The hash of the function name.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(u64)` - The virtual address of the function if found.
+    /// * `None` - If the function is not found.
+    fn get_function_va(&self, function_hash: u32) -> Option<u64> {
+        for (name, &va) in self.ntoskrnl_export_map.iter().chain(self.win32k_export_map.iter()) {
+            if djb2_hash(name.as_bytes()) == function_hash {
+                return Some(va);
+            }
+        }
+        None
+    }
+
+    /// Sets up a hook for a function in the Windows kernel or SSDT.
     ///
     /// # Arguments
     ///
@@ -335,57 +347,29 @@ impl KernelHook {
     ///
     /// * `Ok(())` - The hook was installed successfully.
     /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn setup_kernel_inline_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        trace!("Setting up hook for function: {}", function_hash);
+    pub fn kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+        trace!("Setting up EPT hook for function: {}", function_hash);
 
-        let function_va = unsafe {
-            get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash).ok_or(HypervisorError::FailedToGetExport)?
-        };
+        if let Some(function_va) = self.get_function_va(function_hash) {
+            let function_pa = PhysicalAddress::pa_from_va(function_va);
+            trace!("Function VA: {:#x} PA: {:#x}", function_va, function_pa);
 
-        trace!("Function address: {:#x}", function_va as u64);
+            // Check and log syscall number for ntoskrnl
+            if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.ntoskrnl_sorted_map) {
+                trace!("ntoskrnl syscall number: {}", ssn);
+            }
+            // Check and log syscall number for win32k
+            else if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.win32k_sorted_map) {
+                trace!("win32k syscall number: {}", ssn);
+            }
 
-        HookManager::ept_hook_function(vm, function_va as u64, ept_hook_type)?;
+            HookManager::ept_hook_function(vm, function_va, ept_hook_type)?;
 
-        info!("Windows kernel inline hook installed successfully");
-
-        Ok(())
-    }
-
-    /// Sets up a hook for a syscall in the Windows kernel SSDT.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine to install the hook on.
-    /// * `syscall_number` - The syscall number to hook.
-    /// * `get_from_win32k` - Whether to get the function from the Win32k table instead of the NT table.
-    /// * `ept_hook_type` - The type of EPT hook to use.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - The hook was installed successfully.
-    /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn setup_kernel_ssdt_hook(
-        &mut self,
-        vm: &mut Vm,
-        syscall_number: i32,
-        get_from_win32k: bool,
-        ept_hook_type: EptHookType,
-    ) -> Result<(), HypervisorError> {
-        trace!("Setting up hook for syscall: {}", syscall_number);
-
-        let ssdt_hook = SsdtHook::find_ssdt_function_address(
-            syscall_number,
-            get_from_win32k,
-            PhysicalAddress::pa_from_va(self.ntoskrnl_base_va) as _,
-            self.ntoskrnl_size as _,
-        )?;
-
-        trace!("Function address: {:#x}", ssdt_hook.guest_function_va as u64);
-
-        HookManager::ept_hook_function(vm, ssdt_hook.guest_function_va as u64, ept_hook_type)?;
-
-        trace!("Windows Kernel SSDT hook installed successfully");
-
-        Ok(())
+            info!("Windows kernel EPT hook installed successfully");
+            Ok(())
+        } else {
+            error!("Failed to find function for hash: {}", function_hash);
+            Err(HypervisorError::FailedToGetExport)
+        }
     }
 }
