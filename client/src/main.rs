@@ -6,10 +6,13 @@
 #![feature(asm_const)]
 
 use {
-    crate::hypervisor_communicator::{djb2_hash, Commands, HypervisorCommunicator},
+    crate::{
+        hypervisor_communicator::HypervisorCommunicator,
+        ssn::{pe::djb2_hash, syscall::Syscall},
+    },
     clap::{Parser, Subcommand},
+    shared::{ClientData, Commands},
 };
-use crate::ssn::syscall::Syscall;
 
 mod hypervisor_communicator;
 mod ssn;
@@ -36,12 +39,6 @@ enum CommandsArg {
         #[arg(short, long)]
         function: String,
     },
-    /// Disables a page hook
-    DisablePageHook {
-        /// The guest virtual address of the page to disable the hook
-        #[arg(short, long)]
-        address: String,
-    },
 }
 
 fn main() {
@@ -52,22 +49,40 @@ fn main() {
     match &cli.command {
         CommandsArg::InlineHook { function } => {
             let function_hash = djb2_hash(function.as_bytes());
-            let result = communicator.call_hypervisor(Commands::EnableKernelInlineHook as u64, function_hash as u64, 0, 0);
+            println!("Function: {} Hash: {:#x}", function, function_hash);
+            let client_data = ClientData {
+                command: Commands::EnableKernelInlineHook,
+                syscall_number: 0,
+                get_from_win32k: false,
+                function_hash,
+            };
+            let client_data_ptr = &client_data as *const ClientData as u64;
+            let result = communicator.call_hypervisor(client_data_ptr);
             println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+            if result.eax == 0 {
+                println!("Failed to enable inline hook");
+            } else {
+                println!("Successfully enabled inline hook");
+            }
         }
         CommandsArg::SyscallHook { function } => {
             let function_hash = djb2_hash(function.as_bytes());
-            let ssn = syscall
-                .get_ssn_by_hash(function_hash)
-                .expect(obfstr::obfstr!("Failed to get SSN"));
+            let ssn = syscall.get_ssn_by_hash(function_hash).expect("Failed to get SSN");
             println!("Function: {} SSN: {}", function, ssn);
-            let result = communicator.call_hypervisor(Commands::EnableSyscallInlineHook as u64, ssn as u64, 0, 0);
+            let client_data = ClientData {
+                command: Commands::EnableSyscallInlineHook,
+                syscall_number: ssn as i32,
+                get_from_win32k: false,
+                function_hash: 0,
+            };
+            let client_data_ptr = &client_data as *const ClientData as u64;
+            let result = communicator.call_hypervisor(client_data_ptr);
             println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
-        }
-        CommandsArg::DisablePageHook { address } => {
-            let address = u64::from_str_radix(address.trim_start_matches("0x"), 16).expect("Invalid address");
-            let result = communicator.call_hypervisor(Commands::DisablePageHook as u64, address, 0, 0);
-            println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+            if result.eax == 0 {
+                println!("Failed to enable syscall hook");
+            } else {
+                println!("Successfully enabled syscall hook");
+            }
         }
     }
 }
