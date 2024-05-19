@@ -38,31 +38,43 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     match command {
         Commands::EnableKernelInlineHook => {
             debug!("Hook command received");
-            let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
-            let function_hash = client_data.function_hash;
+            if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                let function_hash = client_data.function_hash;
 
-            if kernel_hook
-                .kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), true)
-                .is_ok()
-            {
-                true
+                let result = kernel_hook.kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), true);
+
+                // Put the kernel hook back in the box
+                vm.hook_manager.kernel_hook = Some(kernel_hook);
+
+                if result.is_ok() {
+                    true
+                } else {
+                    error!("Failed to setup kernel inline hook");
+                    false
+                }
             } else {
-                error!("Failed to setup kernel inline hook");
+                error!("KernelHook is missing");
                 false
             }
         }
         Commands::DisableKernelInlineHook => {
             debug!("Unhook command received");
-            let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
-            let function_hash = client_data.function_hash;
+            if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                let function_hash = client_data.function_hash;
 
-            if kernel_hook
-                .kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), false)
-                .is_ok()
-            {
-                true
+                let result = kernel_hook.kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), false);
+
+                // Put the kernel hook back in the box
+                vm.hook_manager.kernel_hook = Some(kernel_hook);
+
+                if result.is_ok() {
+                    true
+                } else {
+                    error!("Failed to disable kernel inline hook");
+                    false
+                }
             } else {
-                error!("Failed to disable kernel inline hook");
+                error!("KernelHook is missing");
                 false
             }
         }

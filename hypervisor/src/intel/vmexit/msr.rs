@@ -103,14 +103,18 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                     .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Unhook);
                 log::trace!("Unhooked MSR_IA32_LSTAR");
 
-                // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation`
-                vm.hook_manager.kernel_hook.set_kernel_base_and_size(msr_value)?;
+                if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                    // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation` or by the guest client.
+                    kernel_hook.set_kernel_base_and_size(msr_value)?;
 
-                // Populate the ntoskrnl.exe exports for hooking
-                vm.hook_manager
-                    .kernel_hook
-                    .populate_ntoskrnl_exports()
-                    .ok_or(HypervisorError::FailedToGetExport)?;
+                    // Populate the ntoskrnl.exe exports for hooking
+                    kernel_hook.populate_ntoskrnl_exports().ok_or(HypervisorError::FailedToGetExport)?;
+
+                    // Place the kernel hook back in the box
+                    vm.hook_manager.kernel_hook = Some(kernel_hook);
+                } else {
+                    return Err(HypervisorError::KernelHookMissing);
+                }
 
                 // Check if it's the first time we're intercepting a write to LSTAR.
                 // If so, store the value being written as the original LSTAR value.

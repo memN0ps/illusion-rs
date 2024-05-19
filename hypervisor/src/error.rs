@@ -223,4 +223,7 @@ pub enum HypervisorError {
 
     #[error("Shadow page already mapped")]
     ShadowPageAlreadyMapped,
+
+    #[error("Kernel hook missing")]
+    KernelHookMissing,
 }

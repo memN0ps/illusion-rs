@@ -40,7 +40,7 @@ pub struct HookManager {
     pub memory_manager: Box<MemoryManager>,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
-    pub kernel_hook: Box<KernelHook>,
+    pub kernel_hook: Option<Box<KernelHook>>,
 
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
@@ -67,7 +67,7 @@ impl HookManager {
         trace!("Initializing hook manager");
 
         let memory_manager = Box::new(MemoryManager::new()?);
-        let kernel_hook = Box::new(KernelHook::new()?);
+        let kernel_hook = Some(Box::new(KernelHook::new()?));
 
         Ok(Box::new(Self {
             memory_manager,

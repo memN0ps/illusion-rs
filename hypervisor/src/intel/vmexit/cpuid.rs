@@ -129,19 +129,25 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
                 if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
                     trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
-                    let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
 
-                    info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                    kernel_hook.kernel_ept_hook(
-                        vm,
-                        djb2_hash("NtQuerySystemInformation".as_bytes()),
-                        EptHookType::Function(InlineHookType::Vmcall),
-                        true,
-                    )?;
+                    if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                        info!("Hooking NtQuerySystemInformation with syscall number 0x36");
 
-                    //info!("Hook installed successfully!");
+                        kernel_hook.kernel_ept_hook(
+                            vm,
+                            djb2_hash("NtQuerySystemInformation".as_bytes()),
+                            EptHookType::Function(InlineHookType::Vmcall),
+                            true,
+                        )?;
 
-                    vm.hook_manager.has_cpuid_cache_info_been_called = true;
+                        // Place the kernel hook back in the box
+                        vm.hook_manager.kernel_hook = Some(kernel_hook);
+
+                        // Set the flag
+                        vm.hook_manager.has_cpuid_cache_info_been_called = true;
+                    } else {
+                        return Err(HypervisorError::KernelHookMissing);
+                    }
                 }
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
