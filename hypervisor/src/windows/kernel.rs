@@ -212,106 +212,37 @@ impl KernelHook {
         Some(())
     }
 
-    /// Retrieves the syscall number by hashing the function name and comparing it to the sorted exports.
-    ///
-    /// # Arguments
-    ///
-    /// * `function_hash` - The hash of the function name.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<u16>` - The syscall number if found, otherwise `None`.
-    pub fn get_ssn_by_hash_for_ntoskrnl(&mut self, function_hash: u32) -> Option<u16> {
-        let mut syscall_number: u16 = 0;
-
-        for (name, _) in &self.ntoskrnl_sorted_map {
-            if function_hash == djb2_hash(name.as_bytes()) {
-                return Some(syscall_number);
-            }
-            syscall_number += 1;
-        }
-
-        None
-    }
-
-    /// Retrieves the syscall number by hashing the function name and comparing it to the sorted exports.
-    ///
-    /// # Arguments
-    ///
-    /// * `function_hash` - The hash of the function name.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<u16>` - The syscall number if found, otherwise `None`.
-    pub fn get_ssn_by_hash_for_win32k(&mut self, function_hash: u32) -> Option<u16> {
-        let mut syscall_number: u16 = 0;
-
-        for (name, _) in &self.win32k_sorted_map {
-            if function_hash == djb2_hash(name.as_bytes()) {
-                return Some(syscall_number);
-            }
-            syscall_number += 1;
-        }
-
-        None
-    }
-
     /// Replaces all function names starting with "Zw" with "Nt" in the export map,
     /// and sorts the keys by their corresponding values in ascending order.
-    /// This is used for ntoskrnl.exe exports.
-    pub fn replace_zw_with_nt_and_sort_ntoskrl_exports(&mut self) {
-        trace!("Replacing Zw with Nt and sorting ntoskrnl exports");
-        self.ntoskrnl_sorted_map.clear();
+    pub fn replace_zw_with_nt_and_sort<const N: usize>(
+        export_map: &LinearMap<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>,
+        sorted_map: &mut Vec<(String<MAX_FUNCTION_NAME_LENGTH>, u64), N>,
+        temp_string_buffer: &mut String<MAX_FUNCTION_NAME_LENGTH>,
+    ) {
+        trace!("Replacing Zw with Nt and sorting exports");
+        sorted_map.clear();
 
         // Find and replace "Zw" with "Nt" in the keys
-        for (name, &addr) in self.ntoskrnl_export_map.iter() {
+        for (name, &addr) in export_map.iter() {
             trace!("Checking name: {}", name);
             if name.starts_with("Zw") {
                 trace!("Replacing Zw with Nt: {}", name);
-                self.temp_string_buffer.clear();
-                self.temp_string_buffer.push_str("Nt").unwrap();
-                self.temp_string_buffer.push_str(&name[2..]).unwrap();
+                temp_string_buffer.clear();
+                temp_string_buffer.push_str("Nt").unwrap();
+                temp_string_buffer.push_str(&name[2..]).unwrap();
 
-                trace!("Pushing to sorted map: {} - {:#x}", self.temp_string_buffer, addr);
-                self.ntoskrnl_sorted_map.push((self.temp_string_buffer.clone(), addr)).unwrap();
+                trace!("Pushing to sorted map: {} - {:#x}", temp_string_buffer, addr);
+                sorted_map.push((temp_string_buffer.clone(), addr)).unwrap();
             }
         }
 
         // Perform insertion sort on the buffer
-        trace!("Sorting ntoskrnl exports");
-        let len = self.ntoskrnl_sorted_map.len();
+        trace!("Sorting exports");
+        let len = sorted_map.len();
         for i in 1..len {
             let mut j = i;
-            while j > 0 && self.ntoskrnl_sorted_map[j - 1].1 > self.ntoskrnl_sorted_map[j].1 {
-                self.ntoskrnl_sorted_map.swap(j - 1, j);
-                j -= 1;
-            }
-        }
-    }
-
-    /// Replaces all function names starting with "Zw" with "Nt" in the export map,
-    /// and sorts the keys by their corresponding values in ascending order.
-    /// This is used for win32k.sys exports.
-    pub fn replace_zw_with_nt_and_sort_win32k_exports(&mut self) {
-        self.win32k_sorted_map.clear();
-
-        // Find and replace "Zw" with "Nt" in the keys
-        for (name, &addr) in self.win32k_export_map.iter() {
-            if name.starts_with("Zw") {
-                self.temp_string_buffer.clear();
-                self.temp_string_buffer.push_str("Nt").unwrap();
-                self.temp_string_buffer.push_str(&name[2..]).unwrap();
-                self.win32k_sorted_map.push((self.temp_string_buffer.clone(), addr)).unwrap();
-            }
-        }
-
-        // Perform insertion sort on the buffer
-        trace!("Sorting win32k exports");
-        let len = self.win32k_sorted_map.len();
-        for i in 1..len {
-            let mut j = i;
-            while j > 0 && self.win32k_sorted_map[j - 1].1 > self.win32k_sorted_map[j].1 {
-                self.win32k_sorted_map.swap(j - 1, j);
+            while j > 0 && sorted_map[j - 1].1 > sorted_map[j].1 {
+                sorted_map.swap(j - 1, j);
                 j -= 1;
             }
         }
@@ -324,16 +255,24 @@ impl KernelHook {
     /// * `Some(())` - The exports were populated successfully.
     /// * `None` - If populating the exports fails.
     pub fn populate_ntoskrnl_exports(&mut self) -> Option<()> {
-        unsafe {
+        if unsafe {
             Self::populate_exports(
                 self.ntoskrnl_base_pa as _,
                 self.ntoskrnl_base_va as _,
                 &mut self.ntoskrnl_export_map,
                 &mut self.temp_string_buffer,
             )
-        };
-
-        Some(())
+        }
+        .is_some()
+        {
+            let export_map = &self.ntoskrnl_export_map;
+            let sorted_map = &mut self.ntoskrnl_sorted_map;
+            let temp_string_buffer = &mut self.temp_string_buffer;
+            Self::replace_zw_with_nt_and_sort(export_map, sorted_map, temp_string_buffer);
+            Some(())
+        } else {
+            None
+        }
     }
 
     /// Populates the export map for win32k.sys.
@@ -343,9 +282,45 @@ impl KernelHook {
     /// * `Some(())` - The exports were populated successfully.
     /// * `None` - If populating the exports fails.
     pub fn populate_win32k_exports(&mut self) -> Option<()> {
-        unsafe {
+        if unsafe {
             Self::populate_exports(self.win32k_base_pa as _, self.win32k_base_va as _, &mut self.win32k_export_map, &mut self.temp_string_buffer)
         }
+        .is_some()
+        {
+            let export_map = &self.win32k_export_map;
+            let sorted_map = &mut self.win32k_sorted_map;
+            let temp_string_buffer = &mut self.temp_string_buffer;
+            Self::replace_zw_with_nt_and_sort(export_map, sorted_map, temp_string_buffer);
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    /// Retrieves the syscall number by hashing the function name and comparing it to the sorted exports.
+    ///
+    /// # Arguments
+    ///
+    /// * `function_hash` - The hash of the function name.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<u16>` - The syscall number if found, otherwise `None`.
+    pub fn get_ssn_by_hash(
+        &self,
+        function_hash: u32,
+        sorted_map: &Vec<(String<MAX_FUNCTION_NAME_LENGTH>, u64), MAX_NT_SYSCALL_ENTRIES>,
+    ) -> Option<u16> {
+        let mut syscall_number: u16 = 0;
+
+        for (name, _) in sorted_map {
+            if function_hash == djb2_hash(name.as_bytes()) {
+                return Some(syscall_number);
+            }
+            syscall_number += 1;
+        }
+
+        None
     }
 
     /// Sets up a hook for a function in the Windows kernel.
