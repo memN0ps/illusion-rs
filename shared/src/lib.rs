@@ -10,10 +10,10 @@ pub const PASSWORD: u64 = 0xDEADBEEF;
 pub enum Commands {
     /// Command to enable a kernel inline hook.
     EnableKernelInlineHook = 0,
+
     /// Command to enable a syscall inline hook.
-    EnableSyscallInlineHook = 1,
-    /// Command to disable a page hook.
-    DisablePageHook = 2,
+    DisableKernelInlineHook = 1,
+
     /// Invalid command.
     Invalid,
 }
@@ -31,8 +31,6 @@ impl Commands {
     pub fn from_u64(value: u64) -> Commands {
         match value {
             0 => Commands::EnableKernelInlineHook,
-            1 => Commands::EnableSyscallInlineHook,
-            2 => Commands::DisablePageHook,
             _ => Commands::Invalid,
         }
     }
@@ -42,8 +40,6 @@ impl Commands {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientData {
     pub command: Commands,
-    pub syscall_number: i32,
-    pub get_from_win32k: bool,
     pub function_hash: u32,
 }
 
@@ -69,4 +65,22 @@ impl ClientData {
     pub fn from_ptr(ptr: u64) -> &'static ClientData {
         unsafe { &*(ptr as *const ClientData) }
     }
+}
+
+/// Generate a unique hash
+///
+/// # Arguments
+///
+/// * `buffer` - The buffer to hash.
+///
+/// # Returns
+///
+/// * `u32` - The hash of the buffer.
+pub fn djb2_hash(buffer: &[u8]) -> u32 {
+    let mut hash: u32 = 5381;
+    for &byte in buffer {
+        let char = if byte >= b'a' { byte - 0x20 } else { byte };
+        hash = (hash << 5).wrapping_add(hash).wrapping_add(char as u32);
+    }
+    hash
 }
