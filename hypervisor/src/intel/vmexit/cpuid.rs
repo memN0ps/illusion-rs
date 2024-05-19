@@ -9,6 +9,7 @@ use {
             vm::Vm,
             vmexit::{commands::handle_guest_commands, ExitType},
         },
+        windows::nt::pe::djb2_hash,
     },
     bitfield::BitMut,
     log::*,
@@ -128,24 +129,25 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
                 if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
                     trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
-                    let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
 
-                    // Setup a named function hook (example: MmIsAddressValid)
-                    // info!("Hooking MmIsAddressValid with inline hook");
-                    // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", EptHookType::Function(InlineHookType::Vmcall))?;
+                    if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                        info!("Hooking NtQuerySystemInformation with syscall number 0x36");
 
-                    // info!("Hooking NtCreateFile with syscall number 0x055");
-                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, EptHookType::Function(InlineHookType::Vmcall))?;
+                        kernel_hook.kernel_ept_hook(
+                            vm,
+                            djb2_hash("NtQuerySystemInformation".as_bytes()),
+                            EptHookType::Function(InlineHookType::Vmcall),
+                            true,
+                        )?;
 
-                    info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                    kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, EptHookType::Function(InlineHookType::Vmcall))?;
+                        // Place the kernel hook back in the box
+                        vm.hook_manager.kernel_hook = Some(kernel_hook);
 
-                    //info!("Hooking NtOpenProcess with syscall number 0x26");
-                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, EptHookType::Function(InlineHookType::Vmcall))?;
-
-                    //info!("Hook installed successfully!");
-
-                    vm.hook_manager.has_cpuid_cache_info_been_called = true;
+                        // Set the flag
+                        vm.hook_manager.has_cpuid_cache_info_been_called = true;
+                    } else {
+                        return Err(HypervisorError::KernelHookMissing);
+                    }
                 }
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {

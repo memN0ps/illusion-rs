@@ -5,20 +5,81 @@
 
 #![feature(asm_const)]
 
-use crate::hypervisor_communicator::{djb2_hash, Commands, HypervisorCommunicator};
+use {
+    crate::hypervisor_communicator::HypervisorCommunicator,
+    clap::{Parser, Subcommand},
+    shared::{djb2_hash, ClientData, Commands},
+};
 
 mod hypervisor_communicator;
 
-/// The main function demonstrating the usage of `HypervisorCommunicator`.
-fn main() {
-    let communicator = HypervisorCommunicator::new();
-    let function_name = b"MmIsAddressValid";
-    let function_hash = djb2_hash(function_name);
-    let result = communicator.call_hypervisor(Commands::EnableKernelInlineHook as u64, function_hash as u64, 0, 0);
-    println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+/// Command line arguments for the Hypervisor Communicator.
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: CommandsArg,
+}
 
+#[derive(Subcommand)]
+enum CommandsArg {
+    /// Sets up a kernel inline hook
+    EnableKernelInlineHook {
+        /// The name of the function to hook
+        #[arg(short, long)]
+        function: String,
+    },
+    /// Unsets a kernel inline hook
+    DisableKernelInlineHook {
+        /// The name of the function to unhook
+        #[arg(short, long)]
+        function: String,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
     let communicator = HypervisorCommunicator::new();
-    let syscall_number = 0x36;
-    let result = communicator.call_hypervisor(Commands::EnableSyscallInlineHook as u64, syscall_number as u64, 0, 0);
-    println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+    match &cli.command {
+        CommandsArg::EnableKernelInlineHook { function: function_name } => {
+            let function_hash = djb2_hash(function_name.as_bytes());
+            println!("Function: {} Hash: {:#x}", function_name, function_hash);
+
+            let client_data = ClientData {
+                command: Commands::EnableKernelInlineHook,
+                function_hash,
+            };
+
+            let client_data_ptr = client_data.as_ptr();
+            let result = communicator.call_hypervisor(client_data_ptr);
+
+            println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+
+            if result.eax == 0 {
+                println!("Failed to enable kernel inline hook");
+            } else {
+                println!("Successfully enabled kernel inline hook");
+            }
+        }
+        CommandsArg::DisableKernelInlineHook { function: function_name } => {
+            let function_hash = djb2_hash(function_name.as_bytes());
+            println!("Function: {} Hash: {:#x}", function_name, function_hash);
+
+            let client_data = ClientData {
+                command: Commands::DisableKernelInlineHook,
+                function_hash,
+            };
+
+            let client_data_ptr = client_data.as_ptr();
+            let result = communicator.call_hypervisor(client_data_ptr);
+
+            println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
+
+            if result.eax == 0 {
+                println!("Failed to disable inline hook");
+            } else {
+                println!("Successfully disabled inline hook");
+            }
+        }
+    }
 }

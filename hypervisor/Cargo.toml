@@ -31,3 +31,4 @@ derivative = { version = "2.2.0", features = ["use_core"]} # https://crates.io/c
 spin = "0.9" # https://crates.io/crates/spin
 lde = "0.3.0" # https://crates.io/crates/lde
 heapless = "0.8.0" # https://crates.io/crates/heapless
+shared = { path = "../shared" }

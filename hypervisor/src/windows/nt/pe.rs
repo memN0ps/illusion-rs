@@ -83,7 +83,7 @@ pub unsafe fn get_export_by_hash(module_base_pa: *mut u8, module_base_va: u64, e
         let name_len = get_cstr_len(name_addr as _);
         let name_slice: &[u8] = from_raw_parts(name_addr as _, name_len);
 
-        if export_hash == dbj2_hash(name_slice) {
+        if export_hash == djb2_hash(name_slice) {
             let ordinal = ordinals[i as usize] as usize;
             return Some((module_base_va as usize + functions[ordinal] as usize) as *mut u8);
         }
@@ -134,7 +134,7 @@ pub unsafe fn get_cstr_len(pointer: *const u8) -> usize {
 /// # Returns
 ///
 /// * `u32` - The hash of the buffer.
-pub fn dbj2_hash(buffer: &[u8]) -> u32 {
+pub fn djb2_hash(buffer: &[u8]) -> u32 {
     let mut hash: u32 = 5381;
     let mut i: usize = 0;
     let mut char: u8;

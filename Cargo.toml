@@ -5,6 +5,7 @@ members = [
     "client",
     "hypervisor",
     "loader",
+    "shared",
     "uefi",
 ]
 

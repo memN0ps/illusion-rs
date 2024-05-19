@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
+clap = { version = "4.5.4", features = ["derive"] } # https://crates.io/crates/clap
+shared = { path = "../shared" }
