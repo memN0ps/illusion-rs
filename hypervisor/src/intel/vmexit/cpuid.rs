@@ -9,6 +9,7 @@ use {
             vm::Vm,
             vmexit::{commands::handle_guest_commands, ExitType},
         },
+        windows::nt::pe::djb2_hash,
     },
     bitfield::BitMut,
     log::*,
@@ -130,18 +131,13 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                     trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
                     let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
 
-                    // Setup a named function hook (example: MmIsAddressValid)
-                    // info!("Hooking MmIsAddressValid with inline hook");
-                    // kernel_hook.setup_kernel_inline_hook(vm, "MmIsAddressValid", EptHookType::Function(InlineHookType::Vmcall))?;
-
-                    // info!("Hooking NtCreateFile with syscall number 0x055");
-                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x055, false, EptHookType::Function(InlineHookType::Vmcall))?;
-
                     info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                    kernel_hook.setup_kernel_ssdt_hook(vm, 0x36, false, EptHookType::Function(InlineHookType::Vmcall))?;
-
-                    //info!("Hooking NtOpenProcess with syscall number 0x26");
-                    // kernel_hook.setup_kernel_ssdt_hook(vm, 0x26, false, EptHookType::Function(InlineHookType::Vmcall))?;
+                    kernel_hook.kernel_ept_hook(
+                        vm,
+                        djb2_hash("NtQuerySystemInformation".as_bytes()),
+                        EptHookType::Function(InlineHookType::Vmcall),
+                        true,
+                    )?;
 
                     //info!("Hook installed successfully!");
 
