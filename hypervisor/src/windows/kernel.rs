@@ -8,19 +8,22 @@ use {
         },
         windows::{
             nt::{
-                pe::{djb2_hash, get_export_by_hash, get_image_base_address, get_nt_headers, get_size_of_image},
+                pe::{get_export_by_hash, get_image_base_address, get_nt_headers, get_size_of_image},
                 types::{IMAGE_DIRECTORY_ENTRY_EXPORT, PIMAGE_EXPORT_DIRECTORY},
             },
             ssdt::ssdt_hook::SsdtHook,
         },
     },
     core::{ffi::CStr, slice::from_raw_parts},
-    heapless::LinearMap,
+    heapless::{LinearMap, String},
     log::*,
 };
 
 /// The maximum number of functions that can be exported by the kernel. Change this value as needed. Rounded up to 4000 for now but exports are not that many, currently around 3064.
 const MAX_FUNCTION_EXPORTS: usize = 4000;
+
+/// The maximum length of a function name. Change this value as needed. Rounded up to 64 for now but function names are not that long, currently around 53.
+const MAX_FUNCTION_NAME_LENGTH: usize = 64;
 
 /// The maximum number of NT syscall entries. Change this value as needed. Rounded up to 600 for now but syscalls are not that many, currently around 506.
 /// https://github.com/j00ru/windows-syscalls/blob/master/x64/csv/nt.csv
@@ -52,17 +55,20 @@ pub struct KernelHook {
     /// The size of win32k.sys.
     win32k_size: u64,
 
-    /// The nt function hash to export address mapping for ntoskrnl.exe.
-    nt_export_map: LinearMap<u32, u64, MAX_FUNCTION_EXPORTS>,
+    /// The nt function name to export address mapping for ntoskrnl.exe.
+    nt_export_map: LinearMap<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>,
 
-    /// The win32k function hash to export address mapping for win32k.sys.
-    win32k_export_map: LinearMap<u32, u64, MAX_FUNCTION_EXPORTS>,
+    /// The win32k function name to export address mapping for win32k.sys.
+    win32k_export_map: LinearMap<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>,
 
     /// The nt syscall number to function address mapping for ntoskrnl.exe.
     nt_syscall_map: LinearMap<u64, u16, MAX_NT_SYSCALL_ENTRIES>,
 
     /// The win32k syscall number to function address mapping for win32k.sys.
     win32k_syscall_map: LinearMap<u64, u16, MAX_WIN32K_SYSCALL_ENTRIES>,
+
+    /// Pre-allocated string for populating exports.
+    pre_allocated_name: String<MAX_FUNCTION_NAME_LENGTH>,
 }
 
 impl KernelHook {
@@ -74,10 +80,11 @@ impl KernelHook {
     pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing kernel hook");
 
-        let nt_export_map = LinearMap::<u32, u64, MAX_FUNCTION_EXPORTS>::new();
-        let win32k_export_map = LinearMap::<u32, u64, MAX_FUNCTION_EXPORTS>::new();
+        let nt_export_map = LinearMap::<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>::new();
+        let win32k_export_map = LinearMap::<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>::new();
         let nt_syscall_map = LinearMap::<u64, u16, MAX_NT_SYSCALL_ENTRIES>::new();
         let win32k_syscall_map = LinearMap::<u64, u16, MAX_WIN32K_SYSCALL_ENTRIES>::new();
+        let pre_allocated_name = String::<MAX_FUNCTION_NAME_LENGTH>::new();
 
         trace!("Kernel hook initialized");
 
@@ -92,6 +99,7 @@ impl KernelHook {
             win32k_export_map,
             nt_syscall_map,
             win32k_syscall_map,
+            pre_allocated_name,
         })
     }
 
@@ -155,7 +163,8 @@ impl KernelHook {
     unsafe fn populate_exports(
         module_base_pa: *mut u8,
         module_base_va: *mut u8,
-        export_map: &mut LinearMap<u32, u64, MAX_FUNCTION_EXPORTS>,
+        export_map: &mut LinearMap<String<MAX_FUNCTION_NAME_LENGTH>, u64, MAX_FUNCTION_EXPORTS>,
+        pre_allocated_name: &mut String<MAX_FUNCTION_NAME_LENGTH>,
     ) -> Option<()> {
         let nt_headers = get_nt_headers(module_base_pa as _)?;
 
@@ -184,12 +193,16 @@ impl KernelHook {
             let name_addr = (module_base_pa as usize + names[i as usize] as usize) as *const i8;
 
             if let Ok(name) = CStr::from_ptr(name_addr).to_str() {
+                pre_allocated_name.clear();
+                if pre_allocated_name.push_str(name).is_err() {
+                    error!("Failed to convert name to heapless::String: {}", name);
+                    return None;
+                }
+
                 let ordinal = ordinals[i as usize] as usize;
-                let function_hash = djb2_hash(name.as_bytes());
-                if export_map
-                    .insert(function_hash, module_base_va as u64 + functions[ordinal] as u64)
-                    .is_err()
-                {
+                let function_va = module_base_va as u64 + functions[ordinal] as u64;
+
+                if export_map.insert(pre_allocated_name.clone(), function_va).is_err() {
                     error!("Failed to insert export: {}", name);
                     return None;
                 }
@@ -206,7 +219,9 @@ impl KernelHook {
     /// * `Some(())` - The exports were populated successfully.
     /// * `None` - If populating the exports fails.
     pub fn populate_ntoskrnl_exports(&mut self) -> Option<()> {
-        unsafe { Self::populate_exports(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, &mut self.nt_export_map) }
+        unsafe {
+            Self::populate_exports(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, &mut self.nt_export_map, &mut self.pre_allocated_name)
+        }
     }
 
     /// Populates the export map for win32k.sys.
@@ -216,7 +231,9 @@ impl KernelHook {
     /// * `Some(())` - The exports were populated successfully.
     /// * `None` - If populating the exports fails.
     pub fn populate_win32k_exports(&mut self) -> Option<()> {
-        unsafe { Self::populate_exports(self.win32k_base_pa as _, self.win32k_base_va as _, &mut self.win32k_export_map) }
+        unsafe {
+            Self::populate_exports(self.win32k_base_pa as _, self.win32k_base_va as _, &mut self.win32k_export_map, &mut self.pre_allocated_name)
+        }
     }
 
     /// Sets up a hook for a function in the Windows kernel.
