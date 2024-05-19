@@ -128,7 +128,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
                 if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
                     trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
-                    let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
+                    let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
 
                     // Setup a named function hook (example: MmIsAddressValid)
                     // info!("Hooking MmIsAddressValid with inline hook");

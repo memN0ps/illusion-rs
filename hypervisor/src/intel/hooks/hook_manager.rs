@@ -33,17 +33,17 @@ pub enum EptHookType {
 }
 
 /// The maximum number of hooks supported by the hypervisor. Change this value as needed.
-const MAX_ENTRIES: usize = 64;
+const MAX_HOOK_ENTRIES: usize = 64;
 
 /// Represents hook manager structures for hypervisor operations.
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
-    pub memory_manager: Box<MemoryManager<MAX_ENTRIES>>,
+    pub memory_manager: Box<MemoryManager<MAX_HOOK_ENTRIES>>,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
-    pub kernel_hook: KernelHook,
+    pub kernel_hook: Box<KernelHook>,
 
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
@@ -69,12 +69,13 @@ impl HookManager {
     pub fn new() -> Result<Box<Self>, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = Box::new(MemoryManager::<MAX_ENTRIES>::new()?);
+        let memory_manager = Box::new(MemoryManager::<MAX_HOOK_ENTRIES>::new()?);
+        let kernel_hook = Box::new(KernelHook::new()?);
 
         Ok(Box::new(Self {
             memory_manager,
             has_cpuid_cache_info_been_called: false,
-            kernel_hook: Default::default(),
+            kernel_hook,
             old_rflags: None,
             mtf_counter: None,
         }))

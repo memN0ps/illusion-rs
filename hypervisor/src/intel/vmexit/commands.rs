@@ -40,7 +40,7 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     match command {
         Commands::EnableKernelInlineHook => {
             debug!("Hook command received");
-            let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
+            let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
             let function_hash = client_data.function_hash;
 
             if kernel_hook
@@ -54,7 +54,7 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
             }
         }
         Commands::EnableSyscallInlineHook => {
-            let mut kernel_hook = vm.hook_manager.as_mut().kernel_hook;
+            let mut kernel_hook = vm.hook_manager.kernel_hook.clone();
             let syscall_number = client_data.syscall_number;
             let get_from_win32k = client_data.get_from_win32k;
 
