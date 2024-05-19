@@ -26,22 +26,3 @@ pub struct ClientData {
     pub get_from_win32k: bool,
     pub function_hash: u32,
 }
-
-/// Generate a unique hash
-///
-/// # Arguments
-///
-/// * `buffer` - The buffer to hash.
-///
-/// # Returns
-///
-/// * `u32` - The hash of the buffer.
-#[allow(dead_code)]
-pub fn djb2_hash(buffer: &[u8]) -> u32 {
-    let mut hash: u32 = 5381;
-    for &byte in buffer {
-        let char = if byte >= b'a' { byte - 0x20 } else { byte };
-        hash = (hash << 5).wrapping_add(hash).wrapping_add(char as u32);
-    }
-    hash
-}
