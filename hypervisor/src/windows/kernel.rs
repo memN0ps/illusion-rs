@@ -349,18 +349,18 @@ impl KernelHook {
     /// * `Ok(())` - The hook was installed successfully.
     /// * `Err(HypervisorError)` - If the hook installation fails.
     pub fn kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType, enable: bool) -> Result<(), HypervisorError> {
-        trace!("Setting up EPT hook for function: {}", function_hash);
+        debug!("Setting up EPT hook for function: {}", function_hash);
 
         if let Some(function_va) = self.get_function_va(function_hash) {
             let function_pa = PhysicalAddress::pa_from_va(function_va);
-            trace!("Function VA: {:#x} PA: {:#x}", function_va, function_pa);
+            debug!("Function VA: {:#x} PA: {:#x}", function_va, function_pa);
 
             // Check and log syscall number for ntoskrnl
             if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.ntoskrnl_sorted_map) {
-                trace!("ntoskrnl syscall number: {}", ssn);
+                debug!("ntoskrnl syscall number: {}", ssn);
                 // Check and log syscall number for win32k
             } else if let Some(ssn) = self.get_ssn_by_hash(function_hash, &self.win32k_sorted_map) {
-                trace!("win32k syscall number: {}", ssn);
+                debug!("win32k syscall number: {}", ssn);
             }
 
             if enable {
