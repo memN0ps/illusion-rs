@@ -1,6 +1,7 @@
 use {crate::ssn::pe, obfstr::obfstr, std::collections::BTreeMap};
 
-const NTDLL_HASH: u32 = 0x1edab0ed; // ntdll.dll hash
+/// The hash of the ntdll.dll module name.
+const NTDLL_HASH: u32 = 0x1edab0ed;
 
 /// Represents a system call utility to interact with ntdll.dll exports.
 pub struct Syscall {
@@ -56,33 +57,5 @@ impl Syscall {
         nt_exports_vec.sort_by_key(|k| k.1);
 
         nt_exports_vec
-    }
-
-    /// Gets the address of the syscall instruction in ntdll.dll.
-    ///
-    /// # Arguments
-    ///
-    /// * `function_hash` - The hash of the function name.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<*mut u8>` - The address of the syscall instruction if found, otherwise `None`.
-    pub fn get_syscall_instruction_address(&self, function_hash: u32) -> Option<*mut u8> {
-        let mut address: *mut u8 = std::ptr::null_mut();
-        for export in &self.nt_exports {
-            if function_hash == pe::djb2_hash(export.0.as_bytes()) {
-                address = export.1 as _;
-            }
-        }
-
-        unsafe {
-            for x in 0..25 {
-                if address.add(x).read() == 0x0f && address.add(x + 1).read() == 0x05 && address.add(x + 2).read() == 0xc3 {
-                    return Some(address.add(x) as _);
-                }
-            }
-        }
-
-        None
     }
 }
