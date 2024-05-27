@@ -88,9 +88,24 @@ impl ClientData {
 /// * `u32` - The hash of the buffer.
 pub fn djb2_hash(buffer: &[u8]) -> u32 {
     let mut hash: u32 = 5381;
-    for &byte in buffer {
-        let char = if byte >= b'a' { byte - 0x20 } else { byte };
-        hash = (hash << 5).wrapping_add(hash).wrapping_add(char as u32);
+    let mut i: usize = 0;
+    let mut char: u8;
+
+    while i < buffer.len() {
+        char = buffer[i];
+
+        if char == 0 {
+            i += 1;
+            continue;
+        }
+
+        if char >= ('a' as u8) {
+            char -= 0x20;
+        }
+
+        hash = ((hash << 5).wrapping_add(hash)) + char as u32;
+        i += 1;
     }
-    hash
+
+    return hash;
 }
