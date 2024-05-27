@@ -63,3 +63,30 @@ vcpu-0 DEBUG: Handling VMCALL VM exit...
 vcpu-0 INFO: NtQuerySystemInformation called with parameters: SystemInformationClass: SystemProcessorInformation, SystemInformation: 0x000000cf7587e4a0, SystemInformationLength: 12, ReturnLength: 0x0000000000000000
 vcpu-0 ERROR: [-] Panic in hypervisor\src\vmm.rs at (127, 90):
 vcpu-0 ERROR: [-] Failed to handle Monitor Trap Flag: ShadowPageNotFound
+
+
+```
+kd> u ntdll!NtQuerySystemInformation
+ntdll!NtQuerySystemInformation:
+00007ffd`517ad760 4c8bd1          mov     r10,rcx
+00007ffd`517ad763 b836000000      mov     eax,36h
+00007ffd`517ad768 f604250803fe7f01 test    byte ptr [SharedUserData+0x308 (00000000`7ffe0308)],1
+00007ffd`517ad770 7503            jne     ntdll!NtQuerySystemInformation+0x15 (00007ffd`517ad775)
+00007ffd`517ad772 0f05            syscall
+00007ffd`517ad774 c3              ret
+00007ffd`517ad775 cd2e            int     2Eh
+00007ffd`517ad777 c3              ret
+
+
+
+kd> u nt!NtQuerySystemInformation
+nt!NtQuerySystemInformation:
+fffff806`133f79f0 4053            push    rbx
+fffff806`133f79f2 4883ec30        sub     rsp,30h
+fffff806`133f79f6 4533d2          xor     r10d,r10d
+fffff806`133f79f9 458bd8          mov     r11d,r8d
+fffff806`133f79fc 664489542440    mov     word ptr [rsp+40h],r10w
+fffff806`133f7a02 488bda          mov     rbx,rdx
+fffff806`133f7a05 83f94a          cmp     ecx,4Ah
+fffff806`133f7a08 7c24            jl      nt!NtQuerySystemInformation+0x3e (fffff806`133f7a2e)
+```
