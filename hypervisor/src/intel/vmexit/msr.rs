@@ -107,9 +107,6 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                     // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation` or by the guest client.
                     kernel_hook.set_kernel_base_and_size(msr_value)?;
 
-                    // Populate the ntoskrnl.exe exports for hooking
-                    kernel_hook.populate_ntoskrnl_exports().ok_or(HypervisorError::FailedToGetExport)?;
-
                     // Place the kernel hook back in the box
                     vm.hook_manager.kernel_hook = Some(kernel_hook);
                 } else {

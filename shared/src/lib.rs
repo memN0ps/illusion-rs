@@ -8,11 +8,17 @@ pub const PASSWORD: u64 = 0xDEADBEEF;
 #[repr(u64)]
 #[allow(dead_code)]
 pub enum Commands {
-    /// Command to enable a kernel inline hook.
-    EnableKernelInlineHook = 0,
+    /// Command to enable a kernel EPT hook.
+    EnableKernelEptHook = 0,
 
-    /// Command to enable a syscall inline hook.
-    DisableKernelInlineHook = 1,
+    /// Command to disable a kernel EPT hook.
+    DisableKernelEptHook = 1,
+
+    /// Command to enable a syscall EPT hook.
+    EnableSyscallEptHook = 2,
+
+    /// Command to disable a syscall EPT hook.
+    DisableSyscallEptHook = 3,
 
     /// Invalid command.
     Invalid,
@@ -30,8 +36,10 @@ impl Commands {
     /// * `Commands` - The corresponding `Commands` enum variant.
     pub fn from_u64(value: u64) -> Commands {
         match value {
-            0 => Commands::EnableKernelInlineHook,
-            1 => Commands::DisableKernelInlineHook,
+            0 => Commands::EnableKernelEptHook,
+            1 => Commands::DisableKernelEptHook,
+            2 => Commands::EnableSyscallEptHook,
+            3 => Commands::DisableSyscallEptHook,
             _ => Commands::Invalid,
         }
     }
@@ -41,7 +49,8 @@ impl Commands {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientData {
     pub command: Commands,
-    pub function_hash: u32,
+    pub function_hash: Option<u32>,
+    pub syscall_number: Option<u16>,
 }
 
 impl ClientData {
@@ -68,7 +77,7 @@ impl ClientData {
     }
 }
 
-/// Generate a unique hash
+/// Generates a unique hash using the djb2 algorithm.
 ///
 /// # Arguments
 ///

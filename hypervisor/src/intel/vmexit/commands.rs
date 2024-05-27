@@ -31,50 +31,21 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     let client_data = ClientData::from_ptr(client_data_ptr);
     debug!("Client data: {:?}", client_data);
 
-    // Convert the command value to the Commands enum
-    let command = Commands::from_u64(client_data.command as _);
-    debug!("Command: {:?}", command);
-
-    match command {
-        Commands::EnableKernelInlineHook => {
-            debug!("Hook command received");
-            if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
-                let function_hash = client_data.function_hash;
-
-                let result = kernel_hook.kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), true);
-
-                // Put the kernel hook back in the box
-                vm.hook_manager.kernel_hook = Some(kernel_hook);
-
-                if result.is_ok() {
-                    true
-                } else {
-                    error!("Failed to setup kernel inline hook");
-                    false
-                }
+    // Handle the command
+    let result = match client_data.command {
+        Commands::EnableKernelEptHook | Commands::DisableKernelEptHook => {
+            if let Some(function_hash) = client_data.function_hash {
+                handle_kernel_hook(vm, Some(function_hash), None, client_data.command == Commands::EnableKernelEptHook, false)
             } else {
-                error!("KernelHook is missing");
+                error!("Function hash is missing for kernel hook");
                 false
             }
         }
-        Commands::DisableKernelInlineHook => {
-            debug!("Unhook command received");
-            if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
-                let function_hash = client_data.function_hash;
-
-                let result = kernel_hook.kernel_ept_hook(vm, function_hash, EptHookType::Function(InlineHookType::Vmcall), false);
-
-                // Put the kernel hook back in the box
-                vm.hook_manager.kernel_hook = Some(kernel_hook);
-
-                if result.is_ok() {
-                    true
-                } else {
-                    error!("Failed to disable kernel inline hook");
-                    false
-                }
+        Commands::EnableSyscallEptHook | Commands::DisableSyscallEptHook => {
+            if let Some(syscall_number) = client_data.syscall_number {
+                handle_kernel_hook(vm, None, Some(syscall_number), client_data.command == Commands::EnableSyscallEptHook, true)
             } else {
-                error!("KernelHook is missing");
+                error!("Syscall number is missing for syscall hook");
                 false
             }
         }
@@ -82,5 +53,56 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
             error!("Invalid command received");
             false
         }
+    };
+
+    result
+}
+
+/// Handles kernel and syscall hooks.
+///
+/// This function sets up or removes kernel and syscall hooks based on the provided parameters.
+///
+/// # Arguments
+///
+/// * `vm` - A mutable reference to the virtual machine (VM) instance.
+/// * `function_hash` - An optional hash of the function to hook or unhook.
+/// * `syscall_number` - An optional number of the syscall to hook or unhook.
+/// * `enable` - A boolean flag to enable or disable the hook.
+/// * `is_syscall` - A boolean flag to indicate if the hook is for a syscall.
+///
+/// # Returns
+///
+/// * `bool` - `true` if the hook was handled successfully, `false` otherwise.
+fn handle_kernel_hook(vm: &mut Vm, function_hash: Option<u32>, syscall_number: Option<u16>, enable: bool, is_syscall: bool) -> bool {
+    if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+        let result = if enable {
+            if is_syscall {
+                kernel_hook.enable_syscall_ept_hook(vm, syscall_number.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
+            } else {
+                kernel_hook.enable_kernel_ept_hook(vm, function_hash.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
+            }
+        } else {
+            if is_syscall {
+                kernel_hook.disable_syscall_ept_hook(vm, syscall_number.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
+            } else {
+                kernel_hook.disable_kernel_ept_hook(vm, function_hash.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
+            }
+        };
+
+        // Put the kernel hook back in the box
+        vm.hook_manager.kernel_hook = Some(kernel_hook);
+
+        if result.is_ok() {
+            true
+        } else {
+            let action = if enable { "setup" } else { "disable" };
+            let hook_type = if is_syscall { "syscall" } else { "kernel" };
+            error!("Failed to {} {} EPT hook", action, hook_type);
+            false
+        }
+    } else {
+        let hook_type = if is_syscall { "SyscallHook" } else { "KernelHook" };
+        error!("{} is missing", hook_type);
+        false
     }
 }

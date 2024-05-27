@@ -133,12 +133,13 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
                         info!("Hooking NtQuerySystemInformation with syscall number 0x36");
 
-                        kernel_hook.kernel_ept_hook(
+                        kernel_hook.enable_kernel_ept_hook(
                             vm,
                             djb2_hash("NtQuerySystemInformation".as_bytes()),
                             EptHookType::Function(InlineHookType::Vmcall),
-                            true,
                         )?;
+
+                        kernel_hook.enable_syscall_ept_hook(vm, 0x32, EptHookType::Function(InlineHookType::Vmcall))?;
 
                         // Place the kernel hook back in the box
                         vm.hook_manager.kernel_hook = Some(kernel_hook);
