@@ -97,29 +97,6 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     exit_type
 }
 
-/// Execute a Hyper-V VMCALL.
-///
-/// # Safety
-///
-/// This function is unsafe because it uses inline assembly and can cause a VM exit or other undefined behavior
-/// if not used within the proper hypervisor context.
-///
-/// # Parameters
-///
-/// * `hypercall_input_value` - The input value for the hypercall.
-/// * `input_parameters_gpa` - Guest Physical Address (GPA) of the input parameters.
-/// * `output_parameters_gpa` - Guest Physical Address (GPA) of the output parameters.
-pub fn asm_hyperv_vmcall(hypercall_input_value: u64, input_parameters_gpa: u64, output_parameters_gpa: u64) {
-    unsafe {
-        core::arch::asm!("vmcall",
-        in("rcx") hypercall_input_value,
-        in("rdx") input_parameters_gpa,
-        in("r8") output_parameters_gpa,
-        options(nostack, nomem)
-        );
-    }
-}
-
 /// Calculates the number of instructions that fit into the given number of bytes,
 /// adjusting for partial instruction overwrites by including the next full instruction.
 ///
