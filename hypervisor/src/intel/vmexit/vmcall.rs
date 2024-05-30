@@ -8,6 +8,7 @@ use {
             addresses::PhysicalAddress,
             ept::AccessType,
             events::EventInjection,
+            hooks::hook_manager::HookManager,
             vm::Vm,
             vmexit::{
                 mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},
@@ -49,18 +50,18 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Guest RAX - VMCALL command number: {:#x}", vmcall_number);
     trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip));
-    trace!("Guest PA: {:#x}", guest_pa.as_u64());
+    let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip));
+    trace!("Guest PA: {:#x}", guest_function_pa.as_u64());
 
-    let guest_page_pa = guest_pa.align_down_to_base_page();
+    let guest_page_pa = guest_function_pa.align_down_to_base_page();
     trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
 
     // Set the current hook to the EPT hook for handling MTF exit
     let exit_type = if let Some(shadow_page_pa) = vm.hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
         trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
-        trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_pa, vm.guest_registers.rip);
-        // crate::windows::log::log_nt_query_system_information_params(&vm.guest_registers);
+        trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_function_pa, vm.guest_registers.rip);
+        crate::windows::log::log_nt_query_system_information_params(&vm.guest_registers);
         // crate::windows::log::log_nt_create_file_params(&vm.guest_registers);
         // crate::windows::log::log_nt_open_process_params(&vm.guest_registers);
         // crate::windows::log::log_mm_is_address_valid_params(&vm.guest_registers);
@@ -75,9 +76,18 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
+        let hook_info = vm
+            .hook_manager
+            .memory_manager
+            .get_hook_info_by_function_pa(guest_page_pa.as_u64(), guest_function_pa.as_u64())
+            .ok_or(HypervisorError::HookInfoNotFound)?;
+
+        trace!("Hook info: {:#x?}", hook_info);
+
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
         // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)
-        let instruction_count = unsafe { calculate_instruction_count(guest_pa.as_u64(), 3) as u64 };
+        let instruction_count =
+            unsafe { HookManager::calculate_instruction_count(guest_function_pa.as_u64(), HookManager::hook_size(hook_info.ept_hook_type)) as u64 };
         vm.hook_manager.mtf_counter = Some(instruction_count);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
@@ -94,36 +104,4 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     };
 
     exit_type
-}
-
-/// Calculates the number of instructions that fit into the given number of bytes,
-/// adjusting for partial instruction overwrites by including the next full instruction.
-///
-/// # Safety
-///
-/// This function is unsafe because it performs operations on raw pointers. The caller must
-/// ensure that the memory at `guest_pa` (converted properly to a virtual address if necessary)
-/// is valid and that reading beyond `hook_size` bytes does not cause memory violations.
-pub unsafe fn calculate_instruction_count(guest_pa: u64, hook_size: usize) -> usize {
-    // Define a buffer size, typical maximum x86-64 instruction length is 15 bytes.
-    let buffer_size = hook_size + 15; // Buffer size to read, slightly larger than hook_size to accommodate potential long instructions at the boundary.
-    let bytes = core::slice::from_raw_parts(guest_pa as *const u8, buffer_size);
-
-    let mut byte_count = 0;
-    let mut instruction_count = 0;
-    // Use a disassembler engine to iterate over the instructions within the bytes read.
-    for (opcode, pa) in lde::X64.iter(bytes, guest_pa) {
-        byte_count += opcode.len();
-        instruction_count += 1;
-
-        trace!("{:x}: {}", pa, opcode);
-        if byte_count >= hook_size {
-            break;
-        }
-    }
-
-    trace!("Calculated byte count: {}", byte_count);
-    trace!("Calculated instruction count: {}", instruction_count);
-
-    instruction_count
 }

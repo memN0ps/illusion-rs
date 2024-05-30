@@ -226,4 +226,10 @@ pub enum HypervisorError {
 
     #[error("Kernel hook missing")]
     KernelHookMissing,
+
+    #[error("Active mapping error")]
+    ActiveMappingError,
+
+    #[error("Failed to get hook info")]
+    HookInfoNotFound,
 }

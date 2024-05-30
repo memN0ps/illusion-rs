@@ -84,12 +84,13 @@ impl HookManager {
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
     /// * `guest_function_va` - The virtual address of the function or page to be hooked.
+    /// * `function_hash` - The hash of the function to be hooked.
     /// * `ept_hook_type` - The type of EPT hook to be installed.
     ///
     /// # Returns
     ///
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
-    pub fn ept_hook_function(vm: &mut Vm, guest_function_va: u64, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+    pub fn ept_hook_function(vm: &mut Vm, guest_function_va: u64, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         debug!("Creating EPT hook for function at VA: {:#x}", guest_function_va);
 
         let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va));
@@ -101,10 +102,18 @@ impl HookManager {
         let guest_large_page_pa = guest_function_pa.align_down_to_large_page();
         debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        // Check and possibly split the page before fetching the shadow page
-        if !vm.hook_manager.memory_manager.is_guest_page_split(guest_page_pa.as_u64()) {
-            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-            vm.hook_manager.memory_manager.map_guest_page_table(guest_page_pa.as_u64())?;
+        // Check if a guest page is already processed (split and copied).
+        // If not, split the 2MB page to 4KB pages and copy the guest page to the shadow page.
+        // Otherwise, the page has already been processed (split and copied) and the shadow page is ready for hooking.
+        if !vm.hook_manager.memory_manager.is_guest_page_processed(guest_page_pa.as_u64()) {
+            debug!("Mapping guest page and shadow page");
+            vm.hook_manager.memory_manager.map_guest_page_and_shadow_page(
+                guest_page_pa.as_u64(),
+                guest_function_va,
+                guest_function_pa.as_u64(),
+                ept_hook_type,
+                function_hash,
+            )?;
 
             let pre_alloc_pt = vm
                 .hook_manager
@@ -112,14 +121,10 @@ impl HookManager {
                 .get_page_table_as_mut(guest_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
 
+            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
             vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
-        }
 
-        // Check and possibly copy the page before setting up the shadow function
-        if !vm.hook_manager.memory_manager.is_shadow_page_copied(guest_page_pa.as_u64()) {
             debug!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
-            vm.hook_manager.memory_manager.map_shadow_page(guest_page_pa.as_u64())?;
-
             let shadow_page_pa = vm
                 .hook_manager
                 .memory_manager
@@ -142,6 +147,7 @@ impl HookManager {
             .get_page_table_as_mut(guest_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
 
+        // Install the inline hook at the shadow function address, even if it's already installed (no check for now)
         match ept_hook_type {
             EptHookType::Function(inline_hook_type) => {
                 let shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(shadow_page_pa, guest_function_pa));
@@ -226,5 +232,49 @@ impl HookManager {
     /// * `u64` - The adjusted address of the function within the new page.
     fn calculate_function_offset_in_host_shadow_page(host_shadow_page_pa: PAddr, guest_function_pa: PAddr) -> u64 {
         host_shadow_page_pa.as_u64() + guest_function_pa.base_page_offset()
+    }
+
+    /// Returns the size of the hook code in bytes based on the EPT hook type.
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - The size of the hook code in bytes, or 0 if the hook type is `Page`.
+    pub fn hook_size(hook_type: EptHookType) -> usize {
+        match hook_type {
+            EptHookType::Function(inline_hook_type) => InlineHook::hook_size(inline_hook_type),
+            EptHookType::Page => 0, // Assuming page hooks do not have a hook size
+        }
+    }
+
+    /// Calculates the number of instructions that fit into the given number of bytes,
+    /// adjusting for partial instruction overwrites by including the next full instruction.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it performs operations on raw pointers. The caller must
+    /// ensure that the memory at `guest_pa` (converted properly to a virtual address if necessary)
+    /// is valid and that reading beyond `hook_size` bytes does not cause memory violations.
+    pub unsafe fn calculate_instruction_count(guest_pa: u64, hook_size: usize) -> usize {
+        // Define a buffer size, typical maximum x86-64 instruction length is 15 bytes.
+        let buffer_size = hook_size + 15; // Buffer size to read, slightly larger than hook_size to accommodate potential long instructions at the boundary.
+        let bytes = core::slice::from_raw_parts(guest_pa as *const u8, buffer_size);
+
+        let mut byte_count = 0;
+        let mut instruction_count = 0;
+        // Use a disassembler engine to iterate over the instructions within the bytes read.
+        for (opcode, pa) in lde::X64.iter(bytes, guest_pa) {
+            byte_count += opcode.len();
+            instruction_count += 1;
+
+            trace!("{:x}: {}", pa, opcode);
+            if byte_count >= hook_size {
+                break;
+            }
+        }
+
+        trace!("Calculated byte count: {}", byte_count);
+        trace!("Calculated instruction count: {}", instruction_count);
+
+        instruction_count
     }
 }

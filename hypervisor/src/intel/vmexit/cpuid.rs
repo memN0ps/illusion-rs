@@ -118,7 +118,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 trace!("CPUID leaf 1 detected (Standard Feature Information).");
 
                 // Hide hypervisor presence by setting the appropriate bit in ECX.
-                // cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
+                cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
 
                 // Hide VMX support by setting the appropriate bit in ECX.
                 cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
@@ -126,9 +126,8 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
                 if vm.hook_manager.has_cpuid_cache_info_been_called == false {
-
-                    /*
                     // Test UEFI boot-time hooks
+                    /*
                     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
                         info!("Hooking NtQuerySystemInformation with syscall number 0x36");
                         kernel_hook.enable_kernel_ept_hook(
@@ -138,6 +137,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                         )?;
                         kernel_hook.enable_syscall_ept_hook(
                             vm,
+                            crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
                             0x32,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
                         )?;

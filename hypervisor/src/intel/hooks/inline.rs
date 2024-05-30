@@ -66,8 +66,8 @@ impl InlineHook {
     /// # Returns
     ///
     /// * `usize` - The size of the hook code in bytes.
-    pub fn hook_size(&self) -> usize {
-        match self.hook_type {
+    pub fn hook_size(hook_type: InlineHookType) -> usize {
+        match hook_type {
             InlineHookType::Int3 => 1,   // int3 is 1 byte
             InlineHookType::Cpuid => 2,  // cpuid is 2 bytes
             InlineHookType::Vmcall => 3, // vmcall is 3 bytes

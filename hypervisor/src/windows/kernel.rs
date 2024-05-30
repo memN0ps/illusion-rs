@@ -120,7 +120,7 @@ impl KernelHook {
                 .ok_or(HypervisorError::FailedToGetExport)?
         };
 
-        HookManager::ept_hook_function(vm, function_va as _, ept_hook_type)?;
+        HookManager::ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
 
         Ok(())
     }
@@ -163,7 +163,13 @@ impl KernelHook {
     ///
     /// * `Ok(())` - The hook was installed successfully.
     /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn enable_syscall_ept_hook(&mut self, vm: &mut Vm, syscall_number: u16, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+    pub fn enable_syscall_ept_hook(
+        &mut self,
+        vm: &mut Vm,
+        function_hash: u32,
+        syscall_number: u16,
+        ept_hook_type: EptHookType,
+    ) -> Result<(), HypervisorError> {
         debug!("Setting up EPT hook for syscall: {}", syscall_number);
 
         let ssdt = SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _)
@@ -172,7 +178,7 @@ impl KernelHook {
 
         let function_va = ssdt.guest_function_va as u64;
 
-        HookManager::ept_hook_function(vm, function_va as _, ept_hook_type)?;
+        HookManager::ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
 
         Ok(())
     }

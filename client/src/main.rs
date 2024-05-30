@@ -129,8 +129,9 @@ fn handle_kernel_command(communicator: &HypervisorCommunicator, function_name: &
 /// * `command` - The command to execute.
 fn handle_syscall_command(communicator: &HypervisorCommunicator, function_name: &str, command: Commands) {
     let mut syscall = Syscall::new();
+    let function_hash = djb2_hash(function_name.as_bytes());
 
-    let syscall_number = match syscall.get_ssn_by_hash(djb2_hash(function_name.as_bytes())) {
+    let syscall_number = match syscall.get_ssn_by_hash(function_hash) {
         Some(number) => number,
         None => {
             println!("Failed to find syscall number for function: {}", function_name);
@@ -141,7 +142,7 @@ fn handle_syscall_command(communicator: &HypervisorCommunicator, function_name: 
 
     let client_data = ClientData {
         command,
-        function_hash: None,
+        function_hash: Some(function_hash),
         syscall_number: Some(syscall_number),
     };
     println!("Client data: {:?}", client_data);

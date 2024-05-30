@@ -43,7 +43,12 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
         }
         Commands::EnableSyscallEptHook | Commands::DisableSyscallEptHook => {
             if let Some(syscall_number) = client_data.syscall_number {
-                handle_kernel_hook(vm, None, Some(syscall_number), client_data.command == Commands::EnableSyscallEptHook, true)
+                if let Some(function_hash) = client_data.function_hash {
+                    handle_kernel_hook(vm, Some(function_hash), Some(syscall_number), client_data.command == Commands::EnableSyscallEptHook, true)
+                } else {
+                    error!("Function hash is missing for syscall hook");
+                    false
+                }
             } else {
                 error!("Syscall number is missing for syscall hook");
                 false
@@ -77,7 +82,12 @@ fn handle_kernel_hook(vm: &mut Vm, function_hash: Option<u32>, syscall_number: O
     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
         let result = if enable {
             if is_syscall {
-                kernel_hook.enable_syscall_ept_hook(vm, syscall_number.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
+                kernel_hook.enable_syscall_ept_hook(
+                    vm,
+                    function_hash.unwrap(),
+                    syscall_number.unwrap(),
+                    EptHookType::Function(InlineHookType::Vmcall),
+                )
             } else {
                 kernel_hook.enable_kernel_ept_hook(vm, function_hash.unwrap(), EptHookType::Function(InlineHookType::Vmcall))
             }
