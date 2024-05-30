@@ -89,11 +89,6 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         update_guest_interrupt_flag(vm, false)?;
 
         Ok(ExitType::Continue)
-    } else if cfg!(feature = "hyperv") {
-        // If the address is not a hook and we are running under hyper-v forward it.
-        debug!("Hyper-V VMCALL detected and handled.");
-        asm_hyperv_vmcall(vm.guest_registers.rcx, vm.guest_registers.rdx, vm.guest_registers.r8);
-        Ok(ExitType::IncrementRIP)
     } else {
         EventInjection::vmentry_inject_gp(0);
         Ok(ExitType::Continue)

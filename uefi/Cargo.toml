@@ -9,10 +9,6 @@ edition = "2021"
 name = "illusion"
 path = "src/main.rs"
 
-[features]
-default = ["hyperv"] # Enables Hyper-V hypervisor support.
-hyperv = [] # Enables Hyper-V hypervisor support.
-
 [dependencies]
 uefi = { version = "0.28.0", features = ["global_allocator", "alloc"] } # https://crates.io/crates/uefi
 uefi-services = { version = "0.25.0", default-features = false } # https://crates.io/crates/uefi-services
@@ -20,5 +16,4 @@ log = { version = "0.4.20", default-features = false } # https://crates.io/crate
 once_cell = "1.19.0" # https://crates.io/crates/once_cell
 spin = "0.9" # https://crates.io/crates/spin
 com_logger = "0.1.1" # https://crates.io/crates/com_logger
-hypervisor = { path = "../hypervisor", default-features = false, features = ["hyperv"] } # Diable hooks by default but keep Hyper-V support.
-#hypervisor = { path = "../hypervisor", default-features = false, features = ["hyperv", "test-windows-uefi-hooks"] } # Enable Hyper-V support and hooks for testing.
+hypervisor = { path = "../hypervisor" }

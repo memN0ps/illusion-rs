@@ -9,11 +9,6 @@ edition = "2021"
 name = "hypervisor"
 path = "src/lib.rs"
 
-[features]
-default = []
-test-windows-uefi-hooks = [] # Enables testing Windows UEFI hooks at runtime.
-hyperv = [] # Enables Hyper-V hypervisor support.
-
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
 x86_64 = "0.15.0" # https://crates.io/crates/x86_64

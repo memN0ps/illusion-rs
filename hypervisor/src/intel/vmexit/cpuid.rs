@@ -5,11 +5,9 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::{hook_manager::EptHookType, inline::InlineHookType},
             vm::Vm,
             vmexit::{commands::handle_guest_commands, ExitType},
         },
-        windows::nt::pe::djb2_hash,
     },
     bitfield::BitMut,
     log::*,
@@ -127,28 +125,30 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             }
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
-                if vm.hook_manager.has_cpuid_cache_info_been_called == false && cfg!(feature = "test-windows-uefi-hooks") {
-                    trace!("Register state before handling VM exit: {:#x?}", vm.guest_registers);
+                if vm.hook_manager.has_cpuid_cache_info_been_called == false {
 
+                    /*
+                    // Test UEFI boot-time hooks
                     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
                         info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-
                         kernel_hook.enable_kernel_ept_hook(
                             vm,
-                            djb2_hash("NtQuerySystemInformation".as_bytes()),
-                            EptHookType::Function(InlineHookType::Vmcall),
+                            crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
                         )?;
-
-                        kernel_hook.enable_syscall_ept_hook(vm, 0x32, EptHookType::Function(InlineHookType::Vmcall))?;
-
+                        kernel_hook.enable_syscall_ept_hook(
+                            vm,
+                            0x32,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                        )?;
                         // Place the kernel hook back in the box
                         vm.hook_manager.kernel_hook = Some(kernel_hook);
-
                         // Set the flag
                         vm.hook_manager.has_cpuid_cache_info_been_called = true;
                     } else {
                         return Err(HypervisorError::KernelHookMissing);
                     }
+                     */
                 }
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
@@ -163,14 +163,14 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
                 cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
             }
-            leaf if leaf == CpuidLeaf::HypervisorInterface as u32 && cfg!(feature = "hyperv") => {
+            leaf if leaf == CpuidLeaf::HypervisorInterface as u32 => {
                 trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
                 // Return information indicating the hypervisor's interface.
                 // Here, we specify that our hypervisor does not conform to the Microsoft hypervisor interface ("Hv#1").
-                cpuid_result.eax = 0x00000000; // Interface signature indicating non-conformance to Microsoft interface.
-                cpuid_result.ebx = 0x00000000; // Reserved field set to zero.
-                cpuid_result.ecx = 0x00000000; // Reserved field set to zero.
-                cpuid_result.edx = 0x00000000; // Reserved field set to zero.
+                // cpuid_result.eax = 0x00000000; // Interface signature indicating non-conformance to Microsoft interface.
+                // cpuid_result.ebx = 0x00000000; // Reserved field set to zero.
+                // cpuid_result.ecx = 0x00000000; // Reserved field set to zero.
+                // cpuid_result.edx = 0x00000000; // Reserved field set to zero.
             }
             _ => trace!("CPUID leaf 0x{leaf:X}."),
         }
