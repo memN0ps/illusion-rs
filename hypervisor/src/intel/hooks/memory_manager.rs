@@ -10,7 +10,7 @@ use {
     },
     alloc::boxed::Box,
     heapless::{LinearMap, Vec},
-    log::trace,
+    log::{error, trace},
 };
 
 /// The maximum number of hooks supported by the hypervisor. Change this value as needed.
@@ -47,6 +47,9 @@ pub struct HookMapping {
 pub struct MemoryManager {
     /// Active mappings of guest physical addresses to their respective hook mappings.
     active_mappings: LinearMap<u64, HookMapping, MAX_HOOK_ENTRIES>,
+
+    /// Free slots for hook mappings.
+    free_slots: Vec<usize, MAX_HOOK_ENTRIES>,
 }
 
 impl MemoryManager {
@@ -58,17 +61,18 @@ impl MemoryManager {
         trace!("Initializing memory manager");
 
         let mut active_mappings = LinearMap::<u64, HookMapping, MAX_HOOK_ENTRIES>::new();
+        let mut free_slots = Vec::<usize, MAX_HOOK_ENTRIES>::new();
 
         trace!("Pre-allocating page tables and shadow pages");
 
         // Pre-allocate shadow pages and page tables for hooks.
-        for _ in 0..MAX_HOOK_ENTRIES {
+        for i in 0..MAX_HOOK_ENTRIES {
             let pt = unsafe { box_zeroed::<Pt>() };
             let sp = unsafe { box_zeroed::<Page>() };
 
             active_mappings
                 .insert(
-                    0,
+                    i as u64,
                     HookMapping {
                         shadow_page: sp,
                         page_table: pt,
@@ -76,11 +80,12 @@ impl MemoryManager {
                     },
                 )
                 .map_err(|_| HypervisorError::ActiveMappingError)?;
+            free_slots.push(i).map_err(|_| HypervisorError::ActiveMappingError)?;
         }
 
         trace!("Memory manager initialized");
 
-        Ok(Self { active_mappings })
+        Ok(Self { active_mappings, free_slots })
     }
 
     /// Checks if a guest page is already processed (split and copied).
@@ -113,6 +118,7 @@ impl MemoryManager {
         ept_hook_type: EptHookType,
         function_hash: u32,
     ) -> Result<(), HypervisorError> {
+        trace!("Mapping guest page and shadow page for PA: {:#x}", guest_page_pa);
         let hook_info = HookInfo {
             guest_function_va,
             guest_function_pa,
@@ -121,17 +127,21 @@ impl MemoryManager {
         };
 
         if let Some(mapping) = self.active_mappings.get_mut(&guest_page_pa) {
+            trace!("Mapping already exists, adding hook info");
             mapping.hooks.push(hook_info).map_err(|_| HypervisorError::TooManyHooks)?;
         } else {
-            let zero_key = self.active_mappings.iter_mut().find(|(&key, _)| key == 0).map(|(&key, _)| key);
-            if let Some(zero_key) = zero_key {
-                if let Some(mut mapping) = self.active_mappings.remove(&zero_key) {
-                    mapping.hooks.push(hook_info).map_err(|_| HypervisorError::TooManyHooks)?;
-                    self.active_mappings
-                        .insert(guest_page_pa, mapping)
-                        .map_err(|_| HypervisorError::ActiveMappingError)?;
-                }
+            trace!("Mapping does not exist, creating new mapping");
+            if let Some(free_slot) = self.free_slots.pop() {
+                trace!("Found free slot at index: {}", free_slot);
+                let key = free_slot as u64;
+                let mut mapping = self.active_mappings.remove(&key).unwrap();
+                mapping.hooks.push(hook_info).map_err(|_| HypervisorError::TooManyHooks)?;
+                self.active_mappings
+                    .insert(guest_page_pa, mapping)
+                    .map_err(|_| HypervisorError::ActiveMappingError)?;
+                trace!("Mapping added successfully");
             } else {
+                error!("No free pages available for mapping");
                 return Err(HypervisorError::PageTableAlreadyMapped);
             }
         }
