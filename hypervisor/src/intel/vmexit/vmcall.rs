@@ -61,7 +61,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
         trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_function_pa, vm.guest_registers.rip);
-        crate::windows::log::log_nt_query_system_information_params(&vm.guest_registers);
+        // crate::windows::log::log_nt_query_system_information_params(&vm.guest_registers);
         // crate::windows::log::log_nt_create_file_params(&vm.guest_registers);
         // crate::windows::log::log_nt_open_process_params(&vm.guest_registers);
         // crate::windows::log::log_mm_is_address_valid_params(&vm.guest_registers);
