@@ -102,13 +102,14 @@ fn handle_kernel_hook(vm: &mut Vm, function_hash: Option<u32>, syscall_number: O
         // Put the kernel hook back in the box
         vm.hook_manager.kernel_hook = Some(kernel_hook);
 
-        if result.is_ok() {
-            true
-        } else {
-            let action = if enable { "setup" } else { "disable" };
-            let hook_type = if is_syscall { "syscall" } else { "kernel" };
-            error!("Failed to {} {} EPT hook", action, hook_type);
-            false
+        match result {
+            Ok(_) => true,
+            Err(e) => {
+                let action = if enable { "setup" } else { "disable" };
+                let hook_type = if is_syscall { "syscall" } else { "kernel" };
+                error!("Failed to {} {} EPT hook: {:?}", action, hook_type, e);
+                false
+            }
         }
     } else {
         let hook_type = if is_syscall { "SyscallHook" } else { "KernelHook" };
