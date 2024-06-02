@@ -60,27 +60,27 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
 
-- **[Daax Rynd (@daaximus)](https://github.com/daaximus)**: For his outstanding series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations:
+- **[Daax Rynd (@daaximus)](https://github.com/daaximus)**: For his outstanding free series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations. His support and answers to my questions were invaluable in getting me started with hypervisor development:
   - [7 Days to Virtualization](https://revers.engineering/7-days-to-virtualization-a-series-on-hypervisor-development/).
   - [MMU Virtualization via Intel EPT](https://revers.engineering/mmu-virtualization-via-intel-ept-index/).
 
-- **[Satoshi Tanda (@tandasat)](https://github.com/tandasat)**: Satoshi Tanda's guidance, projects, and training sessions have been incredibly helpful. His detailed explanations and contributions on GitHub, along with his structured training programs, have significantly enhanced my understanding, making him a great mentor throughout my journey:
+- **[Satoshi Tanda (@tandasat)](https://github.com/tandasat)**: Satoshi Tanda's guidance, projects, and structured training programs have been incredibly helpful. His detailed explanations and contributions on GitHub have significantly enhanced my understanding, making him a great mentor throughout my journey:
   - [Hypervisor Development for Security Researchers](https://tandasat.github.io/Hypervisor_Development_for_Security_Researchers.html).
   - [Hypervisor 101 in Rust](https://github.com/tandasat/Hypervisor-101-in-Rust).
   - Additional Projects: [Hello-VT-rp](https://github.com/tandasat/Hello-VT-rp), [DdiMon](https://github.com/tandasat/DdiMon), [HyperPlatform](https://github.com/tandasat/HyperPlatform), [MiniVisorPkg](https://github.com/tandasat/MiniVisorPkg).
 
-- **[Jess (@jessiep_)](https://github.com/Intege-rs)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise.
+- **[Jess (@jessiep_)](https://github.com/Intege-rs)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
 
-- **[Sina Karvandi (@Intel80x86)](https://github.com/SinaKarvandi)**: For his detailed Hypervisor From Scratch series:
+- **[Drew (@drew)](https://github.com/drew-gpf)**: For his help, guidance, and quick responses to my questions in various aspects of hypervisor development.
+
+- **[Sina Karvandi (@Intel80x86)](https://github.com/SinaKarvandi)**: For his detailed free Hypervisor From Scratch series:
   - [Tutorial Series](https://rayanfam.com/tutorials/).
   - [GitHub Repository](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/).
 
 - **[Matthias (@not-matthias)](https://github.com/not-matthias)**: For his impactful work on the [amd_hypervisor](https://github.com/not-matthias/amd_hypervisor) project, which greatly inspired and influenced this research.
 
-- **[Nick Peterson (@everdox)](https://github.com/everdox)**: For insightful explorations into hypervisor introspection:
+- **[Nick Peterson (@everdox)](https://github.com/everdox)** and **[Aidan Khoury (@ajkhoury)](https://github.com/ajkhoury)**: For their insightful explorations into hypervisor introspection and syscall hooking:
   - [Patchguard: Hypervisor Based Introspection [P1]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p1/).
-
-- **[Aidan Khoury (@ajkhoury)](https://github.com/ajkhoury)**: For insightful explorations into hypervisor introspection:
   - [Patchguard: Hypervisor Based Introspection [P2]](https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/).
   - [Syscall Hooking Via Extended Feature Enable Register (EFER)](https://revers.engineering/syscall-hooking-via-extended-feature-enable-register-efer/).
 
@@ -112,9 +112,9 @@ Special thanks to:
 - [Drew (@drew)](https://github.com/drew-gpf).
 - [iPower (@iPower)](https://github.com/iPower).
 - [Namazso (@namazso)](https://github.com/namazso).
+- [Jess (@jessiep_)](https://github.com/Intege-rs).
 - [Matthias @not-matthias](https://github.com/not-matthias/).
 - [@felix-rs / @joshuа](https://github.com/felix-rs).
-- [Jess (@jessiep_)](https://github.com/Intege-rs).
 - [Ryan McCrystal / @rmccrystal](https://github.com/rmccrystal).
 - [Jim Colerick (@vmprotect)](https://github.com/thug-shaker).
 
