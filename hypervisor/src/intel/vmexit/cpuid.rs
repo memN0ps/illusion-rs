@@ -135,10 +135,21 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                             crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
                         )?;
+                        kernel_hook.enable_kernel_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtCreateFile".as_bytes()),
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                        )?;
                         kernel_hook.enable_syscall_ept_hook(
                             vm,
-                            crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
-                            0x32,
+                            crate::windows::nt::pe::djb2_hash("NtAllocateVirtualMemory".as_bytes()),
+                            0x18,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                        )?;
+                        kernel_hook.enable_syscall_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtQueryInformationProcess".as_bytes()),
+                            0x19,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
                         )?;
                         // Place the kernel hook back in the box
