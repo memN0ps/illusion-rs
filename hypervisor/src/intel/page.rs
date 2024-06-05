@@ -11,7 +11,7 @@ use x86::bits64::paging::BASE_PAGE_SIZE;
 // very often it is, so let us specify the alignment.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(4096))]
-pub struct Page([u8; BASE_PAGE_SIZE]);
+pub struct Page(pub [u8; BASE_PAGE_SIZE]);
 
 impl Page {
     /// Creates a new `Page` instance.

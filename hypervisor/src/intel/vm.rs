@@ -7,13 +7,13 @@
 
 use {
     crate::{
-        allocate::box_zeroed,
+        allocate::{box_zeroed, create_dummy_page},
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             capture::GuestRegisters,
             descriptor::Descriptors,
-            ept::Ept,
+            ept::{Ept, Pt},
             hooks::hook_manager::HookManager,
             paging::PageTables,
             support::{rdmsr, vmclear, vmptrld, vmread},
@@ -63,6 +63,12 @@ pub struct Vm {
 
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
+
+    /// Dummy page for redirecting memory.
+    pub dummy_page_pa: u64,
+
+    /// Dummy page table for redirecting memory.
+    pub dummy_pt: Box<Pt>,
 }
 
 impl Vm {
@@ -108,6 +114,12 @@ impl Vm {
         trace!("Creating EPT hook manager");
         let hook_manager = HookManager::new()?;
 
+        trace!("Creating dummy page filled with 0xffs");
+        let dummy_page_pa = create_dummy_page(0xff);
+
+        trace!("Creating dummy page table entry");
+        let dummy_pt = unsafe { box_zeroed::<Pt>() };
+
         trace!("VM created");
 
         Ok(Self {
@@ -121,6 +133,8 @@ impl Vm {
             primary_eptp,
             guest_registers: guest_registers.clone(),
             has_launched: false,
+            dummy_page_pa,
+            dummy_pt,
         })
     }
 
