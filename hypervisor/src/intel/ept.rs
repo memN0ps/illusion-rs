@@ -7,7 +7,6 @@
 
 use {
     crate::{
-        allocate::ALLOCATED_MEMORY,
         error::HypervisorError,
         intel::{
             invept::invept_all_contexts,
@@ -109,48 +108,6 @@ impl Ept {
                     pa += LARGE_PAGE_SIZE as u64;
                 }
             }
-        }
-
-        Ok(())
-    }
-
-    /// Redirects all guest physical addresses corresponding to hypervisor memory to the dummy page.
-    ///
-    /// This function updates the EPT entries for all memory regions identified in the ALLOCATED_MEMORY set,
-    /// redirecting them to the specified dummy page physical address (PA). It uses the existing swap_page
-    /// method for the redirection, allowing control over access permissions.
-    ///
-    /// # Arguments
-    ///
-    /// * `dummy_page_pa` - The physical address of the dummy page to map the guest physical addresses to.
-    /// * `access_type` - The access permissions to set for the mapped pages.
-    /// * `pt` - The page table to modify. This is required to update 4KB pages.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), HypervisorError>` indicating if the operation was successful.
-    /// In case of failure, a `HypervisorError` is returned, detailing the nature of the error.
-    pub fn redirect_memory_to_dummy(&mut self, dummy_page_pa: u64, access_type: AccessType, pt: &mut Pt) -> Result<(), HypervisorError> {
-        let allocated_memory = ALLOCATED_MEMORY.lock();
-
-        trace!("Allocated memory ranges:");
-        for &(base, end) in allocated_memory.iter().step_by(LARGE_PAGE_SIZE) {
-            trace!("Memory range: {:#x} - {:#x}", base, end);
-        }
-
-        for &(pa, _end) in allocated_memory.iter().step_by(LARGE_PAGE_SIZE) {
-            let guest_pa = VAddr::from(pa);
-            trace!("Redirecting memory to dummy page: {:#x}", guest_pa);
-
-            // Split the 2MB page into 4KB pages
-            let guest_large_page_pa = guest_pa.align_down_to_large_page().as_u64();
-            trace!("Splitting large page: {:#x}", guest_large_page_pa);
-            self.split_2mb_to_4kb(guest_large_page_pa, pt)?;
-
-            // Use the same Pt for swapping pages
-            let guest_page_pa = guest_pa.align_down_to_base_page().as_u64();
-            trace!("Swapping page: {:#x}", guest_page_pa);
-            self.swap_page(guest_page_pa, dummy_page_pa, access_type, pt)?;
         }
 
         Ok(())
