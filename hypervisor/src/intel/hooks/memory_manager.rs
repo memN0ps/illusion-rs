@@ -142,7 +142,7 @@ impl MemoryManager {
                 trace!("Mapping added successfully");
             } else {
                 error!("No free pages available for mapping");
-                return Err(HypervisorError::PageTableAlreadyMapped);
+                return Err(HypervisorError::OutOfMemory);
             }
         }
 
