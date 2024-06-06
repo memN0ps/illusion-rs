@@ -34,9 +34,6 @@ pub struct HookMapping {
     /// The shadow page.
     pub shadow_page: Box<Page>,
 
-    /// The page table.
-    pub page_table: Box<Pt>,
-
     /// The list of hooks associated with this page.
     pub hooks: Vec<HookInfo, MAX_HOOKS_PER_PAGE>,
 }
@@ -48,8 +45,14 @@ pub struct MemoryManager {
     /// Active mappings of guest physical addresses to their respective hook mappings.
     active_mappings: LinearMap<u64, HookMapping, MAX_HOOK_ENTRIES>,
 
+    /// Mappings of large guest physical addresses to their respective page tables.
+    large_pt_mappings: LinearMap<u64, Box<Pt>, MAX_HOOK_ENTRIES>,
+
     /// Free slots for hook mappings.
-    free_slots: Vec<usize, MAX_HOOK_ENTRIES>,
+    free_slots_hm: Vec<usize, MAX_HOOK_ENTRIES>,
+
+    /// Free slots for page tables.
+    free_slots_pt: Vec<usize, MAX_HOOK_ENTRIES>,
 }
 
 impl MemoryManager {
@@ -61,13 +64,14 @@ impl MemoryManager {
         trace!("Initializing memory manager");
 
         let mut active_mappings = LinearMap::<u64, HookMapping, MAX_HOOK_ENTRIES>::new();
-        let mut free_slots = Vec::<usize, MAX_HOOK_ENTRIES>::new();
+        let mut large_pt_mappings = LinearMap::<u64, Box<Pt>, MAX_HOOK_ENTRIES>::new();
+        let mut free_slots_hm = Vec::<usize, MAX_HOOK_ENTRIES>::new();
+        let mut free_slots_pt = Vec::<usize, MAX_HOOK_ENTRIES>::new();
 
-        trace!("Pre-allocating page tables and shadow pages");
+        trace!("Pre-allocating shadow pages and page tables");
 
-        // Pre-allocate shadow pages and page tables for hooks.
+        // Pre-allocate shadow pages for hooks and page tables for large pages.
         for i in 0..MAX_HOOK_ENTRIES {
-            let pt = unsafe { box_zeroed::<Pt>() };
             let sp = unsafe { box_zeroed::<Page>() };
 
             active_mappings
@@ -75,17 +79,26 @@ impl MemoryManager {
                     i as u64,
                     HookMapping {
                         shadow_page: sp,
-                        page_table: pt,
                         hooks: Vec::<HookInfo, MAX_HOOKS_PER_PAGE>::new(),
                     },
                 )
                 .map_err(|_| HypervisorError::ActiveMappingError)?;
-            free_slots.push(i).map_err(|_| HypervisorError::ActiveMappingError)?;
+
+            let pt = unsafe { box_zeroed::<Pt>() };
+            large_pt_mappings.insert(i as u64, pt).map_err(|_| HypervisorError::LargePtMappingError)?;
+
+            free_slots_hm.push(i).map_err(|_| HypervisorError::ActiveMappingError)?;
+            free_slots_pt.push(i).map_err(|_| HypervisorError::LargePtMappingError)?;
         }
 
         trace!("Memory manager initialized");
 
-        Ok(Self { active_mappings, free_slots })
+        Ok(Self {
+            active_mappings,
+            large_pt_mappings,
+            free_slots_hm,
+            free_slots_pt,
+        })
     }
 
     /// Checks if a guest page is already processed (split and copied).
@@ -100,6 +113,7 @@ impl MemoryManager {
     }
 
     /// Maps a free page table and shadow page to a guest physical address, removing them from the free pool.
+    /// Maps the Large Page to the Page Table if not already mapped.
     ///
     /// # Arguments
     /// * `guest_page_pa` - The guest physical address to map.
@@ -131,7 +145,7 @@ impl MemoryManager {
             mapping.hooks.push(hook_info).map_err(|_| HypervisorError::TooManyHooks)?;
         } else {
             trace!("Mapping does not exist, creating new mapping");
-            if let Some(free_slot) = self.free_slots.pop() {
+            if let Some(free_slot) = self.free_slots_hm.pop() {
                 trace!("Found free slot at index: {}", free_slot);
                 let key = free_slot as u64;
                 let mut mapping = self.active_mappings.remove(&key).unwrap();
@@ -149,15 +163,40 @@ impl MemoryManager {
         Ok(())
     }
 
-    /// Retrieves a mutable reference to the page table associated with a guest physical address.
+    /// Maps a free page table to a large guest physical address, removing it from the free pool.
     ///
     /// # Arguments
-    /// * `guest_page_pa` - The guest physical address.
+    ///
+    /// * `guest_large_page_pa` - The large guest physical address to map.
+    pub fn map_large_pages(&mut self, guest_large_page_pa: u64) -> Result<(), HypervisorError> {
+        // Ensure the large page has a page table (Pt)
+        if !self.large_pt_mappings.contains_key(&guest_large_page_pa) {
+            trace!("Large page not mapped to page table, mapping now");
+            if let Some(free_slot) = self.free_slots_pt.pop() {
+                trace!("Found free slot for page table at index: {}", free_slot);
+                let pt_key = free_slot as u64;
+                let pt = self.large_pt_mappings.remove(&pt_key).unwrap();
+                self.large_pt_mappings
+                    .insert(guest_large_page_pa, pt)
+                    .map_err(|_| HypervisorError::ActiveMappingError)?;
+            } else {
+                error!("No free page tables available for mapping");
+                return Err(HypervisorError::OutOfMemory);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Retrieves a mutable reference to the page table associated with a large guest physical address.
+    ///
+    /// # Arguments
+    /// * `guest_large_page_pa` - The large guest physical address.
     ///
     /// # Returns
     /// An `Option` containing a mutable reference to the `Pt` if found.
-    pub fn get_page_table_as_mut(&mut self, guest_page_pa: u64) -> Option<&mut Pt> {
-        self.active_mappings.get_mut(&guest_page_pa).map(|mapping| &mut *mapping.page_table)
+    pub fn get_page_table_as_mut(&mut self, guest_large_page_pa: u64) -> Option<&mut Pt> {
+        self.large_pt_mappings.get_mut(&guest_large_page_pa).map(|pt| &mut **pt)
     }
 
     /// Retrieves a pointer to the shadow page associated with a guest physical address.

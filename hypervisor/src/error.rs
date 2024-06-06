@@ -230,6 +230,9 @@ pub enum HypervisorError {
     #[error("Active mapping error")]
     ActiveMappingError,
 
+    #[error("Large page table mapping error")]
+    LargePtMappingError,
+
     #[error("Failed to get hook info")]
     HookInfoNotFound,
 }

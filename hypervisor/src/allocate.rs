@@ -73,6 +73,22 @@ pub unsafe fn box_zeroed<T>() -> Box<T> {
     unsafe { Box::from_raw(ptr) }
 }
 
+/// Creates a dummy page filled with a specific byte value.
+///
+/// # Arguments
+///
+/// * `fill_byte` - The byte value to fill the page with.
+///
+/// # Returns
+///
+/// The physical address of the dummy page.
+pub fn create_dummy_page(fill_byte: u8) -> u64 {
+    let mut dummy_page = unsafe { box_zeroed::<Page>() };
+    dummy_page.0.iter_mut().for_each(|byte| *byte = fill_byte);
+    let dummy_page_pa = Box::into_raw(dummy_page) as u64;
+    dummy_page_pa
+}
+
 /// Records an image allocation in the global memory set.
 /// This function is useful for tracking allocated memory regions for enhanced stealth capabilities.
 ///

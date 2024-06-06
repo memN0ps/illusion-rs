@@ -112,19 +112,19 @@ impl Ept {
 
         Ok(())
     }
-    
+
     /// Checks if a guest physical address is part of a large 2MB page.
-    /// 
+    ///
     /// This function is used to determine if a guest physical address is part of a large 2MB page.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `guest_pa` - The guest physical address to check.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// `true` if the guest physical address is part of a large 2MB page, otherwise `false`.
-    pub fn is_page_split(&self, guest_pa: u64) -> bool {
+    pub fn is_large_page(&self, guest_pa: u64) -> bool {
         let guest_pa = VAddr::from(guest_pa);
         let pdpt_index = pdpt_index(guest_pa);
         let pd_index = pd_index(guest_pa);

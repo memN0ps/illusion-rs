@@ -1,5 +1,6 @@
 use {
     crate::{
+        allocate::ALLOCATED_MEMORY,
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -14,7 +15,7 @@ use {
         },
         windows::kernel::KernelHook,
     },
-    alloc::boxed::Box,
+    alloc::{boxed::Box, vec::Vec},
     core::intrinsics::copy_nonoverlapping,
     log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
@@ -76,6 +77,91 @@ impl HookManager {
             old_rflags: None,
             mtf_counter: None,
         }))
+    }
+
+    /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.
+    ///
+    /// This function iterates through the `ALLOCATED_MEMORY` set and calls `ept_hide_hypervisor_memory`
+    /// for each page to split the 2MB pages into 4KB pages and fill the shadow page with a specified value.
+    /// It then swaps the guest page with the shadow page and sets the desired permissions.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine instance of the hypervisor.
+    /// * `dummy_page_pa` - The physical address of the dummy page.
+    /// * `page_permissions` - The desired permissions for the hooked page.
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
+    pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
+        let allocated_memory: Vec<(u64, u64)> = {
+            let allocated_memory = ALLOCATED_MEMORY.lock();
+            allocated_memory.iter().copied().collect()
+        };
+
+        debug!("Allocated memory ranges:");
+        for &(base, end) in &allocated_memory {
+            debug!("Memory range: {:#x} - {:#x}", base, end);
+        }
+
+        for &(base, _end) in &allocated_memory {
+            HookManager::ept_hide_hypervisor_memory(vm, base, page_permissions)?;
+        }
+
+        Ok(())
+    }
+
+    /// Hide the hypervisor memory from the guest by installing an EPT hook.
+    /// This function will split the 2MB page to 4KB pages and fill the shadow page with 0xff.
+    /// The guest page will be swapped with the shadow page and the permissions will be set to the desired permissions.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine instance of the hypervisor.
+    /// * `page_permissions` - The desired permissions for the hooked page.
+    ///
+    /// # Returns
+    ///
+    /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
+    fn ept_hide_hypervisor_memory(vm: &mut Vm, guest_page_pa: u64, page_permissions: AccessType) -> Result<(), HypervisorError> {
+        let guest_page_pa = PAddr::from(guest_page_pa).align_down_to_base_page();
+        debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
+
+        let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
+        debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
+
+        let dummy_page_pa = vm.dummy_page_pa;
+        trace!("Dummy page PA: {:#x}", dummy_page_pa);
+
+        debug!("Mapping large page");
+        vm.hook_manager.memory_manager.map_large_pages(guest_large_page_pa.as_u64())?;
+
+        debug!("Filling shadow page with 0xff");
+        Self::unsafe_fill_shadow_page(PAddr::from(dummy_page_pa), 0xff);
+
+        let pre_alloc_pt = vm
+            .hook_manager
+            .memory_manager
+            .get_page_table_as_mut(guest_large_page_pa.as_u64())
+            .ok_or(HypervisorError::PageTableNotFound)?;
+
+        // Check if a guest page has already been split.
+        if vm.primary_ept.is_large_page(guest_page_pa.as_u64()) {
+            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+            vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
+        }
+
+        debug!("Swapping guest page: {:#x} with dummy page: {:#x}", guest_page_pa.as_u64(), dummy_page_pa);
+        vm.primary_ept
+            .swap_page(guest_page_pa.as_u64(), dummy_page_pa, page_permissions, pre_alloc_pt)?;
+
+        invept_all_contexts();
+        invvpid_all_contexts();
+
+        debug!("EPT hide hypervisor memory completed successfully");
+
+        Ok(())
     }
 
     /// Installs an EPT hook for a function.
@@ -144,7 +230,7 @@ impl HookManager {
         let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
-            .get_page_table_as_mut(guest_page_pa.as_u64())
+            .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
 
         // Install the inline hook at the shadow function address, even if it's already installed (no check for now)
@@ -218,6 +304,22 @@ impl HookManager {
     /// This function is unsafe because it performs a raw memory copy from the guest page to the shadow page.
     pub fn unsafe_copy_guest_to_shadow(guest_page_pa: PAddr, host_shadow_page_pa: PAddr) {
         unsafe { copy_nonoverlapping(guest_page_pa.as_u64() as *mut u8, host_shadow_page_pa.as_u64() as *mut u8, BASE_PAGE_SIZE) };
+    }
+
+    /// Fills the shadow page with a specific byte value.
+    ///
+    /// # Arguments
+    ///
+    /// * `shadow_page_pa` - The physical address of the shadow page.
+    /// * `fill_byte` - The byte value to fill the page with.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it performs a raw memory fill operation on the shadow page.
+    pub fn unsafe_fill_shadow_page(shadow_page_pa: PAddr, fill_byte: u8) {
+        unsafe {
+            core::ptr::write_bytes(shadow_page_pa.as_u64() as *mut u8, fill_byte, BASE_PAGE_SIZE);
+        }
     }
 
     /// Calculates the address of the function within the host shadow page.

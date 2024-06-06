@@ -7,7 +7,7 @@
 
 use {
     crate::{
-        allocate::box_zeroed,
+        allocate::{box_zeroed, create_dummy_page},
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
@@ -63,6 +63,9 @@ pub struct Vm {
 
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
+
+    /// Physical address of a dummy page.
+    pub dummy_page_pa: u64,
 }
 
 impl Vm {
@@ -108,6 +111,9 @@ impl Vm {
         trace!("Creating EPT hook manager");
         let hook_manager = HookManager::new()?;
 
+        trace!("Creating dummy page filled with 0xffs");
+        let dummy_page_pa = create_dummy_page(0xff);
+
         trace!("VM created");
 
         Ok(Self {
@@ -121,6 +127,7 @@ impl Vm {
             primary_eptp,
             guest_registers: guest_registers.clone(),
             has_launched: false,
+            dummy_page_pa,
         })
     }
 
