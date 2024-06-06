@@ -11,7 +11,6 @@ use {
     },
     core::alloc::Layout,
     spin::Mutex,
-    x86::bits64::paging::BASE_PAGE_SIZE,
 };
 
 /// A global set to keep track of allocated memory regions.
@@ -74,19 +73,14 @@ pub unsafe fn box_zeroed<T>() -> Box<T> {
     unsafe { Box::from_raw(ptr) }
 }
 
-/// Creates a dummy page filled with a specific byte value.
+/// Records an image allocation in the global memory set.
+/// This function is useful for tracking allocated memory regions for enhanced stealth capabilities.
 ///
 /// # Arguments
 ///
-/// * `fill_byte` - The byte value to fill the page with.
-///
-/// # Returns
-///
-/// The physical address of the dummy page.
-pub fn create_dummy_page(fill_byte: u8) -> u64 {
-    let mut dummy_page = unsafe { box_zeroed::<Page>() };
-    dummy_page.0.iter_mut().for_each(|byte| *byte = fill_byte);
-    let dummy_page_pa = Box::into_raw(dummy_page) as u64;
-    record_allocation(dummy_page_pa, BASE_PAGE_SIZE as u64);
-    dummy_page_pa
+/// * `base` - The base address of the allocated memory region.
+/// * `size` - The size of the allocated memory region.
+pub fn record_image_allocation(base: u64, size: u64) {
+    let mut allocated_memory = ALLOCATED_MEMORY.lock();
+    allocated_memory.insert((base, base + size));
 }
