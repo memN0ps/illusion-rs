@@ -10,7 +10,6 @@ use {
         intel::{
             bitmap::MsrAccessType,
             capture::GuestRegisters,
-            ept::AccessType,
             support::{rdmsr, vmread, vmwrite},
             vm::Vm,
             vmerror::VmxBasicExitReason,
@@ -77,14 +76,6 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
     match vm.activate_vmcs() {
         Ok(_) => debug!("VMCS activated"),
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
-    }
-
-    match vm
-        .primary_ept
-        .redirect_memory_to_dummy(vm.dummy_page_pa, AccessType::READ_WRITE_EXECUTE, &mut vm.dummy_pt)
-    {
-        Ok(_) => debug!("Redirected hypervisor memory to dummy page"),
-        Err(e) => panic!("Failed to redirect hypervisor memory to dummy page: {:?}", e),
     }
 
     info!("Launching the VM until a vmexit occurs...");
