@@ -126,6 +126,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
                 if vm.hook_manager.has_cpuid_cache_info_been_called == false {
+                    /*
                     // Test UEFI boot-time hooks
                     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
                         info!("Hooking NtQuerySystemInformation with syscall number 0x36");
@@ -158,6 +159,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                     } else {
                         return Err(HypervisorError::KernelHookMissing);
                     }
+                     */
                 }
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
