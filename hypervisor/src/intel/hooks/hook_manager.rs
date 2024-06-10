@@ -135,7 +135,8 @@ impl HookManager {
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
         debug!("Mapping large page");
-        vm.hook_manager.memory_manager.map_large_pages(guest_large_page_pa.as_u64())?;
+        // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
+        vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
 
         debug!("Filling shadow page with 0xff");
         Self::unsafe_fill_shadow_page(PAddr::from(dummy_page_pa), 0xff);
@@ -166,6 +167,25 @@ impl HookManager {
 
     /// Installs an EPT hook for a function.
     ///
+    /// # Steps:
+    /// 1. Map the large page to the pre-allocated page table, if it hasn't been mapped already.
+    ///
+    /// 2. Check if the large page has already been split. If not, split it into 4KB pages.
+    ///
+    /// 3. Check if the guest page is already processed. If not, map the guest page to the shadow page.
+    ///    Ensure the memory manager maintains a set of processed guest pages to track this mapping.
+    ///
+    /// 4. Copy the guest page to the shadow page if it hasn't been copied already, ensuring the
+    ///    shadow page contains the original function code.
+    ///
+    /// 5. Install the inline hook at the shadow function address if the hook type is `Function`.
+    ///
+    /// 6. Change the permissions of the guest page to read-write only.
+    ///
+    /// 7. Invalidate the EPT and VPID contexts to ensure the changes take effect.
+    ///
+    /// These operations are performed only once per guest page to avoid overwriting existing hooks on the same page.
+    ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
@@ -188,12 +208,36 @@ impl HookManager {
         let guest_large_page_pa = guest_function_pa.align_down_to_large_page();
         debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        // Check if a guest page is already processed (split and copied).
-        // If not, split the 2MB page to 4KB pages and copy the guest page to the shadow page.
-        // Otherwise, the page has already been processed (split and copied) and the shadow page is ready for hooking.
+        // 1. Map the large page to the pre-allocated page table, if it hasn't been mapped already.
+        debug!("Mapping large page");
+        vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
+
+        let shadow_page_pa = {
+            let shadow_page_pa = vm
+                .hook_manager
+                .memory_manager
+                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+                .ok_or(HypervisorError::ShadowPageNotFound)?;
+            PAddr::from(shadow_page_pa)
+        };
+
+        // 2. Check if the large page has already been split. If not, split it into 4KB pages.
+        if vm.primary_ept.is_large_page(guest_large_page_pa.as_u64()) {
+            let pre_alloc_pt = vm
+                .hook_manager
+                .memory_manager
+                .get_page_table_as_mut(guest_large_page_pa.as_u64())
+                .ok_or(HypervisorError::PageTableNotFound)?;
+
+            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+            vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
+        }
+
+        // 3. Check if the guest page is already processed. If not, map the guest page to the shadow page.
+        // Ensure the memory manager maintains a set of processed guest pages to track this mapping.
         if !vm.hook_manager.memory_manager.is_guest_page_processed(guest_page_pa.as_u64()) {
             debug!("Mapping guest page and shadow page");
-            vm.hook_manager.memory_manager.map_guest_page_and_shadow_page(
+            vm.hook_manager.memory_manager.map_guest_to_shadow_page(
                 guest_page_pa.as_u64(),
                 guest_function_va,
                 guest_function_pa.as_u64(),
@@ -201,60 +245,43 @@ impl HookManager {
                 function_hash,
             )?;
 
+            // 4. Copy the guest page to the shadow page if it hasn't been copied already, ensuring the shadow page contains the original function code.
+            debug!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
+            Self::unsafe_copy_guest_to_shadow(guest_page_pa, shadow_page_pa);
+
+            // 5. Install the inline hook at the shadow function address if the hook type is `Function`.
+            match ept_hook_type {
+                EptHookType::Function(inline_hook_type) => {
+                    let shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(shadow_page_pa, guest_function_pa));
+                    debug!("Shadow Function PA: {:#x}", shadow_function_pa);
+
+                    debug!("Installing inline hook at shadow function PA: {:#x}", shadow_function_pa.as_u64());
+                    InlineHook::new(shadow_function_pa.as_u64() as *mut u8, inline_hook_type).detour64();
+                }
+                EptHookType::Page => {
+                    unimplemented!("Page hooks are not yet implemented");
+                }
+            }
+
             let pre_alloc_pt = vm
                 .hook_manager
                 .memory_manager
-                .get_page_table_as_mut(guest_page_pa.as_u64())
+                .get_page_table_as_mut(guest_large_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
 
-            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
-            vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
+            // 6. Change the permissions of the guest page to read-write only.
+            debug!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
+            vm.primary_ept
+                .modify_page_permissions(guest_page_pa.as_u64(), AccessType::READ_WRITE, pre_alloc_pt)?;
 
-            debug!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
-            let shadow_page_pa = vm
-                .hook_manager
-                .memory_manager
-                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
-                .ok_or(HypervisorError::ShadowPageNotFound)?;
+            // 7. Invalidate the EPT and VPID contexts to ensure the changes take effect.
+            invept_all_contexts();
+            invvpid_all_contexts();
 
-            Self::unsafe_copy_guest_to_shadow(guest_page_pa, PAddr::from(shadow_page_pa));
+            debug!("EPT hook created and enabled successfully");
+        } else {
+            debug!("Guest page already processed, skipping hook installation and permission modification.");
         }
-
-        let shadow_page_pa = PAddr::from(
-            vm.hook_manager
-                .memory_manager
-                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
-                .ok_or(HypervisorError::ShadowPageNotFound)?,
-        );
-
-        let pre_alloc_pt = vm
-            .hook_manager
-            .memory_manager
-            .get_page_table_as_mut(guest_large_page_pa.as_u64())
-            .ok_or(HypervisorError::PageTableNotFound)?;
-
-        // Install the inline hook at the shadow function address, even if it's already installed (no check for now)
-        match ept_hook_type {
-            EptHookType::Function(inline_hook_type) => {
-                let shadow_function_pa = PAddr::from(Self::calculate_function_offset_in_host_shadow_page(shadow_page_pa, guest_function_pa));
-                debug!("Shadow Function PA: {:#x}", shadow_function_pa);
-
-                debug!("Installing inline hook at shadow function PA: {:#x}", shadow_function_pa.as_u64());
-                InlineHook::new(shadow_function_pa.as_u64() as *mut u8, inline_hook_type).detour64();
-            }
-            EptHookType::Page => {
-                unimplemented!("Page hooks are not yet implemented");
-            }
-        }
-
-        debug!("Changing Primary EPT permissions for page to Read-Write (RW) only: {:#x}", guest_page_pa);
-        vm.primary_ept
-            .modify_page_permissions(guest_page_pa.as_u64(), AccessType::READ_WRITE, pre_alloc_pt)?;
-
-        invept_all_contexts();
-        invvpid_all_contexts();
-
-        debug!("EPT hook created and enabled successfully");
 
         Ok(())
     }

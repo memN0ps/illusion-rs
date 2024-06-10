@@ -124,7 +124,7 @@ impl MemoryManager {
     ///
     /// # Returns
     /// `Ok(())` if successful, or an error if no free pages are available or if already mapped.
-    pub fn map_guest_page_and_shadow_page(
+    pub fn map_guest_to_shadow_page(
         &mut self,
         guest_page_pa: u64,
         guest_function_va: u64,
@@ -168,7 +168,7 @@ impl MemoryManager {
     /// # Arguments
     ///
     /// * `guest_large_page_pa` - The large guest physical address to map.
-    pub fn map_large_pages(&mut self, guest_large_page_pa: u64) -> Result<(), HypervisorError> {
+    pub fn map_large_page_to_pt(&mut self, guest_large_page_pa: u64) -> Result<(), HypervisorError> {
         // Ensure the large page has a page table (Pt)
         if !self.large_pt_mappings.contains_key(&guest_large_page_pa) {
             trace!("Large page not mapped to page table, mapping now");
