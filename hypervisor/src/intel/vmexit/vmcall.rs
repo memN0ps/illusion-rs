@@ -56,6 +56,9 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let guest_page_pa = guest_function_pa.align_down_to_base_page();
     trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
 
+    let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
+    trace!("Guest Large Page PA: {:#x}", guest_large_page_pa.as_u64());
+
     // Set the current hook to the EPT hook for handling MTF exit
     let exit_type = if let Some(shadow_page_pa) = vm.hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
         trace!("Shadow Page PA: {:#x}", shadow_page_pa);
@@ -69,7 +72,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
-            .get_page_table_as_mut(guest_page_pa.as_u64())
+            .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
 
         // Perform swap_page before the mutable borrow for update_guest_interrupt_flag

@@ -41,6 +41,10 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
             trace!("Guest PA: {:#x}", guest_pa.as_u64());
 
             let guest_page_pa = guest_pa.align_down_to_base_page();
+            trace!("Guest Page PA: {:#x}", guest_page_pa.as_u64());
+
+            let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
+            trace!("Guest Large Page PA: {:#x}", guest_large_page_pa.as_u64());
 
             let shadow_page_pa = PAddr::from(
                 vm.hook_manager
@@ -53,7 +57,7 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
             let pre_alloc_pt = vm
                 .hook_manager
                 .memory_manager
-                .get_page_table_as_mut(guest_page_pa.as_u64())
+                .get_page_table_as_mut(guest_large_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
 
             // Restore the hook to continue monitoring

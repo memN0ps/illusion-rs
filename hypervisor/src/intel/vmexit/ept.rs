@@ -28,6 +28,9 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let guest_page_pa = PAddr::from(guest_pa).align_down_to_base_page();
     trace!("Faulting Guest Page PA: {:#x}", guest_page_pa);
 
+    let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
+    trace!("Faulting Guest Large Page PA: {:#x}", guest_large_page_pa);
+
     let shadow_page_pa = PAddr::from(
         vm.hook_manager
             .memory_manager
@@ -39,7 +42,7 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let pre_alloc_pt = vm
         .hook_manager
         .memory_manager
-        .get_page_table_as_mut(guest_page_pa.as_u64())
+        .get_page_table_as_mut(guest_large_page_pa.as_u64())
         .ok_or(HypervisorError::PageTableNotFound)?;
 
     // dump_primary_ept_entries(vm, guest_pa)?;
@@ -138,13 +141,16 @@ pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(
     let faulting_guest_page_pa = PAddr::from(faulting_guest_pa).align_down_to_base_page().as_u64();
     trace!("Faulting guest page address: {:#x}", faulting_guest_page_pa);
 
+    let guest_large_page_pa = PAddr::from(faulting_guest_pa).align_down_to_large_page();
+    trace!("Faulting guest large page address: {:#x}", guest_large_page_pa);
+
     // Get the primary EPTs.
     let primary_ept = &mut vm.primary_ept;
 
     let pre_alloc_pt = vm
         .hook_manager
         .memory_manager
-        .get_page_table_as_mut(faulting_guest_page_pa)
+        .get_page_table_as_mut(guest_large_page_pa.as_u64())
         .ok_or(HypervisorError::PageTableNotFound)?;
 
     trace!("Dumping Primary EPT entries for guest physical address: {:#x}", faulting_guest_pa);

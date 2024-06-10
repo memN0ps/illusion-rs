@@ -309,10 +309,13 @@ impl HookManager {
         let guest_page_pa = guest_function_pa.align_down_to_base_page();
         debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
 
+        let guest_large_page_pa = guest_function_pa.align_down_to_large_page();
+        debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
+
         let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
-            .get_page_table_as_mut(guest_page_pa.as_u64())
+            .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
 
         // Swap the page back and restore the original page permissions
