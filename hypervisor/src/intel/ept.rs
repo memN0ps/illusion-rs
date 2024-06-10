@@ -126,6 +126,7 @@ impl Ept {
     /// `true` if the guest physical address is part of a large 2MB page, otherwise `false`.
     pub fn is_large_page(&self, guest_pa: u64) -> bool {
         let guest_pa = VAddr::from(guest_pa);
+        let guest_pa = guest_pa.align_down_to_base_page();
         let pdpt_index = pdpt_index(guest_pa);
         let pd_index = pd_index(guest_pa);
         let pde = &self.pd[pdpt_index].0.entries[pd_index];

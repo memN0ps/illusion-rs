@@ -153,7 +153,7 @@ impl MemoryManager {
                 self.active_mappings
                     .insert(guest_page_pa, mapping)
                     .map_err(|_| HypervisorError::ActiveMappingError)?;
-                trace!("Mapping added successfully");
+                trace!("Guest page mapped to shadow page successfully");
             } else {
                 error!("No free pages available for mapping");
                 return Err(HypervisorError::OutOfMemory);
@@ -179,6 +179,7 @@ impl MemoryManager {
                 self.large_pt_mappings
                     .insert(guest_large_page_pa, pt)
                     .map_err(|_| HypervisorError::ActiveMappingError)?;
+                trace!("Large page mapped to page table successfully");
             } else {
                 error!("No free page tables available for mapping");
                 return Err(HypervisorError::OutOfMemory);

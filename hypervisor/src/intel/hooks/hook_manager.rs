@@ -209,20 +209,14 @@ impl HookManager {
         debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
         // 1. Map the large page to the pre-allocated page table, if it hasn't been mapped already.
+        // We must map the large page to the pre-allocated page table before accessing it.
         debug!("Mapping large page");
         vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
 
-        let shadow_page_pa = {
-            let shadow_page_pa = vm
-                .hook_manager
-                .memory_manager
-                .get_shadow_page_as_ptr(guest_page_pa.as_u64())
-                .ok_or(HypervisorError::ShadowPageNotFound)?;
-            PAddr::from(shadow_page_pa)
-        };
-
         // 2. Check if the large page has already been split. If not, split it into 4KB pages.
-        if vm.primary_ept.is_large_page(guest_large_page_pa.as_u64()) {
+        debug!("Checking if large page has already been split");
+        if vm.primary_ept.is_large_page(guest_page_pa.as_u64()) {
+            // We must map the large page to the pre-allocated page table before accessing it.
             let pre_alloc_pt = vm
                 .hook_manager
                 .memory_manager
@@ -236,6 +230,7 @@ impl HookManager {
         // 3. Check if the guest page is already processed. If not, map the guest page to the shadow page.
         // Ensure the memory manager maintains a set of processed guest pages to track this mapping.
         if !vm.hook_manager.memory_manager.is_guest_page_processed(guest_page_pa.as_u64()) {
+            // We must map the guest page to the shadow page before accessing it.
             debug!("Mapping guest page and shadow page");
             vm.hook_manager.memory_manager.map_guest_to_shadow_page(
                 guest_page_pa.as_u64(),
@@ -244,6 +239,14 @@ impl HookManager {
                 ept_hook_type,
                 function_hash,
             )?;
+
+            // We must map the guest page to the shadow page before accessing it.
+            let shadow_page_pa = PAddr::from(
+                vm.hook_manager
+                    .memory_manager
+                    .get_shadow_page_as_ptr(guest_page_pa.as_u64())
+                    .ok_or(HypervisorError::ShadowPageNotFound)?,
+            );
 
             // 4. Copy the guest page to the shadow page if it hasn't been copied already, ensuring the shadow page contains the original function code.
             debug!("Copying guest page to shadow page: {:#x}", guest_page_pa.as_u64());
