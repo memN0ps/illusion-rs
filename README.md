@@ -209,6 +209,7 @@ Special thanks to:
 - [@felix-rs / @joshuа](https://github.com/felix-rs).
 - [Ryan McCrystal / @rmccrystal](https://github.com/rmccrystal).
 - [Jim Colerick (@vmprotect)](https://github.com/thug-shaker).
+- [Xitan (@xitan)](https://github.com/x1tan).
 
 ## License
 
