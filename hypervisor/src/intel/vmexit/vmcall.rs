@@ -43,7 +43,7 @@ pub enum VmcallCommand {
 ///
 /// * `HypervisorError::UnknownVmcallCommand`: Returned if the VMCALL command is not recognized.
 pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
-    debug!("Handling VMCALL VM exit...");
+    trace!("Handling VMCALL VM exit...");
     trace!("Register state before handling VM exit: {:?}", vm.guest_registers);
 
     let vmcall_number = vm.guest_registers.rax;
@@ -85,7 +85,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             .get_hook_info_by_function_pa(guest_page_pa.as_u64(), guest_function_pa.as_u64())
             .ok_or(HypervisorError::HookInfoNotFound)?;
 
-        trace!("Hook info: {:#x?}", hook_info);
+        debug!("Hook info: {:#x?}", hook_info);
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
         // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)
