@@ -58,6 +58,92 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - Debug: `cargo make build-debug`.
 - Release: `cargo make build-release`.
 
+## Usage
+
+1. **Build the Project**
+
+   Follow the build instructions provided in the previous sections to compile the project.
+
+2. **Set Up VMware Workstation**
+
+   Configure VMware Workstation to boot into the firmware setup on the next boot and to use the physical USB drive as the boot device:
+
+   - **Add a Hard Disk:**
+     - Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive1 and Usage: Use entire disk -> Next -> Finish.`
+   - **Add a Serial Port:**
+     - Go to `VM -> Settings -> Add Serial Port -> Finish`.
+     - Select `Use output file: C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt` to direct the Serial Port output from COM1 to the `logs.txt` file. (You can choose any location, but the preference is within the project directory).
+   - **Boot Options:**
+     - If you're not using the automated PowerShell script, start the VM by clicking `Power On to Firmware`.
+     - Select `Internal Shell (Unsupported option)` or `EFI VMware Virtual SCSI Hard Drive (1.0)`.
+
+3. **Run the PowerShell Script**
+
+   Execute the following PowerShell script to automate the setup process. Make sure to modify the paths according to your environment.
+
+   ```powershell
+   ### Change paths according to your environment ###
+
+   # Set build type to either 'debug' or 'release'
+   $buildType = "debug" # Use this line for a debug build
+   # $buildType = "release" # Uncomment this line and comment the above for a release build
+
+   # Define the file path to copy all EFI files based on the build type
+   $efiFilePaths = ".\target\x86_64-unknown-uefi\$buildType\*.efi"
+
+   # Define the destination path on the USB drive D:\
+   $usbFilePath = "D:\"
+
+   # Define the path to the VMX file
+   $vmxPath = "C:\Users\memN0ps\Documents\Virtual Machines\Class_Windows\Class_Windows.vmx"
+
+   # Define the path to the vmrun.exe file
+   $vmrunPath = "C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe"
+
+   # Define the path to the log file
+   $logFilePath = ".\logs.txt"
+
+   # Copy all EFI applications to the D:\ drive
+   Copy-Item -Path $efiFilePaths -Destination $usbFilePath
+
+   # Print the contents of the D:\ drive to verify the copy operation
+   Get-ChildItem -Path D:\ -Recurse
+
+   # Append configuration to the VMX file for booting into firmware setup on next boot
+   Add-Content -Path $vmxPath -Value "bios.forceSetupOnce = `"TRUE`""
+
+   # Check if the log file exists and delete it if it does
+   if (Test-Path $logFilePath) {
+       Remove-Item $logFilePath -Force
+       Write-Host "Log file $logFilePath deleted."
+   }
+
+   # Start the VMware VM and open the GUI. Attempt to boot to firmware (if supported).
+   & "$vmrunPath" -T ws start "$vmxPath" gui
+
+   # Wait for the log file to be created (e.g., by another process) before proceeding to tail it
+   while (-not (Test-Path $logFilePath)) {
+       Start-Sleep -Seconds 1
+       Write-Host "Waiting for log file to be created..."
+   }
+
+   # Tail the log file to display live updates from the start
+   Write-Host "Monitoring log file from the start for updates..."
+   Get-Content -Path $logFilePath -Wait
+   ```
+
+4. **Navigate to the USB Drive**
+
+   In the UEFI Shell, navigate to the USB drive and run the `loader.efi` file.
+
+5. **Start the Hypervisor**
+
+   The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
+
+6. **Interact with the Hypervisor**
+
+   Once Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, such as Hidden EPT hooks.
+
 ## Acknowledgments, References, and Motivation
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
