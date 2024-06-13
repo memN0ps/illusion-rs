@@ -31,11 +31,9 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     // Log the file, line, and column of the panic.
     if let Some(location) = info.location() {
         error!("[-] Panic in {} at ({}, {}):", location.file(), location.line(), location.column());
-        // Log the panic message if available.
-        if let Some(message) = info.message() {
-            error!("[-] {}", message);
-        }
     }
+    // Log the panic message.
+    error!("[-] {}", info);
 
     // Enter an infinite loop as the panic handler should not return.
     loop {}
