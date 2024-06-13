@@ -132,9 +132,13 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
    Get-Content -Path $logFilePath -Wait
    ```
 
+![VMware Workstation Boot Options](./images/vmware_firmware.png)
+
 4. **Navigate to the USB Drive**
 
    In the UEFI Shell, navigate to the USB drive and run the `loader.efi` file.
+
+![VMware Workstation UEFI Shell](./images/vmware_uefi.png)
 
 5. **Start the Hypervisor**
 
