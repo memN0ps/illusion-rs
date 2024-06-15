@@ -7,7 +7,7 @@
 
 use {
     crate::{
-        allocate::{box_zeroed, create_dummy_page},
+        allocator::box_zeroed,
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
@@ -15,6 +15,7 @@ use {
             descriptor::Descriptors,
             ept::Ept,
             hooks::hook_manager::HookManager,
+            page::Page,
             paging::PageTables,
             support::{rdmsr, vmclear, vmptrld, vmread},
             vmcs::Vmcs,
@@ -112,7 +113,8 @@ impl Vm {
         let hook_manager = HookManager::new()?;
 
         trace!("Creating dummy page filled with 0xffs");
-        let dummy_page_pa = create_dummy_page(0xff);
+        let dummy_page = unsafe { box_zeroed::<Page>() };
+        let dummy_page_pa = Box::into_raw(dummy_page) as u64;
 
         trace!("VM created");
 
