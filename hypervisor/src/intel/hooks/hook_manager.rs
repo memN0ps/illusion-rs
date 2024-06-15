@@ -1,6 +1,6 @@
 use {
     crate::{
-        allocate::ALLOCATED_MEMORY,
+        allocator::GLOBAL_ALLOCATOR,
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -15,7 +15,7 @@ use {
         },
         windows::kernel::KernelHook,
     },
-    alloc::{boxed::Box, vec::Vec},
+    alloc::boxed::Box,
     core::intrinsics::copy_nonoverlapping,
     log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
@@ -81,32 +81,29 @@ impl HookManager {
 
     /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.
     ///
-    /// This function iterates through the `ALLOCATED_MEMORY` set and calls `ept_hide_hypervisor_memory`
+    /// This function iterates through the used memory in the global allocator and calls `ept_hide_hypervisor_memory`
     /// for each page to split the 2MB pages into 4KB pages and fill the shadow page with a specified value.
     /// It then swaps the guest page with the shadow page and sets the desired permissions.
     ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
-    /// * `dummy_page_pa` - The physical address of the dummy page.
     /// * `page_permissions` - The desired permissions for the hooked page.
     ///
     /// # Returns
     ///
-    /// * Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
+    /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
-        let allocated_memory: Vec<(u64, u64)> = {
-            let allocated_memory = ALLOCATED_MEMORY.lock();
-            allocated_memory.iter().copied().collect()
-        };
+        // Get the used memory from the global allocator.
+        let used_memory = GLOBAL_ALLOCATOR.used();
 
-        debug!("Allocated memory ranges:");
-        for &(base, end) in &allocated_memory {
-            debug!("Memory range: {:#x} - {:#x}", base, end);
-        }
+        // Get the base address of the heap.
+        let heap_base_address = GLOBAL_ALLOCATOR.heap_base();
 
-        for &(base, _end) in &allocated_memory {
-            HookManager::ept_hide_hypervisor_memory(vm, base, page_permissions)?;
+        // Iterate through the used memory and hide each page.
+        for offset in (0..used_memory).step_by(4096) {
+            let guest_page_pa = unsafe { heap_base_address.add(offset) };
+            HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa as usize).align_down_to_base_page().as_u64(), page_permissions)?;
         }
 
         Ok(())
