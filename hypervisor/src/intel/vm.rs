@@ -27,11 +27,7 @@ use {
     alloc::boxed::Box,
     bit_field::BitField,
     log::*,
-    x86::{
-        bits64::{paging::BASE_PAGE_SIZE, rflags::RFlags},
-        msr,
-        vmx::vmcs,
-    },
+    x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
 };
 
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
@@ -158,7 +154,6 @@ impl Vm {
     pub fn activate_vmxon(&mut self) -> Result<(), HypervisorError> {
         trace!("Setting up VMXON region");
         self.vmxon_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
-        self.vmxon_region.data = [0; BASE_PAGE_SIZE - 4];
 
         self.setup_vmxon()?;
         trace!("VMXON region setup successfully!");
