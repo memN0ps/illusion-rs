@@ -4,8 +4,12 @@
 //! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
 
 use {
-    core::arch::global_asm,
-    hypervisor::{allocate::allocate_stack_space, intel::capture::GuestRegisters, vmm::start_hypervisor},
+    alloc::alloc::handle_alloc_error,
+    core::{alloc::Layout, arch::global_asm},
+    hypervisor::{
+        intel::{capture::GuestRegisters, page::Page},
+        vmm::start_hypervisor,
+    },
     log::debug,
 };
 
@@ -16,7 +20,14 @@ use {
 /// * `guest_registers` - The guest registers to use for the hypervisor.
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
-    let host_stack = allocate_stack_space(0x3000);
+
+    let layout = Layout::array::<Page>(0x10).unwrap();
+    let stack = unsafe { alloc::alloc::alloc_zeroed(layout) };
+    if stack.is_null() {
+        handle_alloc_error(layout);
+    }
+    let host_stack = stack as u64 + layout.size() as u64 - 0x10;
+    debug!("Stack range: {:#x?}", stack as u64..host_stack);
 
     unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack) };
 }
