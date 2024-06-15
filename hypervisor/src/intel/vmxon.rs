@@ -4,7 +4,7 @@
 //! It covers setting up the VMXON region, adjusting necessary control registers, and handling model-specific registers to meet Intel's virtualization requirements.
 
 use {
-    crate::{error::HypervisorError, intel::support::rdmsr},
+    crate::error::HypervisorError,
     bitfield::BitMut,
     x86::{controlregs, current::paging::BASE_PAGE_SIZE, msr},
     x86_64::registers::control::Cr4,
@@ -24,18 +24,6 @@ pub struct Vmxon {
 
     /// Data array constituting the rest of the VMXON region.
     pub data: [u8; BASE_PAGE_SIZE - 4],
-}
-
-impl Default for Vmxon {
-    /// Constructs a default `Vmxon` instance.
-    ///
-    /// Sets the revision ID to the value read from the IA32_VMX_BASIC MSR and initializes the data array to zeros, preparing the VMXON region for use.
-    fn default() -> Self {
-        Self {
-            revision_id: rdmsr(msr::IA32_VMX_BASIC) as u32,
-            data: [0; BASE_PAGE_SIZE - 4],
-        }
-    }
 }
 
 impl Vmxon {
