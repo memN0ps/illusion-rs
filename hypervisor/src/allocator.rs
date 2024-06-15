@@ -19,7 +19,7 @@ use {
 };
 
 /// The size of the heap in bytes.
-const HEAP_SIZE: usize = 0x800000; // 4MB
+const HEAP_SIZE: usize = 0x800000; // 8MB
 
 /// Reference to the system table, used to call the boot services pool memory
 /// allocation functions.
