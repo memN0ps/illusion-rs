@@ -95,7 +95,7 @@ impl Vm {
         host_paging.build_identity();
 
         trace!("Allocating MSR Bitmap");
-        let mut msr_bitmap = MsrBitmap::new();
+        let mut msr_bitmap = unsafe { box_zeroed::<MsrBitmap>() };
 
         trace!("Allocating Primary EPT");
         let mut primary_ept = unsafe { box_zeroed::<Ept>() };
