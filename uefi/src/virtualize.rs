@@ -7,6 +7,7 @@ use {
     alloc::alloc::handle_alloc_error,
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
+        allocator::STACK_SIZE,
         intel::{capture::GuestRegisters, page::Page},
         vmm::start_hypervisor,
     },
@@ -21,7 +22,7 @@ use {
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
 
-    let layout = Layout::array::<Page>(0x10).unwrap();
+    let layout = Layout::array::<Page>(STACK_SIZE).unwrap();
     let stack = unsafe { alloc::alloc::alloc_zeroed(layout) };
     if stack.is_null() {
         handle_alloc_error(layout);
