@@ -10,15 +10,12 @@ use {
     },
     uefi::{
         proto::loaded_image::LoadedImage,
-        table::{
-            boot::{BootServices, MemoryType},
-            Boot, SystemTable,
-        },
+        table::{boot::MemoryType, Boot, SystemTable},
     },
 };
 
 /// The size of the heap in bytes.
-const HEAP_SIZE: usize = 0x8000;
+const HEAP_SIZE: usize = 0x10000;
 
 /// Reference to the system table, used to call the boot services pool memory
 /// allocation functions.
@@ -32,7 +29,9 @@ pub struct GlobalAllocator {
     /// Atomic counter to track used memory.
     used_memory: AtomicUsize,
     /// Base address of the allocated heap.
-    heap_base_address: AtomicUsize,
+    heap_base_address: AtomicPtr<u8>,
+    /// Size of the allocated heap.
+    heap_size: usize,
 }
 
 impl GlobalAllocator {
@@ -44,7 +43,8 @@ impl GlobalAllocator {
     pub const fn new() -> Self {
         Self {
             used_memory: AtomicUsize::new(0),
-            heap_base_address: AtomicUsize::new(0),
+            heap_base_address: AtomicPtr::new(ptr::null_mut()),
+            heap_size: HEAP_SIZE,
         }
     }
 
@@ -69,8 +69,8 @@ impl GlobalAllocator {
 
         // Allocate the initial heap pool and set the base address.
         let heap_base = boot_services
-            .allocate_pool(MemoryType::LOADER_DATA, HEAP_SIZE)
-            .expect("Failed to allocate heap pool") as usize;
+            .allocate_pool(MemoryType::LOADER_DATA, self.heap_size)
+            .expect("Failed to allocate heap pool");
 
         self.heap_base_address.store(heap_base, Ordering::Release);
     }
@@ -89,19 +89,8 @@ impl GlobalAllocator {
     /// # Returns
     ///
     /// The base address of the heap.
-    pub fn heap_base(&self) -> usize {
+    pub fn heap_base(&self) -> *mut u8 {
         self.heap_base_address.load(Ordering::Acquire)
-    }
-
-    /// Access the boot services.
-    ///
-    /// # Returns
-    ///
-    /// A reference to the boot services.
-    fn boot_services(&self) -> *const BootServices {
-        let ptr = SYSTEM_TABLE.load(Ordering::Acquire);
-        let system_table = unsafe { SystemTable::from_ptr(ptr) }.expect("The system table handle is not available");
-        system_table.boot_services()
     }
 }
 
@@ -110,7 +99,7 @@ impl GlobalAllocator {
 pub static GLOBAL_ALLOCATOR: GlobalAllocator = GlobalAllocator::new();
 
 unsafe impl GlobalAlloc for GlobalAllocator {
-    /// Allocates memory using UEFI's pool allocation functions.
+    /// Allocates memory from the pre-allocated heap.
     ///
     /// # Arguments
     ///
@@ -122,50 +111,49 @@ unsafe impl GlobalAlloc for GlobalAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
-        let memory_type = MemoryType(MEMORY_TYPE.load(Ordering::Acquire));
-        let boot_services = &*self.boot_services();
 
-        let ptr = if align > 8 {
-            let full_alloc_ptr = boot_services
-                .allocate_pool(memory_type, size + align)
-                .ok()
-                .map(|ptr| ptr)
-                .unwrap_or(ptr::null_mut());
-            let mut offset = full_alloc_ptr.align_offset(align);
-            if offset == 0 {
-                offset = align;
-            }
-            let aligned_ptr = full_alloc_ptr.add(offset);
-            aligned_ptr.cast::<*mut u8>().sub(1).write(full_alloc_ptr);
-            aligned_ptr
-        } else {
-            boot_services
-                .allocate_pool(memory_type, size)
-                .ok()
-                .map(|ptr| ptr)
-                .unwrap_or(ptr::null_mut())
-        };
+        // Ensure the alignment and size fit within the heap bounds
+        let used = self.used();
+        let start = self.heap_base().add(used);
+        let aligned_start = start.add(start.align_offset(align));
+        let end = aligned_start.add(size);
 
-        if !ptr.is_null() {
-            self.used_memory.fetch_add(size, Ordering::SeqCst);
+        if end > self.heap_base().add(self.heap_size) {
+            return ptr::null_mut(); // Out of memory
         }
 
-        ptr
+        self.used_memory.fetch_add(end as usize - start as usize, Ordering::SeqCst);
+
+        aligned_start
     }
 
-    /// Deallocates memory using UEFI's pool allocation functions.
+    /// Deallocates memory within the pre-allocated heap.
     ///
     /// # Arguments
     ///
     /// * `ptr` - A pointer to the memory to be deallocated.
     /// * `layout` - The layout of the memory to be deallocated.
-    unsafe fn dealloc(&self, mut ptr: *mut u8, layout: Layout) {
-        if layout.align() > 8 {
-            ptr = (ptr as *const *mut u8).sub(1).read();
-        }
-        let boot_services = &*self.boot_services();
-        boot_services.free_pool(ptr).unwrap();
+    unsafe fn dealloc(&self, _ptr: *mut u8, layout: Layout) {
+        // Note: In a simple bump allocator, deallocation is often a no-op.
+        // You might want to implement more complex free logic if needed.
         self.used_memory.fetch_sub(layout.size(), Ordering::SeqCst);
+    }
+
+    /// Allocates zeroed memory from the pre-allocated heap.
+    ///
+    /// # Arguments
+    ///
+    /// * `layout` - The layout of the memory to be allocated.
+    ///
+    /// # Returns
+    ///
+    /// A pointer to the allocated and zeroed memory.
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        let ptr = self.alloc(layout);
+        if !ptr.is_null() {
+            ptr::write_bytes(ptr, 0, layout.size());
+        }
+        ptr
     }
 }
 
