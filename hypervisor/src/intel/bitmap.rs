@@ -1,4 +1,4 @@
-use {alloc::boxed::Box, bitfield::BitMut};
+use bitfield::BitMut;
 
 /// Enum representing the type of MSR access.
 ///
