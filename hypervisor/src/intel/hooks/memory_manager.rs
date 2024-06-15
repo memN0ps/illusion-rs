@@ -6,18 +6,13 @@ use {
     crate::{
         allocator::box_zeroed,
         error::HypervisorError,
+        global_const::{MAX_HOOKS_PER_PAGE, MAX_HOOK_ENTRIES},
         intel::{ept::Pt, hooks::hook_manager::EptHookType, page::Page},
     },
     alloc::boxed::Box,
     heapless::{LinearMap, Vec},
     log::{error, trace},
 };
-
-/// The maximum number of hooks supported by the hypervisor. Change this value as needed.
-const MAX_HOOK_ENTRIES: usize = 64;
-
-/// The maximum number of hooks per page supported by the hypervisor. Change this value as needed.
-const MAX_HOOKS_PER_PAGE: usize = 64;
 
 /// Represents the hook information for a specific guest virtual address and EPT hook type.
 #[derive(Debug, Clone)]
