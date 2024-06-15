@@ -12,6 +12,8 @@ path = "src/lib.rs"
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
 x86_64 = "0.15.0" # https://crates.io/crates/x86_64
+uefi = { version = "0.28.0", features = ["alloc"] } # https://crates.io/crates/uefi
+#uefi-services = { version = "0.25.0", default-features = false } # https://crates.io/crates/uefi-services
 thiserror-no-std = "2.0.2" # https://crates.io/crates/thiserror-no-std
 bitfield = "0.15.0" # https://crates.io/crates/bitfield
 bit_field = "0.10.2" # https://crates.io/crates/bit_field
