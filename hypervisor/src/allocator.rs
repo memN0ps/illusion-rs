@@ -2,6 +2,10 @@
 //! It tracks memory usage and ensures thread-safe operations.
 
 use {
+    alloc::{
+        alloc::{alloc_zeroed, handle_alloc_error},
+        boxed::Box,
+    },
     core::{
         alloc::{GlobalAlloc, Layout},
         ffi::c_void,
@@ -182,4 +186,27 @@ pub unsafe fn init_heap(system_table: &SystemTable<Boot>) {
 /// This function must be called before exiting UEFI boot services.
 pub fn exit_boot_services() {
     SYSTEM_TABLE.store(ptr::null_mut(), Ordering::Release);
+}
+
+/// Allocates and zeros memory for a given type, returning a boxed instance.
+///
+/// # Safety
+///
+/// This function allocates memory and initializes it to zero. It must be called
+/// in a safe context where allocation errors and uninitialized memory access are handled.
+///
+/// # Returns
+///
+/// Returns a `Box<T>` pointing to the zero-initialized memory of type `T`.
+///
+/// # Panics
+///
+/// Panics if memory allocation fails.
+pub unsafe fn box_zeroed<T>() -> Box<T> {
+    let layout = Layout::new::<T>();
+    let ptr = unsafe { alloc_zeroed(layout) }.cast::<T>();
+    if ptr.is_null() {
+        handle_alloc_error(layout);
+    }
+    unsafe { Box::from_raw(ptr) }
 }
