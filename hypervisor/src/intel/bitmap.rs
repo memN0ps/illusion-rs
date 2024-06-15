@@ -47,28 +47,6 @@ pub struct MsrBitmap {
 }
 
 impl MsrBitmap {
-    /// Creates a new MSR bitmap with all bits cleared.
-    ///
-    /// # Returns
-    ///
-    /// * A `Result` indicating the success or failure of the setup process.
-    pub fn new() -> Box<MsrBitmap> {
-        log::trace!("Setting up MSR Bitmap");
-
-        let _instance = Self {
-            read_low_msrs: [0; 0x400],
-            read_high_msrs: [0; 0x400],
-            write_low_msrs: [0; 0x400],
-            write_high_msrs: [0; 0x400],
-        };
-
-        let msr_bitmap = Box::new(_instance);
-
-        log::trace!("MSR Bitmap setup successfully!");
-
-        msr_bitmap
-    }
-
     /// Modifies the interception for a specific MSR based on the specified operation and access type.
     ///
     /// # Arguments
