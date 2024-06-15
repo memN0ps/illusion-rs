@@ -7,7 +7,7 @@ use {
     alloc::alloc::handle_alloc_error,
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
-        allocator::STACK_SIZE,
+        global_const::STACK_SIZE,
         intel::{capture::GuestRegisters, page::Page},
         vmm::start_hypervisor,
     },
