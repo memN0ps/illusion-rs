@@ -123,19 +123,19 @@ impl HookManager {
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
     fn ept_hide_hypervisor_memory(vm: &mut Vm, guest_page_pa: u64, page_permissions: AccessType) -> Result<(), HypervisorError> {
         let guest_page_pa = PAddr::from(guest_page_pa).align_down_to_base_page();
-        debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
+        trace!("Guest page PA: {:#x}", guest_page_pa.as_u64());
 
         let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
-        debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
+        trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
         let dummy_page_pa = vm.dummy_page_pa;
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
-        debug!("Mapping large page");
+        trace!("Mapping large page");
         // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
         vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
 
-        debug!("Filling shadow page with 0xff");
+        trace!("Filling shadow page with 0xff");
         Self::unsafe_fill_shadow_page(PAddr::from(dummy_page_pa), 0xff);
 
         let pre_alloc_pt = vm
@@ -146,18 +146,18 @@ impl HookManager {
 
         // Check if a guest page has already been split.
         if vm.primary_ept.is_large_page(guest_page_pa.as_u64()) {
-            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+            trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
             vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
         }
 
-        debug!("Swapping guest page: {:#x} with dummy page: {:#x}", guest_page_pa.as_u64(), dummy_page_pa);
+        trace!("Swapping guest page: {:#x} with dummy page: {:#x}", guest_page_pa.as_u64(), dummy_page_pa);
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), dummy_page_pa, page_permissions, pre_alloc_pt)?;
 
         invept_all_contexts();
         invvpid_all_contexts();
 
-        debug!("EPT hide hypervisor memory completed successfully");
+        trace!("EPT hide hypervisor memory completed successfully");
 
         Ok(())
     }
