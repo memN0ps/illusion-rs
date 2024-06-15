@@ -32,7 +32,6 @@ use {
                 xsetbv::handle_xsetbv,
                 ExitType,
             },
-            vmx::Vmx,
         },
     },
     log::*,
@@ -63,27 +62,27 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("CPU is not supported: {:?}", e),
     };
 
-    let mut vmx = Vmx::new();
-
-    match vmx.activate_vmxon() {
-        Ok(_) => debug!("VMX enabled"),
-        Err(e) => panic!("Failed to enable VMX: {:?}", e),
-    };
-
     let mut vm = match Vm::new(&guest_registers) {
         Ok(vm) => vm,
         Err(e) => panic!("Failed to create VM: {:?}", e),
     };
+
+    match vm.activate_vmxon() {
+        Ok(_) => debug!("VMX enabled"),
+        Err(e) => panic!("Failed to enable VMX: {:?}", e),
+    }
 
     match vm.activate_vmcs() {
         Ok(_) => debug!("VMCS activated"),
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
 
+    /*
     match HookManager::hide_hypervisor_memory(&mut vm, AccessType::READ_WRITE_EXECUTE) {
         Ok(_) => debug!("Hypervisor memory hidden"),
         Err(e) => panic!("Failed to hide hypervisor memory: {:?}", e),
     };
+     */
 
     info!("Launching the VM until a vmexit occurs...");
 
