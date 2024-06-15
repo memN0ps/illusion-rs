@@ -2,6 +2,7 @@
 //! It tracks memory usage and ensures thread-safe operations.
 
 use {
+    crate::global_const::HEAP_SIZE,
     alloc::{
         alloc::{alloc_zeroed, handle_alloc_error},
         boxed::Box,
@@ -17,9 +18,6 @@ use {
         table::{boot::MemoryType, Boot, SystemTable},
     },
 };
-
-/// The size of the heap in bytes.
-const HEAP_SIZE: usize = 0x800000; // 8MB
 
 /// Reference to the system table, used to call the boot services pool memory
 /// allocation functions.
