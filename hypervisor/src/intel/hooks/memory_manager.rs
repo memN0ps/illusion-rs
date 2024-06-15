@@ -4,7 +4,7 @@
 
 use {
     crate::{
-        allocate::box_zeroed,
+        allocator::box_zeroed,
         error::HypervisorError,
         intel::{ept::Pt, hooks::hook_manager::EptHookType, page::Page},
     },
