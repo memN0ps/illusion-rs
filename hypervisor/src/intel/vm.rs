@@ -17,16 +17,21 @@ use {
             hooks::hook_manager::HookManager,
             page::Page,
             paging::PageTables,
-            support::{rdmsr, vmclear, vmptrld, vmread},
+            support::{rdmsr, vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
+            vmxon::Vmxon,
         },
     },
     alloc::boxed::Box,
     bit_field::BitField,
     log::*,
-    x86::{bits64::rflags::RFlags, vmx::vmcs},
+    x86::{
+        bits64::{paging::BASE_PAGE_SIZE, rflags::RFlags},
+        msr,
+        vmx::vmcs,
+    },
 };
 
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
@@ -35,6 +40,9 @@ use {
 /// It holds the VMCS region, guest and host descriptor tables, paging information, MSR bitmaps,
 /// and the state of guest registers. Additionally, it tracks whether the VM has been launched.
 pub struct Vm {
+    /// The VMXON (Virtual Machine Extensions On) region for the VM.
+    pub vmxon_region: Box<Vmxon>,
+
     /// The VMCS (Virtual Machine Control Structure) for the VM.
     pub vmcs_region: Box<Vmcs>,
 
@@ -85,8 +93,12 @@ impl Vm {
     /// any part of the setup fails.
     pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
         trace!("Creating VM");
-        let mut vmcs_region = unsafe { box_zeroed::<Vmcs>() };
-        vmcs_region.revision_id = rdmsr(x86::msr::IA32_VMX_BASIC) as u32;
+
+        trace!("Allocating VMXON region");
+        let vmxon_region = unsafe { box_zeroed::<Vmxon>() };
+
+        trace!("Allocating VMCS region");
+        let vmcs_region = unsafe { box_zeroed::<Vmcs>() };
 
         trace!("Allocating Memory for Host Paging");
         let mut host_paging = unsafe { box_zeroed::<PageTables>() };
@@ -107,7 +119,7 @@ impl Vm {
         let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
 
         trace!("Modifying MSR interception for LSTAR MSR write access");
-        msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+        msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
         trace!("Creating EPT hook manager");
         let hook_manager = HookManager::new()?;
@@ -119,6 +131,7 @@ impl Vm {
         trace!("VM created");
 
         Ok(Self {
+            vmxon_region,
             vmcs_region,
             host_paging,
             hook_manager,
@@ -133,6 +146,61 @@ impl Vm {
         })
     }
 
+    /// Activates the VMXON region to enable VMX operation.
+    ///
+    /// Sets up the VMXON region and executes the VMXON instruction. This involves configuring control registers,
+    /// adjusting the IA32_FEATURE_CONTROL MSR, and validating the VMXON region's revision ID to ensure the CPU is ready
+    /// for VMX operation mode.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if any step in the activation process fails.
+    pub fn activate_vmxon(&mut self) -> Result<(), HypervisorError> {
+        trace!("Setting up VMXON region");
+        self.vmxon_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
+        self.vmxon_region.data = [0; BASE_PAGE_SIZE - 4];
+
+        self.setup_vmxon()?;
+        trace!("VMXON region setup successfully!");
+
+        trace!("Executing VMXON instruction");
+        vmxon(&mut self.vmxon_region as *const _ as _);
+        trace!("VMXON executed successfully!");
+
+        Ok(())
+    }
+
+    /// Prepares the system for VMX operation by configuring necessary control registers and MSRs.
+    ///
+    /// Ensures that the system meets all prerequisites for VMX operation as defined by Intel's specifications.
+    /// This includes enabling VMX operation through control register modifications, setting the lock bit in
+    /// IA32_FEATURE_CONTROL MSR, and adjusting mandatory CR0 and CR4 bits.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if all configurations are successfully applied, or an `Err(HypervisorError)` if adjustments fail.
+    fn setup_vmxon(&mut self) -> Result<(), HypervisorError> {
+        trace!("Enabling Virtual Machine Extensions (VMX)");
+        Vmxon::enable_vmx_operation();
+        trace!("VMX enabled");
+
+        trace!("Adjusting IA32_FEATURE_CONTROL MSR");
+        Vmxon::adjust_feature_control_msr()?;
+        trace!("IA32_FEATURE_CONTROL MSR adjusted");
+
+        trace!("Setting CR0 bits");
+        Vmxon::set_cr0_bits();
+        trace!("CR0 bits set");
+
+        trace!("Setting CR4 bits");
+        Vmxon::set_cr4_bits();
+        trace!("CR4 bits set");
+
+        self.vmxon_region.revision_id.set_bit(31, false);
+
+        Ok(())
+    }
+
     /// Activates the VMCS region for the VM, preparing it for execution.
     ///
     /// Clears and loads the VMCS region, setting it as the current VMCS for VMX operations.
@@ -143,6 +211,7 @@ impl Vm {
     /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if activation fails.
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
         trace!("Activating VMCS");
+        self.vmcs_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
         self.vmcs_region.revision_id.set_bit(31, false);
 
         // Clear the VMCS region.
