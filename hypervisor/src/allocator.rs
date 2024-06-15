@@ -15,7 +15,7 @@ use {
 };
 
 /// The size of the heap in bytes.
-const HEAP_SIZE: usize = 0x10000;
+const HEAP_SIZE: usize = 0x800000; // 4MB
 
 /// Reference to the system table, used to call the boot services pool memory
 /// allocation functions.
@@ -111,18 +111,22 @@ unsafe impl GlobalAlloc for GlobalAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
+        log::debug!("Requested allocation: size = {:#x}, align = {:#x}", size, align);
 
         // Ensure the alignment and size fit within the heap bounds
         let used = self.used();
+        log::debug!("Current used memory: {:#x}", used);
         let start = self.heap_base().add(used);
         let aligned_start = start.add(start.align_offset(align));
         let end = aligned_start.add(size);
 
         if end > self.heap_base().add(self.heap_size) {
+            log::error!("Out of memory: requested end = {:#x}, heap end = {:#x}", end as usize, self.heap_base().add(self.heap_size) as usize);
             return ptr::null_mut(); // Out of memory
         }
 
         self.used_memory.fetch_add(end as usize - start as usize, Ordering::SeqCst);
+        log::debug!("Allocated memory: start = {:#x}, end = {:#x}", start as usize, end as usize);
 
         aligned_start
     }
