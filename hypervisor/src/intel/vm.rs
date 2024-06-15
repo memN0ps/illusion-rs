@@ -154,12 +154,13 @@ impl Vm {
     pub fn activate_vmxon(&mut self) -> Result<(), HypervisorError> {
         trace!("Setting up VMXON region");
         self.vmxon_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
+        self.vmxon_region.revision_id.set_bit(31, false);
 
         self.setup_vmxon()?;
         trace!("VMXON region setup successfully!");
 
         trace!("Executing VMXON instruction");
-        vmxon(&mut self.vmxon_region as *const _ as _);
+        vmxon(self.vmxon_region.as_ref() as *const _ as _);
         trace!("VMXON executed successfully!");
 
         Ok(())
@@ -190,8 +191,6 @@ impl Vm {
         trace!("Setting CR4 bits");
         Vmxon::set_cr4_bits();
         trace!("CR4 bits set");
-
-        self.vmxon_region.revision_id.set_bit(31, false);
 
         Ok(())
     }
