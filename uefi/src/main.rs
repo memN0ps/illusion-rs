@@ -11,7 +11,10 @@ extern crate alloc;
 
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
-    hypervisor::logger::{self, SerialPort},
+    hypervisor::{
+        allocator::init_heap,
+        logger::{self, SerialPort},
+    },
     log::*,
     uefi::prelude::*,
 };
@@ -53,12 +56,17 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// The status of the application execution. Returns `Status::SUCCESS` on successful execution,
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
-fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    // Initialize logging with the COM2 port and set the level filter to Trace.
-    logger::init(SerialPort::COM1, LevelFilter::Debug);
+fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
+    // Initialize the allocator BEFORE it's used.
+    //
+    // This unsafe block is necessary because the `init_heap` function must be called exactly once
+    // before any allocations are made. It initializes the heap allocator with the system table.
+    unsafe {
+        init_heap(&system_table);
+    }
 
-    // Initialize UEFI services.
-    uefi::helpers::init(&mut system_table).unwrap();
+    // Initialize logging with the COM2 port and set the level filter to Debug.
+    logger::init(SerialPort::COM1, LevelFilter::Trace);
 
     info!("The Matrix is an illusion");
 
