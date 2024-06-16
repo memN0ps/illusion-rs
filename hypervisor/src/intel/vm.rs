@@ -17,7 +17,7 @@ use {
             hooks::hook_manager::HookManager,
             page::Page,
             paging::PageTables,
-            support::{rdmsr, vmclear, vmptrld, vmread, vmxon},
+            support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
@@ -25,7 +25,6 @@ use {
         },
     },
     alloc::boxed::Box,
-    bit_field::BitField,
     log::*,
     x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
 };
@@ -37,10 +36,10 @@ use {
 /// and the state of guest registers. Additionally, it tracks whether the VM has been launched.
 pub struct Vm {
     /// The VMXON (Virtual Machine Extensions On) region for the VM.
-    pub vmxon_region: Box<Vmxon>,
+    pub vmxon_region: Vmxon,
 
     /// The VMCS (Virtual Machine Control Structure) for the VM.
-    pub vmcs_region: Box<Vmcs>,
+    pub vmcs_region: Vmcs,
 
     /// Descriptor tables for the guest state.
     pub guest_descriptor: Descriptors,
@@ -91,10 +90,10 @@ impl Vm {
         trace!("Creating VM");
 
         trace!("Allocating VMXON region");
-        let vmxon_region = unsafe { box_zeroed::<Vmxon>() };
+        let vmxon_region = Vmxon::new();
 
         trace!("Allocating VMCS region");
-        let vmcs_region = unsafe { box_zeroed::<Vmcs>() };
+        let vmcs_region = Vmcs::new();
 
         trace!("Allocating Memory for Host Paging");
         let mut host_paging = unsafe { box_zeroed::<PageTables>() };
@@ -153,14 +152,11 @@ impl Vm {
     /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if any step in the activation process fails.
     pub fn activate_vmxon(&mut self) -> Result<(), HypervisorError> {
         trace!("Setting up VMXON region");
-        self.vmxon_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
-        self.vmxon_region.revision_id.set_bit(31, false);
-
         self.setup_vmxon()?;
         trace!("VMXON region setup successfully!");
 
         trace!("Executing VMXON instruction");
-        vmxon(self.vmxon_region.as_ref() as *const _ as _);
+        vmxon(&self.vmxon_region as *const _ as _);
         trace!("VMXON executed successfully!");
 
         Ok(())
@@ -205,15 +201,12 @@ impl Vm {
     /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if activation fails.
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
         trace!("Activating VMCS");
-        self.vmcs_region.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
-        self.vmcs_region.revision_id.set_bit(31, false);
-
         // Clear the VMCS region.
-        vmclear(self.vmcs_region.as_ref() as *const _ as _);
+        vmclear(&self.vmcs_region as *const _ as _);
         trace!("VMCLEAR successful!");
 
         // Load current VMCS pointer.
-        vmptrld(self.vmcs_region.as_ref() as *const _ as _);
+        vmptrld(&self.vmcs_region as *const _ as _);
         trace!("VMPTRLD successful!");
 
         self.setup_vmcs()?;

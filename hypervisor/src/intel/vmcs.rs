@@ -19,6 +19,7 @@ use {
         },
     },
     alloc::boxed::Box,
+    bit_field::BitField,
     core::fmt,
     x86::{
         bits64::{paging::BASE_PAGE_SIZE, rflags},
@@ -44,21 +45,21 @@ pub struct Vmcs {
     pub reserved: [u8; BASE_PAGE_SIZE - 8],
 }
 
-impl Default for Vmcs {
+impl Vmcs {
     /// Constructs a default `Vmcs` instance with the necessary revision ID.
     ///
     /// Initializes the VMCS with the appropriate revision identifier obtained from the IA32_VMX_BASIC MSR,
     /// sets the abort indicator to 0, and fills the reserved area with zeros, preparing the VMCS for use.
-    fn default() -> Self {
+    pub fn new() -> Self {
+        let mut revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
+        revision_id.set_bit(31, false);
         Self {
-            revision_id: rdmsr(msr::IA32_VMX_BASIC) as u32,
+            revision_id,
             abort_indicator: 0,
             reserved: [0; BASE_PAGE_SIZE - 8],
         }
     }
-}
 
-impl Vmcs {
     /// Initialize the guest state for the currently loaded VMCS.
     ///
     /// The method sets up various guest state fields in the VMCS as per the
