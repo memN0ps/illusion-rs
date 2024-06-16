@@ -66,7 +66,7 @@ impl HookManager {
     pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = MemoryManager::new()?;
+        let memory_manager = MemoryManager::new();
         let kernel_hook = Some(KernelHook::new()?);
 
         Ok(Self {
@@ -135,7 +135,7 @@ impl HookManager {
         trace!("Mapping large page");
         // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
         vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
-        
+
         let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
