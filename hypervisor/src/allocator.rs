@@ -370,18 +370,39 @@ pub fn allocate_host_stack() -> *mut u8 {
     allocated_pages as *mut u8
 }
 
-// Structure to store allocated memory ranges
+/// Structure to store allocated memory ranges.
+///
+/// This struct is used to keep track of memory allocations by storing the
+/// start address and size of each allocated memory block.
 #[derive(Debug)]
 pub struct MemoryRange {
+    /// The start address of the allocated memory range.
     pub start: usize,
+    /// The size of the allocated memory range.
     pub size: usize,
 }
 
-// Global list to store allocated memory ranges
+/// Global list to store allocated memory ranges.
+///
+/// This global mutex-protected vector keeps track of all allocated memory ranges
+/// for monitoring and debugging purposes.
 pub static ALLOCATED_MEMORY: Mutex<Vec<MemoryRange>> = Mutex::new(Vec::new());
+
+/// Atomic counter to track the total allocated memory size.
+///
+/// This atomic counter is incremented whenever a new memory block is allocated
+/// and provides a quick way to get the total allocated memory size.
 static TOTAL_ALLOCATED_MEMORY: AtomicUsize = AtomicUsize::new(0);
 
-// Function to record an allocation
+/// Records an allocation by adding the memory range to the global list and updating the total allocated memory.
+///
+/// This function is called whenever a new memory block is allocated. It stores the start address
+/// and size of the allocated memory in the global list and updates the total allocated memory counter.
+///
+/// # Arguments
+///
+/// * `start` - The start address of the allocated memory range.
+/// * `size` - The size of the allocated memory range.
 pub fn record_allocation(start: usize, size: usize) {
     let mut allocated_memory = ALLOCATED_MEMORY.lock();
     allocated_memory.push(MemoryRange { start, size });
@@ -389,6 +410,9 @@ pub fn record_allocation(start: usize, size: usize) {
 }
 
 /// Prints the tracked memory allocations.
+///
+/// This function iterates over all recorded memory allocations and prints the start address
+/// and size of each allocated memory range. It also prints the total allocated memory size.
 pub fn print_tracked_allocations() {
     let allocated_memory = ALLOCATED_MEMORY.lock();
     for range in allocated_memory.iter() {
