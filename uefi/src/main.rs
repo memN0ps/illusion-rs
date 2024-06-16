@@ -12,7 +12,7 @@ extern crate alloc;
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
     hypervisor::{
-        allocator::init_heap,
+        allocator::init_system_table,
         logger::{self, SerialPort},
     },
     log::*,
@@ -57,12 +57,8 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
 fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
-    // Initialize the allocator BEFORE it's used.
-    //
-    // This unsafe block is necessary because the `init_heap` function must be called exactly once
-    // before any allocations are made. It initializes the heap allocator with the system table.
     unsafe {
-        init_heap(&system_table);
+        init_system_table(&system_table);
     }
 
     // Initialize logging with the COM2 port and set the level filter to Debug.
