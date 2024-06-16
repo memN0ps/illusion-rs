@@ -29,6 +29,9 @@ pub static mut HEAP: ListHeap<HEAP_SIZE> = ListHeap::new();
 #[repr(align(0x10))]
 pub struct ListHeap<const SIZE: usize>(core::mem::MaybeUninit<[u8; SIZE]>);
 
+/// Static mutex to ensure thread safety during allocation and deallocation.
+static ALLOCATOR_MUTEX: Mutex<()> = Mutex::new(());
+
 impl<const SIZE: usize> ListHeap<SIZE> {
     /// Creates a new, uninitialized ListHeap.
     ///
@@ -192,6 +195,8 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
     ///
     /// A pointer to the allocated memory.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
+
         let mut link = self.first_link();
 
         // The required alignment and size for this type
@@ -247,6 +252,8 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
         if ptr.is_null() {
             return;
         }
+        let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
+
         let link = &mut *(ptr.sub(size_of::<Link>()) as *mut Link);
 
         // Sanity check, don't deallocate the last link
@@ -277,6 +284,8 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
     ///
     /// A pointer to the reallocated memory.
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
+
         let link = &mut *(ptr.sub(size_of::<Link>()) as *mut Link);
 
         // Just resize the buffer
@@ -360,6 +369,8 @@ pub unsafe fn initialize_system_table_and_heap(system_table: &SystemTable<Boot>)
 ///
 /// This function will panic if memory allocation fails.
 pub fn allocate_host_stack() -> *mut u8 {
+    let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
+
     // Get the system table and boot services
     let system_table = SYSTEM_TABLE.load(Ordering::Acquire);
     let boot_services = unsafe { &(*system_table).boot_services() };
