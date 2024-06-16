@@ -4,6 +4,7 @@
 //! Credits Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
 
 use {
+    hypervisor::allocator::record_allocation,
     log::debug,
     uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},
 };
@@ -29,6 +30,7 @@ pub fn zap_relocations(boot_service: &BootServices) -> uefi::Result<()> {
     let (image_base, image_size) = loaded_image.info();
     let image_base = image_base as usize;
     let image_range = image_base..image_base + image_size as usize;
+    record_allocation(image_base, image_size as usize);
 
     // Log the image base address range for debugging purposes.
     debug!("Image base: {:#x?}", image_range);
