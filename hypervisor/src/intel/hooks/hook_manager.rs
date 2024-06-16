@@ -1,6 +1,6 @@
 use {
     crate::{
-        allocator::GLOBAL_ALLOCATOR,
+        allocator::ALLOCATED_MEMORY,
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -81,7 +81,7 @@ impl HookManager {
 
     /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.
     ///
-    /// This function iterates through the used memory in the global allocator and calls `ept_hide_hypervisor_memory`
+    /// This function iterates through the recorded memory allocations and calls `ept_hide_hypervisor_memory`
     /// for each page to split the 2MB pages into 4KB pages and fill the shadow page with a specified value.
     /// It then swaps the guest page with the shadow page and sets the desired permissions.
     ///
@@ -94,16 +94,15 @@ impl HookManager {
     ///
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
-        // Get the used memory from the global allocator.
-        let used_memory = GLOBAL_ALLOCATOR.used();
+        // Lock the allocated memory list to ensure thread safety.
+        let allocated_memory = ALLOCATED_MEMORY.lock();
 
-        // Get the base address of the heap.
-        let heap_base_address = GLOBAL_ALLOCATOR.heap_base();
-
-        // Iterate through the used memory and hide each page.
-        for offset in (0..used_memory).step_by(4096) {
-            let guest_page_pa = unsafe { heap_base_address.add(offset) };
-            HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa as usize).align_down_to_base_page().as_u64(), page_permissions)?;
+        // Iterate through the recorded memory allocations and hide each page.
+        for range in allocated_memory.iter() {
+            for offset in (0..range.size).step_by(BASE_PAGE_SIZE) {
+                let guest_page_pa = range.start + offset;
+                HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
+            }
         }
 
         Ok(())
