@@ -7,7 +7,7 @@
 
 use {
     crate::intel::support::sgdt,
-    alloc::{boxed::Box, vec::Vec},
+    alloc::vec::Vec,
     x86::{
         dtables::DescriptorTablePointer,
         segmentation::{
@@ -157,7 +157,7 @@ impl Descriptors {
     ///
     /// A slice of the GDT entries represented as `u64` values.
     pub fn from_pointer(pointer: &DescriptorTablePointer<u64>) -> &[u64] {
-        unsafe { core::slice::from_raw_parts(pointer.base.cast::<u64>(), (pointer.limit + 1) as usize / core::mem::size_of::<u64>()) }
+        unsafe { core::slice::from_raw_parts(pointer.base.cast::<u64>(), (pointer.limit + 1) as usize / size_of::<u64>()) }
     }
 }
 
@@ -180,7 +180,7 @@ pub struct TaskStateSegment {
     /// The actual TSS data.
     #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
-    segment: Box<TaskStateSegmentRaw>,
+    segment: TaskStateSegmentRaw,
 }
 
 /// Initializes a default TSS.
@@ -192,10 +192,11 @@ pub struct TaskStateSegment {
 /// A default `TaskStateSegment` instance.
 impl Default for TaskStateSegment {
     fn default() -> Self {
-        let segment = Box::new(TaskStateSegmentRaw([0; 104]));
+        let segment = TaskStateSegmentRaw([0; 104]);
+        let base = &segment as *const TaskStateSegmentRaw as u64;
         Self {
-            base: segment.as_ref() as *const _ as u64,
-            limit: core::mem::size_of_val(segment.as_ref()) as u64 - 1,
+            base,
+            limit: size_of_val(&segment) as u64 - 1,
             ar: 0x8b00,
             segment,
         }
