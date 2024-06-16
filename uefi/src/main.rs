@@ -12,7 +12,7 @@ extern crate alloc;
 use {
     crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
     hypervisor::{
-        allocator::init_system_table,
+        allocator::initialize_system_table_and_heap,
         logger::{self, SerialPort},
     },
     log::*,
@@ -58,7 +58,7 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 #[entry]
 fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     unsafe {
-        init_system_table(&system_table);
+        initialize_system_table_and_heap(&system_table);
     }
 
     // Initialize logging with the COM2 port and set the level filter to Debug.
