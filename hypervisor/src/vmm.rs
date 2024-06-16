@@ -77,12 +77,10 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
 
-    /*
     match HookManager::hide_hypervisor_memory(&mut vm, AccessType::READ_WRITE_EXECUTE) {
         Ok(_) => debug!("Hypervisor memory hidden"),
         Err(e) => panic!("Failed to hide hypervisor memory: {:?}", e),
     };
-     */
 
     info!("Launching the VM until a vmexit occurs...");
 
