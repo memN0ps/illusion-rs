@@ -126,7 +126,7 @@ impl HookManager {
         let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
         trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        let dummy_page_pa = vm.dummy_page_pa;
+        let dummy_page_pa = vm.dummy_page.as_ptr() as u64;
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
         trace!("Mapping large page");

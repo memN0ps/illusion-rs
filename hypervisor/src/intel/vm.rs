@@ -7,7 +7,6 @@
 
 use {
     crate::{
-        allocator::box_zeroed,
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
@@ -24,7 +23,6 @@ use {
             vmxon::Vmxon,
         },
     },
-    alloc::boxed::Box,
     log::*,
     x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
 };
@@ -68,8 +66,8 @@ pub struct Vm {
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
 
-    /// Physical address of a dummy page.
-    pub dummy_page_pa: u64,
+    /// The dummy page to use for hooking.
+    pub dummy_page: Page,
 }
 
 impl Vm {
@@ -120,8 +118,7 @@ impl Vm {
         let hook_manager = HookManager::new()?;
 
         trace!("Creating dummy page filled with 0xffs");
-        let dummy_page = unsafe { box_zeroed::<Page>() };
-        let dummy_page_pa = Box::into_raw(dummy_page) as u64;
+        let dummy_page = Page::new();
 
         trace!("VM created");
 
@@ -137,7 +134,7 @@ impl Vm {
             primary_eptp,
             guest_registers: guest_registers.clone(),
             has_launched: false,
-            dummy_page_pa,
+            dummy_page,
         })
     }
 

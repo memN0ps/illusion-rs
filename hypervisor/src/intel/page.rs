@@ -49,4 +49,22 @@ impl Page {
     pub fn size() -> usize {
         BASE_PAGE_SIZE
     }
+
+    /// Returns a pointer to the page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `*const u8` - A pointer to the page buffer.
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
+    }
+
+    /// Returns a mutable pointer to the page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `*mut u8` - A mutable pointer to the page buffer.
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
+        self.0.as_mut_ptr()
+    }
 }
