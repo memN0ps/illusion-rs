@@ -325,20 +325,26 @@ pub unsafe fn box_zeroed<T>() -> Box<T> {
 /// allocation functions.
 static SYSTEM_TABLE: AtomicPtr<SystemTable<Boot>> = AtomicPtr::new(ptr::null_mut());
 
-/// Initializes the system table.
+/// Initializes the system table and resets the global heap.
 ///
-/// This function must be called before any memory allocation operations are performed.
+/// This function must be called before any memory allocation operations are performed. It initializes
+/// the system table reference and resets the global heap to its default state.
 ///
 /// # Safety
 ///
 /// This function is unsafe because it must be called exactly once and must be called
 /// before any allocations are made.
 ///
+/// # Important
+///
+/// This function must be called to ensure that the global allocator is properly initialized and reset.
+///
 /// # Arguments
 ///
 /// * `system_table` - A reference to the UEFI system table.
-pub unsafe fn init_system_table(system_table: &SystemTable<Boot>) {
+pub unsafe fn initialize_system_table_and_heap(system_table: &SystemTable<Boot>) {
     SYSTEM_TABLE.store(system_table as *const _ as *mut _, Ordering::Release);
+    HEAP.reset();
 }
 
 /// Allocates a block of memory pages using UEFI's allocate_pages function.
