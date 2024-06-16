@@ -372,13 +372,13 @@ pub fn allocate_host_stack() -> *mut u8 {
 
 // Structure to store allocated memory ranges
 #[derive(Debug)]
-struct MemoryRange {
-    start: usize,
-    size: usize,
+pub struct MemoryRange {
+    pub start: usize,
+    pub size: usize,
 }
 
 // Global list to store allocated memory ranges
-static ALLOCATED_MEMORY: Mutex<Vec<MemoryRange>> = Mutex::new(Vec::new());
+pub static ALLOCATED_MEMORY: Mutex<Vec<MemoryRange>> = Mutex::new(Vec::new());
 static TOTAL_ALLOCATED_MEMORY: AtomicUsize = AtomicUsize::new(0);
 
 // Function to record an allocation
