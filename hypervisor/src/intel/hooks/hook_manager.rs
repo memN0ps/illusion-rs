@@ -15,7 +15,6 @@ use {
         },
         windows::kernel::KernelHook,
     },
-    alloc::boxed::Box,
     core::intrinsics::copy_nonoverlapping,
     log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
@@ -38,10 +37,10 @@ pub enum EptHookType {
 #[derive(Debug, Clone)]
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
-    pub memory_manager: Box<MemoryManager>,
+    pub memory_manager: MemoryManager,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
-    pub kernel_hook: Option<Box<KernelHook>>,
+    pub kernel_hook: Option<KernelHook>,
 
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
@@ -64,19 +63,19 @@ impl HookManager {
     ///
     /// # Returns
     /// A result containing a boxed `HookManager` instance or an error of type `HypervisorError`.
-    pub fn new() -> Result<Box<Self>, HypervisorError> {
+    pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = Box::new(MemoryManager::new()?);
-        let kernel_hook = Some(Box::new(KernelHook::new()?));
+        let memory_manager = MemoryManager::new()?;
+        let kernel_hook = Some(KernelHook::new()?);
 
-        Ok(Box::new(Self {
+        Ok(Self {
             memory_manager,
             has_cpuid_cache_info_been_called: false,
             kernel_hook,
             old_rflags: None,
             mtf_counter: None,
-        }))
+        })
     }
 
     /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.

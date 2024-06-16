@@ -51,7 +51,7 @@ pub struct Vm {
     pub host_paging: PageTables,
 
     /// The hook manager for the VM.
-    pub hook_manager: Box<HookManager>,
+    pub hook_manager: HookManager,
 
     /// A bitmap for handling MSRs.
     pub msr_bitmap: MsrBitmap,
