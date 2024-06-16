@@ -18,7 +18,6 @@ use {
             support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
         },
     },
-    alloc::boxed::Box,
     bit_field::BitField,
     core::fmt,
     x86::{
@@ -133,7 +132,7 @@ impl Vmcs {
     /// # Arguments
     /// * `host_descriptor` - Descriptor tables for the host.
     /// * `host_paging` - Paging tables for the host.
-    pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &Box<PageTables>) -> Result<(), HypervisorError> {
+    pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &PageTables) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
 
         let pml4_pa = host_paging.get_pml4_pa()?;

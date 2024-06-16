@@ -48,7 +48,7 @@ pub struct Vm {
     pub host_descriptor: Descriptors,
 
     /// Paging tables for the host.
-    pub host_paging: Box<PageTables>,
+    pub host_paging: PageTables,
 
     /// The hook manager for the VM.
     pub hook_manager: Box<HookManager>,
@@ -96,7 +96,7 @@ impl Vm {
         let vmcs_region = Vmcs::new();
 
         trace!("Allocating Memory for Host Paging");
-        let mut host_paging = unsafe { box_zeroed::<PageTables>() };
+        let mut host_paging = PageTables::new();
 
         trace!("Building Identity Paging for Host");
         host_paging.build_identity();

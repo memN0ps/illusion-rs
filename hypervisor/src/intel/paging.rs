@@ -40,6 +40,17 @@ pub struct PageTables {
 }
 
 impl PageTables {
+    /// Constructs a new `PageTables` instance with default-initialized entries.
+    ///
+    /// Initializes all entries in PML4, PDPT, and PD tables to zero, preparing the Page Tables for use.
+    pub fn new() -> Self {
+        Self {
+            pml4: Pml4(Table { entries: [Entry(0); 512] }),
+            pdpt: Pdpt(Table { entries: [Entry(0); 512] }),
+            pd: [Pd(Table { entries: [Entry(0); 512] }); 512],
+        }
+    }
+
     /// Builds a basic identity map for the page tables.
     ///
     /// This setup ensures that each virtual address directly maps to the same physical address,
