@@ -118,7 +118,8 @@ impl Vm {
         let hook_manager = HookManager::new()?;
 
         trace!("Creating dummy page filled with 0xffs");
-        let dummy_page = Page::new();
+        let mut dummy_page = Page::new();
+        dummy_page.fill(0xff);
 
         trace!("VM created");
 

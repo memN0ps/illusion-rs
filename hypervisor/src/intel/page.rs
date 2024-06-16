@@ -67,4 +67,15 @@ impl Page {
     pub fn as_mut_ptr(&mut self) -> *mut u8 {
         self.0.as_mut_ptr()
     }
+
+    /// Fills the page with a specified byte value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The byte value to fill the page with.
+    pub fn fill(&mut self, value: u8) {
+        for byte in self.0.iter_mut() {
+            *byte = value;
+        }
+    }
 }
