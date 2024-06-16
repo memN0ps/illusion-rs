@@ -4,17 +4,15 @@
 //! debugging information.
 
 use {
-    alloc::{
-        alloc::{alloc_zeroed, handle_alloc_error},
-        boxed::Box,
-    },
+    crate::global_const::HEAP_SIZE,
+    alloc::boxed::Box,
     core::alloc::{GlobalAlloc, Layout},
     log::debug,
 };
 
-/// Global allocator instance with a heap size of 1.5MB
+/// Global allocator instance with a heap size of `HEAP_SIZE`.
 #[global_allocator]
-pub static mut HEAP: ListHeap<0x180000> = ListHeap::new();
+pub static mut HEAP: ListHeap<HEAP_SIZE> = ListHeap::new();
 
 /// A heap allocator based on a linked list of free chunks.
 ///
@@ -99,7 +97,7 @@ impl<const SIZE: usize> ListHeap<SIZE> {
                 link = (*link).next;
             }
 
-            // skip the first link
+            // Skip the first link
             total_allocations -= 1;
 
             let wasted = (total_allocations + 2) * Link::SIZE;
@@ -313,10 +311,5 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
 ///
 /// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
-    let layout = Layout::new::<T>();
-    let ptr = unsafe { alloc_zeroed(layout) }.cast::<T>();
-    if ptr.is_null() {
-        handle_alloc_error(layout);
-    }
-    unsafe { Box::from_raw(ptr) }
+    unsafe { Box::<T>::new_zeroed().assume_init() }
 }
