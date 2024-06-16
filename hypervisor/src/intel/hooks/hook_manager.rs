@@ -1,6 +1,6 @@
 use {
     crate::{
-        allocator::ALLOCATED_MEMORY,
+        allocator::{print_tracked_allocations, ALLOCATED_MEMORY},
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -93,6 +93,9 @@ impl HookManager {
     ///
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
+        // Print the tracked memory allocations for debugging purposes.
+        print_tracked_allocations();
+
         // Lock the allocated memory list to ensure thread safety.
         let allocated_memory = ALLOCATED_MEMORY.lock();
 
@@ -132,10 +135,7 @@ impl HookManager {
         trace!("Mapping large page");
         // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
         vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
-
-        trace!("Filling shadow page with 0xff");
-        Self::unsafe_fill_shadow_page(PAddr::from(dummy_page_pa), 0xff);
-
+        
         let pre_alloc_pt = vm
             .hook_manager
             .memory_manager
