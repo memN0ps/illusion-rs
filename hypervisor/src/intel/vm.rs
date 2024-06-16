@@ -57,7 +57,7 @@ pub struct Vm {
     pub msr_bitmap: Box<MsrBitmap>,
 
     /// The primary EPT (Extended Page Tables) for the VM.
-    pub primary_ept: Box<Ept>,
+    pub primary_ept: Ept,
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
@@ -105,7 +105,7 @@ impl Vm {
         let mut msr_bitmap = unsafe { box_zeroed::<MsrBitmap>() };
 
         trace!("Allocating Primary EPT");
-        let mut primary_ept = unsafe { box_zeroed::<Ept>() };
+        let mut primary_ept = Ept::new();
 
         trace!("Identity Mapping Primary EPT");
         primary_ept.build_identity()?;
