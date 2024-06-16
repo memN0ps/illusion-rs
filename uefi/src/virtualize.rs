@@ -7,7 +7,8 @@ use {
     alloc::alloc::handle_alloc_error,
     core::{alloc::Layout, arch::global_asm},
     hypervisor::{
-        global_const::STACK_SIZE,
+        allocator::allocate_host_stack,
+        global_const::STACK_NUMBER_OF_PAGES,
         intel::{capture::GuestRegisters, page::Page},
         vmm::start_hypervisor,
     },
@@ -22,15 +23,10 @@ use {
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
 
-    let layout = Layout::array::<Page>(STACK_SIZE).unwrap();
-    let stack = unsafe { alloc::alloc::alloc_zeroed(layout) };
-    if stack.is_null() {
-        handle_alloc_error(layout);
-    }
-    let host_stack = stack as u64 + layout.size() as u64 - 0x10;
-    debug!("Stack range: {:#x?}", stack as u64..host_stack);
+    let host_stack = allocate_host_stack() as usize;
+    debug!("Stack range: {:#x?}", host_stack..STACK_NUMBER_OF_PAGES);
 
-    unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack) };
+    unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack as _) };
 }
 
 extern "efiapi" {
