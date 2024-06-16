@@ -4,10 +4,16 @@
 //! debugging information.
 
 use {
-    crate::global_const::HEAP_SIZE,
-    alloc::boxed::Box,
-    core::alloc::{GlobalAlloc, Layout},
+    crate::global_const::{HEAP_SIZE, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES},
+    alloc::{boxed::Box, vec::Vec},
+    core::{
+        alloc::{GlobalAlloc, Layout},
+        sync::atomic::{AtomicUsize, Ordering},
+    },
     log::debug,
+    spin::Mutex,
+    uefi::{prelude::BootServices, table::boot::AllocateType},
+    x86::bits64::paging::BASE_PAGE_SIZE,
 };
 
 /// Global allocator instance with a heap size of `HEAP_SIZE`.
@@ -312,4 +318,51 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
 /// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
     unsafe { Box::<T>::new_zeroed().assume_init() }
+}
+
+/// Allocates a block of memory pages using UEFI's allocate_pages function.
+///
+/// This function allocates memory pages that are not part of the global allocator.
+/// The allocated memory is of type `RUNTIME_SERVICES_DATA` and is allocated anywhere in memory.
+///
+/// # Arguments
+///
+/// * `boot_services` - A reference to the UEFI boot services table.
+///
+/// # Returns
+///
+/// A pointer to the allocated memory block.
+///
+/// # Panics
+///
+/// This function will panic if memory allocation fails.
+pub fn allocate_uefi_pages(boot_services: &BootServices) -> *mut u8 {
+    // Allocate the pages using UEFI's allocate_pages function
+    let allocated_pages = boot_services
+        .allocate_pages(AllocateType::AnyPages, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES)
+        .expect("Failed to allocate UEFI pages");
+
+    // Record the allocation
+    record_allocation(allocated_pages as usize, STACK_NUMBER_OF_PAGES * BASE_PAGE_SIZE); // Assuming 4KB pages
+
+    // Return the pointer to the allocated memory block
+    allocated_pages as *mut u8
+}
+
+// Structure to store allocated memory ranges
+#[derive(Debug)]
+struct MemoryRange {
+    start: usize,
+    size: usize,
+}
+
+// Global list to store allocated memory ranges
+static ALLOCATED_MEMORY: Mutex<Vec<MemoryRange>> = Mutex::new(Vec::new());
+static TOTAL_ALLOCATED_MEMORY: AtomicUsize = AtomicUsize::new(0);
+
+// Function to record an allocation
+fn record_allocation(start: usize, size: usize) {
+    let mut allocated_memory = ALLOCATED_MEMORY.lock();
+    allocated_memory.push(MemoryRange { start, size });
+    TOTAL_ALLOCATED_MEMORY.fetch_add(size, Ordering::SeqCst);
 }
