@@ -54,7 +54,7 @@ pub struct Vm {
     pub hook_manager: Box<HookManager>,
 
     /// A bitmap for handling MSRs.
-    pub msr_bitmap: Box<MsrBitmap>,
+    pub msr_bitmap: MsrBitmap,
 
     /// The primary EPT (Extended Page Tables) for the VM.
     pub primary_ept: Ept,
@@ -102,7 +102,7 @@ impl Vm {
         host_paging.build_identity();
 
         trace!("Allocating MSR Bitmap");
-        let mut msr_bitmap = unsafe { box_zeroed::<MsrBitmap>() };
+        let mut msr_bitmap = MsrBitmap::new();
 
         trace!("Allocating Primary EPT");
         let mut primary_ept = Ept::new();
@@ -225,7 +225,7 @@ impl Vm {
         trace!("Setting up VMCS");
 
         let primary_eptp = self.primary_eptp;
-        let msr_bitmap = self.msr_bitmap.as_ref() as *const _ as u64;
+        let msr_bitmap = &self.msr_bitmap as *const _ as u64;
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
         Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;

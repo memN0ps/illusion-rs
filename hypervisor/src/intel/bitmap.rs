@@ -47,6 +47,20 @@ pub struct MsrBitmap {
 }
 
 impl MsrBitmap {
+    /// Creates a new MSR bitmap with all bits cleared.
+    ///
+    /// # Returns
+    ///
+    /// * A `MsrBitmap` instance with all bits initialized to zero.
+    pub fn new() -> Self {
+        Self {
+            read_low_msrs: [0; 0x400],
+            read_high_msrs: [0; 0x400],
+            write_low_msrs: [0; 0x400],
+            write_high_msrs: [0; 0x400],
+        }
+    }
+
     /// Modifies the interception for a specific MSR based on the specified operation and access type.
     ///
     /// # Arguments
