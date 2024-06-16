@@ -15,10 +15,17 @@ use {
         },
         windows::kernel::KernelHook,
     },
-    core::intrinsics::copy_nonoverlapping,
+    core::{
+        intrinsics::copy_nonoverlapping,
+        sync::atomic::{AtomicU64, Ordering},
+    },
     log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
 };
+
+/// Global variable to store the address of the created dummy page.
+/// This variable can be accessed by multiple cores/threads/processors.
+pub static DUMMY_PAGE_ADDRESS: AtomicU64 = AtomicU64::new(0);
 
 /// Enum representing different types of hooks that can be applied.
 #[derive(Debug, Clone, Copy)]
@@ -129,7 +136,8 @@ impl HookManager {
         let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
         trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        let dummy_page_pa = vm.dummy_page.as_ptr() as u64;
+        let dummy_page_pa = DUMMY_PAGE_ADDRESS.load(Ordering::SeqCst);
+
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
         trace!("Mapping large page");

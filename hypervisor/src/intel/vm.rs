@@ -14,7 +14,6 @@ use {
             descriptor::Descriptors,
             ept::Ept,
             hooks::hook_manager::HookManager,
-            page::Page,
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -65,9 +64,6 @@ pub struct Vm {
 
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
-
-    /// The dummy page to use for hooking.
-    pub dummy_page: Page,
 }
 
 impl Vm {
@@ -117,10 +113,6 @@ impl Vm {
         trace!("Creating EPT hook manager");
         let hook_manager = HookManager::new()?;
 
-        trace!("Creating dummy page filled with 0xffs");
-        let mut dummy_page = Page::new();
-        dummy_page.fill(0xff);
-
         trace!("VM created");
 
         Ok(Self {
@@ -135,7 +127,6 @@ impl Vm {
             primary_eptp,
             guest_registers: guest_registers.clone(),
             has_launched: false,
-            dummy_page,
         })
     }
 

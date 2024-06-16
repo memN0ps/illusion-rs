@@ -18,7 +18,8 @@ pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
 
     let host_stack = allocate_host_stack() as usize;
-    debug!("Stack range: {:#x?}", host_stack..STACK_NUMBER_OF_PAGES);
+    let range = host_stack..(host_stack + STACK_NUMBER_OF_PAGES * 4096);
+    debug!("Host stack allocated at {:#x?}", range);
 
     unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack as _) };
 }
