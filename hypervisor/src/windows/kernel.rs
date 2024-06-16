@@ -112,7 +112,7 @@ impl KernelHook {
     /// * `Ok(())` - The hook was installed successfully.
     /// * `Err(HypervisorError)` - If the hook installation fails.
     pub fn enable_kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Setting up EPT hook for function: {}", function_hash);
+        debug!("Setting up EPT hook for function: {:#x}", function_hash);
 
         let function_va = unsafe {
             get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash)
@@ -138,7 +138,7 @@ impl KernelHook {
     /// * `Ok(())` - The hook was removed successfully.
     /// * `Err(HypervisorError)` - If the hook removal fails.
     pub fn disable_kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Disabling EPT hook for function: {}", function_hash);
+        debug!("Disabling EPT hook for function: {:#x}", function_hash);
 
         let function_va = unsafe {
             get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash)
@@ -170,7 +170,7 @@ impl KernelHook {
         syscall_number: u16,
         ept_hook_type: EptHookType,
     ) -> Result<(), HypervisorError> {
-        debug!("Setting up EPT hook for syscall: {}", syscall_number);
+        debug!("Setting up EPT hook for syscall: {:#x}", syscall_number);
 
         let ssdt = SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _)
             .or_else(|_| SsdtHook::find_ssdt_function_address(syscall_number as _, true, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _))
@@ -196,7 +196,7 @@ impl KernelHook {
     /// * `Ok(())` - The hook was removed successfully.
     /// * `Err(HypervisorError)` - If the hook removal fails.
     pub fn disable_syscall_ept_hook(&mut self, vm: &mut Vm, syscall_number: u16, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Disabling EPT hook for syscall: {}", syscall_number);
+        debug!("Disabling EPT hook for syscall: {:#x}", syscall_number);
 
         let ssdt = SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _)
             .or_else(|_| SsdtHook::find_ssdt_function_address(syscall_number as _, true, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _))
