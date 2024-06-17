@@ -38,10 +38,10 @@ pub struct HookMapping {
 /// for a hypervisor, allocating memory as needed at runtime.
 #[derive(Debug, Clone)]
 pub struct MemoryManager {
-    /// Active mappings of guest physical addresses to their respective hook mappings.
-    active_mappings: BTreeMap<u64, HookMapping>,
+    /// Mappings of guest physical addresses to their respective hook mappings.
+    guest_page_mappings: BTreeMap<u64, HookMapping>,
     /// Mappings of large guest physical addresses to their respective page tables.
-    large_pt_mappings: BTreeMap<u64, Box<Pt>>,
+    large_page_table_mappings: BTreeMap<u64, Box<Pt>>,
 }
 
 impl MemoryManager {
@@ -53,8 +53,8 @@ impl MemoryManager {
         trace!("Initializing memory manager");
 
         Self {
-            active_mappings: BTreeMap::new(),
-            large_pt_mappings: BTreeMap::new(),
+            guest_page_mappings: BTreeMap::new(),
+            large_page_table_mappings: BTreeMap::new(),
         }
     }
 
@@ -66,7 +66,7 @@ impl MemoryManager {
     /// # Returns
     /// `true` if the guest page is processed, otherwise `false`.
     pub fn is_guest_page_processed(&self, guest_page_pa: u64) -> bool {
-        self.active_mappings.contains_key(&guest_page_pa)
+        self.guest_page_mappings.contains_key(&guest_page_pa)
     }
 
     /// Maps a shadow page to a guest physical address and adds hook information, allocating memory as needed.
@@ -97,20 +97,25 @@ impl MemoryManager {
             function_hash,
         };
 
-        if let Some(mapping) = self.active_mappings.get_mut(&guest_page_pa) {
+        // Check if the guest page is already mapped
+        if let Some(mapping) = self.guest_page_mappings.get_mut(&guest_page_pa) {
             trace!("Mapping already exists, adding hook info");
+
+            // Check if the hook already exists for the given function PA
             if mapping.hooks.iter().any(|hook| hook.guest_function_pa == guest_function_pa) {
                 trace!("Hook already exists for function PA: {:#x}", guest_function_pa);
             } else {
-                mapping.hooks.push(hook_info);
+                mapping.hooks.push(hook_info); // Add new hook info
             }
         } else {
             trace!("Mapping does not exist, creating new mapping");
+            // Allocate a new shadow page
             let shadow_page = unsafe { box_zeroed::<Page>() };
             let mut hooks = Vec::new();
             hooks.push(hook_info);
 
-            self.active_mappings.insert(guest_page_pa, HookMapping { shadow_page, hooks });
+            // Insert new mapping into guest_page_mappings
+            self.guest_page_mappings.insert(guest_page_pa, HookMapping { shadow_page, hooks });
             trace!("Guest page mapped to shadow page successfully");
         }
 
@@ -125,10 +130,12 @@ impl MemoryManager {
     /// # Returns
     /// `Ok(())` if successful, or an error if no free page tables are available.
     pub fn map_large_page_to_pt(&mut self, guest_large_page_pa: u64) -> Result<(), HypervisorError> {
-        if !self.large_pt_mappings.contains_key(&guest_large_page_pa) {
+        // Check if the large page is already mapped
+        if !self.large_page_table_mappings.contains_key(&guest_large_page_pa) {
             trace!("Large page not mapped to page table, mapping now");
+            // Allocate a new page table
             let pt = unsafe { box_zeroed::<Pt>() };
-            self.large_pt_mappings.insert(guest_large_page_pa, pt);
+            self.large_page_table_mappings.insert(guest_large_page_pa, pt);
             trace!("Large page mapped to page table successfully");
         } else {
             trace!("Large page PA: {:#x} is already mapped to a page table", guest_large_page_pa);
@@ -145,7 +152,7 @@ impl MemoryManager {
     /// # Returns
     /// An `Option` containing a mutable reference to the `Pt` if found.
     pub fn get_page_table_as_mut(&mut self, guest_large_page_pa: u64) -> Option<&mut Pt> {
-        self.large_pt_mappings.get_mut(&guest_large_page_pa).map(|pt| &mut **pt)
+        self.large_page_table_mappings.get_mut(&guest_large_page_pa).map(|pt| &mut **pt)
     }
 
     /// Retrieves a pointer to the shadow page associated with a guest physical address.
@@ -156,7 +163,7 @@ impl MemoryManager {
     /// # Returns
     /// An `Option` containing the memory address of the `Page` as a `u64` if found.
     pub fn get_shadow_page_as_ptr(&self, guest_page_pa: u64) -> Option<u64> {
-        self.active_mappings
+        self.guest_page_mappings
             .get(&guest_page_pa)
             .map(|mapping| &*mapping.shadow_page as *const Page as u64)
     }
@@ -169,7 +176,7 @@ impl MemoryManager {
     /// # Returns
     /// An `Option` containing a reference to the `HookInfo` if found.
     pub fn get_hook_info(&self, guest_page_pa: u64) -> Option<&Vec<HookInfo>> {
-        self.active_mappings.get(&guest_page_pa).map(|mapping| &mapping.hooks)
+        self.guest_page_mappings.get(&guest_page_pa).map(|mapping| &mapping.hooks)
     }
 
     /// Retrieves a reference to the `HookInfo` instance associated with a guest function physical address.
@@ -181,7 +188,7 @@ impl MemoryManager {
     /// # Returns
     /// An `Option` containing a reference to the `HookInfo` instance if found.
     pub fn get_hook_info_by_function_pa(&self, guest_page_pa: u64, guest_function_pa: u64) -> Option<&HookInfo> {
-        self.active_mappings
+        self.guest_page_mappings
             .get(&guest_page_pa)?
             .hooks
             .iter()
@@ -197,7 +204,7 @@ impl MemoryManager {
     /// # Returns
     /// An `Option` containing a reference to the `HookInfo` instance if found.
     pub fn get_hook_info_by_function_va(&self, guest_page_pa: u64, guest_function_va: u64) -> Option<&HookInfo> {
-        self.active_mappings
+        self.guest_page_mappings
             .get(&guest_page_pa)?
             .hooks
             .iter()
