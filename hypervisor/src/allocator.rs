@@ -4,6 +4,7 @@
 //! debugging information.
 
 use {
+    crate::global_const::{HEAP_SIZE, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES},
     alloc::{boxed::Box, vec::Vec},
     core::{
         alloc::{GlobalAlloc, Layout},
@@ -12,16 +13,13 @@ use {
     },
     log::debug,
     spin::Mutex,
-    uefi::table::{
-        boot::{AllocateType, MemoryType},
-        Boot, SystemTable,
-    },
+    uefi::table::{boot::AllocateType, Boot, SystemTable},
     x86::bits64::paging::BASE_PAGE_SIZE,
 };
 
 /// Global allocator instance with a heap size of `HEAP_SIZE`.
 #[global_allocator]
-pub static mut HEAP: ListHeap<0x980000> = ListHeap::new();
+pub static mut HEAP: ListHeap<HEAP_SIZE> = ListHeap::new();
 
 /// A heap allocator based on a linked list of free chunks.
 ///
@@ -329,7 +327,7 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
 ///
 /// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
-    Box::<T>::new_zeroed().assume_init()
+    unsafe { Box::<T>::new_zeroed().assume_init() }
 }
 
 /// Reference to the system table, used to call the boot services pool memory
@@ -373,20 +371,17 @@ pub unsafe fn initialize_system_table_and_heap(system_table: &SystemTable<Boot>)
 pub fn allocate_host_stack() -> *mut u8 {
     let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
 
-    let memory_type = MemoryType::RUNTIME_SERVICES_DATA;
-    let number_of_pages = 0x300;
-
     // Get the system table and boot services
     let system_table = SYSTEM_TABLE.load(Ordering::Acquire);
     let boot_services = unsafe { &(*system_table).boot_services() };
 
     // Allocate the pages using UEFI's allocate_pages function
     let allocated_pages = boot_services
-        .allocate_pages(AllocateType::AnyPages, memory_type, number_of_pages)
+        .allocate_pages(AllocateType::AnyPages, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES)
         .expect("Failed to allocate UEFI pages");
 
     // Record the allocation
-    record_allocation(allocated_pages as usize, number_of_pages * BASE_PAGE_SIZE); // Assuming 4KB pages
+    record_allocation(allocated_pages as usize, STACK_NUMBER_OF_PAGES * BASE_PAGE_SIZE); // Assuming 4KB pages
 
     // Return the pointer to the allocated memory block
     allocated_pages as *mut u8
