@@ -13,7 +13,6 @@ use {
             descriptor::Descriptors,
             invept::invept_single_context,
             invvpid::{invvpid_single_context, VPID_TAG},
-            paging::PageTables,
             segmentation::{access_rights_from_native, lar, lsl},
             support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
         },
@@ -132,10 +131,8 @@ impl Vmcs {
     /// # Arguments
     /// * `host_descriptor` - Descriptor tables for the host.
     /// * `host_paging` - Paging tables for the host.
-    pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &PageTables) -> Result<(), HypervisorError> {
+    pub fn setup_host_registers_state(host_descriptor: &Descriptors, pml4_pa: u64) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
-
-        let pml4_pa = host_paging.get_pml4_pa()?;
 
         vmwrite(vmcs::host::CR0, cr0().bits() as u64);
         vmwrite(vmcs::host::CR3, pml4_pa);

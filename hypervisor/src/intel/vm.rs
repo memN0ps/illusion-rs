@@ -215,9 +215,10 @@ impl Vm {
 
         let primary_eptp = self.primary_eptp;
         let msr_bitmap = &self.msr_bitmap as *const _ as u64;
+        let pml4_pa = self.host_paging.get_pml4_pa()?;
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
-        Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
+        Vmcs::setup_host_registers_state(&self.host_descriptor, pml4_pa)?;
         Vmcs::setup_vmcs_control_fields(primary_eptp, msr_bitmap)?;
 
         trace!("VMCS setup successfully!");
