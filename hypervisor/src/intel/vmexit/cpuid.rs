@@ -129,28 +129,33 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                     /*
                     // Test UEFI boot-time hooks
                     if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
-                        info!("Hooking NtQuerySystemInformation with syscall number 0x36");
-                        kernel_hook.enable_kernel_ept_hook(
+                        kernel_hook.manage_kernel_ept_hook(
                             vm,
                             crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
+                            0x0036,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
                         )?;
-                        kernel_hook.enable_kernel_ept_hook(
+                        kernel_hook.manage_kernel_ept_hook(
                             vm,
                             crate::windows::nt::pe::djb2_hash("NtCreateFile".as_bytes()),
+                            0x0055,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
                         )?;
-                        kernel_hook.enable_syscall_ept_hook(
+                        kernel_hook.manage_kernel_ept_hook(
                             vm,
                             crate::windows::nt::pe::djb2_hash("NtAllocateVirtualMemory".as_bytes()),
                             0x18,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
                         )?;
-                        kernel_hook.enable_syscall_ept_hook(
+                        kernel_hook.manage_kernel_ept_hook(
                             vm,
                             crate::windows::nt::pe::djb2_hash("NtQueryInformationProcess".as_bytes()),
                             0x19,
                             crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
                         )?;
                         // Place the kernel hook back in the box
                         vm.hook_manager.kernel_hook = Some(kernel_hook);
