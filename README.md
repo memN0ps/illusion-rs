@@ -134,19 +134,21 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ![VMware Workstation Boot Options](./images/vmware_firmware.png)
 
-4. **Navigate to the USB Drive**
+4. **Navigate to the USB Drive and Start the Hypervisor**
 
-   In the UEFI Shell, navigate to the USB drive and run the `loader.efi` file.
+   In the UEFI Shell, navigate to the USB drive and run the loader (`loader.efi`). The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
 
 ![VMware Workstation UEFI Shell](./images/vmware_uefi.png)
 
-5. **Start the Hypervisor**
+5. **Interact with the Hypervisor**
 
-   The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
+   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including setting up hidden EPT hooks.
 
-6. **Interact with the Hypervisor**
+![VMware Workstation Client Shell](./images/vmware_client.png)
 
-   Once Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, such as Hidden EPT hooks.
+   To confirm the hypervisor's presence, run the `CPUID` instruction with leaf `0x40000000 (Hypervisor Vendor Information)` or check the logs for the hypervisor's output.
+
+![VMware Workstation CPUID](./images/vmware_vendor.png)
 
 ## Acknowledgments, References, and Motivation
 
