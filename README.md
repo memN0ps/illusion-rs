@@ -146,7 +146,9 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ![VMware Workstation Client Shell](./images/hypervisor_client.png)
 
-## PoC
+### PoC
+
+Verify the execution of the EPT hooking proof of concept (PoC) by checking the hypervisor's logs (serial port logger through COM ports) and Windbg. A PoC screenshot is provided below.
 
 ![VMware Workstation CPUID](./images/hypervisor_poc.png)
 
