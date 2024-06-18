@@ -142,13 +142,13 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 5. **Interact with the Hypervisor**
 
-   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including setting up hidden EPT hooks.
+   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including checking hypervisor's presence or setting hidden EPT hooks.
 
-![VMware Workstation Client Shell](./images/vmware_client.png)
+![VMware Workstation Client Shell](./images/hypervisor_client.png)
 
-   To confirm the hypervisor's presence, run the `CPUID` instruction with leaf `0x40000000 (Hypervisor Vendor Information)` or check the logs for the hypervisor's output.
+## PoC
 
-![VMware Workstation CPUID](./images/vmware_vendor.png)
+![VMware Workstation CPUID](./images/hypervisor_poc.png)
 
 ## Acknowledgments, References, and Motivation
 
