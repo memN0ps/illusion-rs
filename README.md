@@ -214,7 +214,7 @@ Verify the execution of the EPT hooking proof of concept (PoC) by checking the h
 
 ## Usage 2: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on Baremetal (Supported)
 
-The following outlines a supported method to execute a UEFI blue-pill hypervisor using the UEFI Shell. By leveraging either the EDK2 EFI shell or the UEFI-Shell, users can set up a USB drive to boot into a UEFI shell environment. From there, the hypervisor can be loaded and executed directly. The steps also include specific instructions for users working with VMware Workstation.
+The following outlines a supported method to execute a UEFI blue-pill hypervisor using the UEFI Shell. By leveraging either the EDK2 EFI shell or the UEFI-Shell, users can set up a USB drive to boot into a UEFI shell environment. From there, the hypervisor can be loaded and executed directly.
 
 1. **Build the Project**
 
