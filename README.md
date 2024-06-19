@@ -83,9 +83,18 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
 
 ## Usage
 
-1. **Build the Project**
+A UEFI blue-pill hypervisor operates under the following conditions:
 
-   Follow the build instructions provided in the previous sections to compile the project.
+- **Secure Boot is Disabled**: No vulnerabilities needed (**supported by this project**).
+- **Virtualization-Based Security (VBS) is Disabled**: Ensures compatibility.
+- **Exploiting Known UEFI Flaws**: Using outdated or unsupported firmware, including the Bring Your Own Vulnerable Binary (BYOVB) technique, to bypass Secure Boot.
+- **Exploiting Unspecified UEFI Flaws**: Using zero-day vulnerabilities to disable Secure Boot.
+
+## Usage 1: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on VMware Workstation (Supported)
+
+1. **Setup for VMware Workstation**
+
+   - **Build the Project**: Follow the build instructions provided in the previous sections to compile the project.
 
 2. **Set Up VMware Workstation**
 
@@ -94,7 +103,7 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
    - **Add a Hard Disk:**
      - Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive1 and Usage: Use entire disk -> Next -> Finish.`
    - **Add a Serial Port:**
-     - Go to `VM -> Settings -> Add Serial Port -> Finish`.
+     - Go to `VM -> Settings -> Add -> Serial Port -> Finish`.
      - Select `Use output file: C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt` to direct the Serial Port output from COM1 to the `logs.txt` file. (You can choose any location, but the preference is within the project directory).
    - **Boot Options:**
      - If you're not using the automated PowerShell script, start the VM by clicking `Power On to Firmware`.
@@ -165,7 +174,7 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
 
 5. **Interact with the Hypervisor**
 
-   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including checking hypervisor's presence or setting hidden EPT hooks.
+   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including checking the hypervisor's presence or setting hidden EPT hooks.
 
 ![VMware Workstation Client Shell](./images/hypervisor_client.png)
 
@@ -174,6 +183,49 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
 Verify the execution of the EPT hooking proof of concept (PoC) by checking the hypervisor's logs (serial port logger through COM ports) and Windbg. A PoC screenshot is provided below.
 
 ![VMware Workstation CPUID](./images/hypervisor_poc.png)
+
+## Usage 2: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on Baremetal (Supported)
+
+The following outlines a supported method to execute a UEFI blue-pill hypervisor using the UEFI Shell. By leveraging either the EDK2 EFI shell or the UEFI-Shell, users can set up a USB drive to boot into a UEFI shell environment. From there, the hypervisor can be loaded and executed directly. The steps also include specific instructions for users working with VMware Workstation.
+
+1. **Build the Project**
+
+   Follow the build instructions provided in the previous sections to compile the project.
+
+2. **Download EDK2 EFI Shell or UEFI-Shell**
+
+   - [EDK2 EFI Shell](https://github.com/tianocore/edk2/releases)
+   - [UEFI-Shell](https://github.com/pbatard/UEFI-Shell/releases)
+
+3. **Prepare the USB Drive**
+
+   a. Extract the downloaded EFI shell and rename the file `Shell.efi` (found in the `UefiShell/X64` folder) to `bootx64.efi`.
+   
+   b. Format the USB drive to FAT32.
+   
+   c. Create the following folder structure on the USB drive:
+   ```
+   USB:.
+   │   loader.efi
+   │   illusion.efi
+   │
+   └───EFI
+       └───Boot
+              bootx64.efi
+   ```
+
+## Usage 3: Infecting the Windows Boot Manager (bootmgfw.efi) on Disk (Unsupported)
+
+UEFI blue-pill hypervisors can target the Windows Boot Manager (`bootmgfw.efi`) found in the EFI partition at `\EFI\Microsoft\Boot\bootmgfw.efi` (also at `C:\Windows\Boot\EFI\bootmgfw.efi`). The process involves:
+
+1. Convert the hypervisor into position-independent code (PIC) or shellcode.
+2. Locate `bootmgfw.efi` in the EFI partition.
+3. Add a new `.efi` section to `bootmgfw.efi`.
+4. Inject the hypervisor shellcode into the new `.efi` section.
+5. Modify the entry point to point to the shellcode.
+6. Reboot the system.
+
+More information: [Bootkitting Windows Sandbox](https://secret.club/2022/08/29/bootkitting-windows-sandbox.html)
 
 ## Acknowledgments, References, and Motivation
 
