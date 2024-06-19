@@ -21,6 +21,34 @@ However, neither basic nor advanced techniques to evade hypervisor detection wil
 
 ## Description
 
+### What is a Hypervisor?
+
+A hypervisor, also known as a virtual machine monitor (VMM) or virtualizer, is software, firmware, or hardware that creates and runs virtual machines. The physical machine on which a hypervisor runs one or more virtual machines is called a host machine, and each virtual machine is called a guest machine. The hypervisor provides a virtual operating platform for guest operating systems and manages their execution.
+
+### What Can Hypervisors Be Used For?
+
+1. Fuzzing
+2. Reverse engineering / debugging obfuscated software
+3. Malware research (Blue-Pill / Red Pill)
+4. Anti-cheat (AC) / Anti-virus (AV) / Endpoint detection and response (EDR)
+5. Server consolidation / Security isolation
+
+### Types of Hypervisors
+
+| Type         | Description                                                                      | Examples                       |
+|--------------|----------------------------------------------------------------------------------|--------------------------------|
+| Type 1       | Runs directly on hardware, with all OSes as guests (VMX non-root)                | VMware ESXi, Microsoft Hyper-V, ProxMox |
+| Type 2       | Runs on a host OS, which in turn runs guest OSes (VMX root)                      | VMware Workstation, Oracle VirtualBox, KVM |
+| Full-fledged | Offers complete virtual machines                                                 | VMware, Hyper-V, ProxMox, KVM       |
+| Pass-through | Only virtualizes existing CPUs and MMU                                           | BitVisor, SimpleVisor, Illusion, Matrix          |
+
+### UEFI-Based vs Kernel Module-Based Pass-Through Hypervisors
+
+| Type                | Advantages                                                                                  | Disadvantages                                                      | Examples                                        |
+|---------------------|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------|-------------------------------------------------|
+| UEFI-Based          | Greater ability to take control of the system, more stealthiness, cross-platform by design, easier to understand VT | Limited ability to interact directly with the operating system, requires system reboot for installation | BitVisor, Bareflank, CheatEngine, FalkVisor (boot-loader), Illusion |
+| Kernel Module-Based | More seamless interaction with the guest, easier to develop and debug, no reboot required for installation, trivial to support sleep/hibernation | Limited ability to take control of the system, more detectable from the guest, constrained by OS enforced security policies, platform-specific | AV software, iKGT, BluePill, SimpleVisor, CheatEngine, Matrix     |
+
 This diagram illustrates the mechanism of translating x64 virtual addresses to physical addresses and the Extended Page Tables (EPT) used in hardware-assisted virtualization. In x64 systems, the translation involves four tables: PML4, PDPT, PDT, and PT, each using 9 bits to point to the next table, finally mapping to the physical RAM address.
 
 ![EPT](./images/virtual_address_translation.png)
