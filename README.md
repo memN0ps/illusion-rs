@@ -10,6 +10,15 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 **Note:** The [**Illusion** hypervisor](https://github.com/memN0ps/illusion-rs) (Windows UEFI Blue Pill Type-1 Hypervisor in Rust) is more stable, supports more features, and is overall better designed. The [**Matrix** hypervisor](https://github.com/memN0ps/matrix-rs) (Windows Kernel Blue Pill Type-2 Hypervisor in Rust) is an older, experimental version and is not intended for production use. Both projects serve as templates to help people get started with hypervisor development in Rust.
 
+Currently, the following features are not supported but are planned for future releases:
+
+- Integration of a Windows kernel driver with a UEFI runtime driver hypervisor for flexible deployment.
+- Implementation of Intel Processor Trace (Intel PT).
+- AMD-V (SVM) with Nested Page Tables (NPT) support.
+- Support for running as the primary hypervisor on top of Microsoft Hyper-V (Type-1) with Virtualization-Based Security (VBS).
+
+However, neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
+
 ## Description
 
 This diagram illustrates the mechanism of translating x64 virtual addresses to physical addresses and the Extended Page Tables (EPT) used in hardware-assisted virtualization. In x64 systems, the translation involves four tables: PML4, PDPT, PDT, and PT, each using 9 bits to point to the next table, finally mapping to the physical RAM address.
@@ -20,6 +29,7 @@ This diagram illustrates the mechanism of translating x64 virtual addresses to p
 Extended Page Tables (EPT), used in technologies like Intel VT-x and AMD-v's (SVM) Nested Page Tables (NPT), provide a Second Layer of Address Translation (SLAT). EPT maps guest physical addresses to host physical addresses, reducing VM exits and improving performance. While traditional paging translates virtual to physical addresses, EPT adds another layer, translating guest physical addresses to host physical addresses. This dual-layer approach in EPT involves two sets of page tables: one managed by the guest OS and the other by the hypervisor. The guest OS page tables translate virtual addresses to guest physical addresses, while the EPT tables map these guest physical addresses to the actual host physical addresses, enabling efficient virtualization with minimal overhead.
 
 The diagram below illustrates the structure and flow of the Windows UEFI Blue Pill Type-1 Hypervisor written in Rust, demonstrating the use of Extended Page Table (EPT) hooks.
+
 ![EPT](./images/illusion.drawio.png)
 **Figure 2: Extended Page Tables (EPT) Hooks (Illusion)**
 
