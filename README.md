@@ -15,7 +15,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 This diagram illustrates the mechanism of translating x64 virtual addresses to physical addresses and the Extended Page Tables (EPT) used in hardware-assisted virtualization. In x64 systems, the translation involves four tables: PML4, PDPT, PDT, and PT, each using 9 bits to point to the next table, finally mapping to the physical RAM address.
 
 ![EPT](./images/virtual_address_translation.png)
-**Figure 1: x64 Virtual Address Translation (Full Credits: [Guided Hacking](https://guidedhacking.com/threads/x64-virtual-address-translation.20416/))**
+**Figure 1: [x64 Virtual Address Translation](https://www.youtube.com/watch?v=W3o5jYHMh8s) (Full Credits: [Guided Hacking](https://guidedhacking.com/threads/x64-virtual-address-translation.20416/))**
 
 Extended Page Tables (EPT), used in technologies like Intel VT-x and AMD-v's (SVM) Nested Page Tables (NPT), provide a Second Layer of Address Translation (SLAT). EPT maps guest physical addresses to host physical addresses, reducing VM exits and improving performance. While traditional paging translates virtual to physical addresses, EPT adds another layer, translating guest physical addresses to host physical addresses. This dual-layer approach in EPT involves two sets of page tables: one managed by the guest OS and the other by the hypervisor. The guest OS page tables translate virtual addresses to guest physical addresses, while the EPT tables map these guest physical addresses to the actual host physical addresses, enabling efficient virtualization with minimal overhead.
 
