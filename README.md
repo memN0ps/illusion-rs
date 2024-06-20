@@ -193,24 +193,28 @@ A UEFI blue-pill hypervisor operates under the following conditions:
    ```
 
 ![VMware Workstation Boot Options](./images/vmware_firmware.png)
+**Figure 3: VMware Workstation Boot Options**
 
 4. **Navigate to the USB Drive and Start the Hypervisor**
 
    In the UEFI Shell, navigate to the USB drive and run the loader (`loader.efi`). The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
 
 ![VMware Workstation UEFI Shell](./images/vmware_uefi.png)
+**Figure 4: VMware Workstation UEFI Shell**
 
 5. **Interact with the Hypervisor**
 
    After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including checking the hypervisor's presence or setting hidden EPT hooks.
 
-![VMware Workstation Client Shell](./images/hypervisor_client.png)
+![Hypervisor Client](./images/hypervisor_client.png)
+**Figure 5: Hypervisor Client**
 
 ### PoC
 
 Verify the execution of the EPT hooking proof of concept (PoC) by checking the hypervisor's logs (serial port logger through COM ports) and Windbg. A PoC screenshot is provided below.
 
-![VMware Workstation CPUID](./images/hypervisor_poc.png)
+![Logs and Windbg PoC](./images/hypervisor_poc.png)
+**Figure 6: Logs and Windbg PoC**
 
 ## Usage 2: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on Baremetal (Supported)
 
