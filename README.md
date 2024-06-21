@@ -263,7 +263,7 @@ More information: [Bootkitting Windows Sandbox](https://secret.club/2022/08/29/b
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
 
-- **[Daax Rynd (@daaximus)](https://github.com/daaximus)**: For his outstanding free series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations. His support and answers to my questions were invaluable in getting me started with hypervisor development:
+- **[Daax (@daaximus)](https://github.com/daaximus)**: For his outstanding free series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations. His support and answers to my questions were invaluable in getting me started with hypervisor development:
   - [7 Days to Virtualization](https://revers.engineering/7-days-to-virtualization-a-series-on-hypervisor-development/).
   - [MMU Virtualization via Intel EPT](https://revers.engineering/mmu-virtualization-via-intel-ept-index/).
 
@@ -310,7 +310,7 @@ Big thanks to the amazing people and resources that have shaped this project. A 
 #### Helpers and Collaborators
 
 Special thanks to:
-- [Daax Rynd](https://revers.engineering/).
+- [Daax](https://revers.engineering/).
 - [Satoshi Tanda (@tandasat)](https://github.com/tandasat).
 - [Drew (@drew)](https://github.com/drew-gpf).
 - [iPower (@iPower)](https://github.com/iPower).
