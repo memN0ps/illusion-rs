@@ -10,6 +10,57 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 **Note:** The [**Illusion** hypervisor](https://github.com/memN0ps/illusion-rs) (Windows UEFI Blue Pill Type-1 Hypervisor in Rust) is more stable, supports more features, and is overall better designed. The [**Matrix** hypervisor](https://github.com/memN0ps/matrix-rs) (Windows Kernel Blue Pill Type-2 Hypervisor in Rust) is an older, experimental version and is not intended for production use. Both projects serve as templates to help people get started with hypervisor development in Rust.
 
+Currently, the following features are not supported but are planned for future releases:
+
+- Integration of a Windows kernel driver with a UEFI runtime driver hypervisor for flexible deployment.
+- Implementation of Intel Processor Trace (Intel PT).
+- AMD-V (SVM) with Nested Page Tables (NPT) support.
+- Support for running as the primary hypervisor on top of Microsoft Hyper-V (Type-1) with Virtualization-Based Security (VBS).
+
+However, neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
+
+## Description
+
+### What is a Hypervisor?
+
+A hypervisor, also known as a virtual machine monitor (VMM) or virtualizer, is software, firmware, or hardware that creates and runs virtual machines. The physical machine on which a hypervisor runs one or more virtual machines is called a host machine, and each virtual machine is called a guest machine. The hypervisor provides a virtual operating platform for guest operating systems and manages their execution.
+
+### What Can Hypervisors Be Used For?
+
+1. Fuzzing
+2. Reverse engineering / debugging obfuscated software
+3. Malware research (Blue-Pill / Red Pill)
+4. Anti-cheat (AC) / Anti-virus (AV) / Endpoint detection and response (EDR)
+5. Server consolidation / Security isolation
+
+### Types of Hypervisors
+
+| Type         | Description                                                                      | Examples                       |
+|--------------|----------------------------------------------------------------------------------|--------------------------------|
+| Type 1       | Runs directly on hardware, with all OSes as guests (VMX non-root)                | VMware ESXi, Microsoft Hyper-V, ProxMox |
+| Type 2       | Runs on a host OS, which in turn runs guest OSes (VMX root)                      | VMware Workstation, Oracle VirtualBox, KVM |
+| Full-fledged | Offers complete virtual machines                                                 | VMware, Hyper-V, ProxMox, KVM       |
+| Pass-through | Only virtualizes existing CPUs and MMU                                           | BitVisor, SimpleVisor, Illusion, Matrix          |
+
+### UEFI-Based vs Kernel Module-Based Pass-Through Hypervisors
+
+| Type                | Advantages                                                                                  | Disadvantages                                                      | Examples                                        |
+|---------------------|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------|-------------------------------------------------|
+| UEFI-Based          | Greater ability to take control of the system, more stealthiness, cross-platform by design, easier to understand VT | Limited ability to interact directly with the operating system, requires system reboot for installation | BitVisor, Bareflank, CheatEngine, FalkVisor (boot-loader), Illusion |
+| Kernel Module-Based | More seamless interaction with the guest, easier to develop and debug, no reboot required for installation, trivial to support sleep/hibernation | Limited ability to take control of the system, more detectable from the guest, constrained by OS enforced security policies, platform-specific | AV software, iKGT, BluePill, SimpleVisor, CheatEngine, Matrix     |
+
+This diagram illustrates the mechanism of translating x64 virtual addresses to physical addresses and the Extended Page Tables (EPT) used in hardware-assisted virtualization. In x64 systems, the translation involves four tables: PML4, PDPT, PDT, and PT, each using 9 bits to point to the next table, finally mapping to the physical RAM address.
+
+![EPT](./images/virtual_address_translation.png)
+**Figure 1: [x64 Virtual Address Translation](https://www.youtube.com/watch?v=W3o5jYHMh8s) (Full Credits: [Guided Hacking](https://guidedhacking.com/threads/x64-virtual-address-translation.20416/))**
+
+Extended Page Tables (EPT), used in technologies like Intel VT-x and AMD-v's (SVM) Nested Page Tables (NPT), provide a Second Layer of Address Translation (SLAT). EPT maps guest physical addresses to host physical addresses, reducing VM exits and improving performance. While traditional paging translates virtual to physical addresses, EPT adds another layer, translating guest physical addresses to host physical addresses. This dual-layer approach in EPT involves two sets of page tables: one managed by the guest OS and the other by the hypervisor. The guest OS page tables translate virtual addresses to guest physical addresses, while the EPT tables map these guest physical addresses to the actual host physical addresses, enabling efficient virtualization with minimal overhead.
+
+The diagram below illustrates the structure and flow of the Windows UEFI Blue Pill Type-1 Hypervisor written in Rust, demonstrating the use of Extended Page Table (EPT) hooks.
+
+![EPT](./images/illusion.drawio.png)
+**Figure 2: Extended Page Tables (EPT) Hooks (Illusion)**
+
 ## Features
 
 ### PatchGuard Compatible Features
@@ -60,9 +111,18 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ## Usage
 
-1. **Build the Project**
+A UEFI blue-pill hypervisor operates under the following conditions:
 
-   Follow the build instructions provided in the previous sections to compile the project.
+- **Secure Boot is Disabled**: No vulnerabilities needed (**supported by this project**).
+- **Virtualization-Based Security (VBS) is Disabled**: Ensures compatibility.
+- **Exploiting Known UEFI Flaws**: Using outdated or unsupported firmware, including the Bring Your Own Vulnerable Binary (BYOVB) technique, to bypass Secure Boot.
+- **Exploiting Unspecified UEFI Flaws**: Using zero-day vulnerabilities to disable Secure Boot.
+
+## Usage 1: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on VMware Workstation (Supported)
+
+1. **Setup for VMware Workstation**
+
+   - **Build the Project**: Follow the build instructions provided in the previous sections to compile the project.
 
 2. **Set Up VMware Workstation**
 
@@ -71,7 +131,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
    - **Add a Hard Disk:**
      - Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive1 and Usage: Use entire disk -> Next -> Finish.`
    - **Add a Serial Port:**
-     - Go to `VM -> Settings -> Add Serial Port -> Finish`.
+     - Go to `VM -> Settings -> Add -> Serial Port -> Finish`.
      - Select `Use output file: C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt` to direct the Serial Port output from COM1 to the `logs.txt` file. (You can choose any location, but the preference is within the project directory).
    - **Boot Options:**
      - If you're not using the automated PowerShell script, start the VM by clicking `Power On to Firmware`.
@@ -133,26 +193,77 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
    ```
 
 ![VMware Workstation Boot Options](./images/vmware_firmware.png)
+**Figure 3: VMware Workstation Boot Options**
 
-4. **Navigate to the USB Drive**
+4. **Navigate to the USB Drive and Start the Hypervisor**
 
-   In the UEFI Shell, navigate to the USB drive and run the `loader.efi` file.
+   In the UEFI Shell, navigate to the USB drive and run the loader (`loader.efi`). The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
 
 ![VMware Workstation UEFI Shell](./images/vmware_uefi.png)
+**Figure 4: VMware Workstation UEFI Shell**
 
-5. **Start the Hypervisor**
+5. **Interact with the Hypervisor**
 
-   The hypervisor will start, followed by the Windows Boot Manager (`bootmgfw.efi`) to boot into Windows.
+   After Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, including checking the hypervisor's presence or setting hidden EPT hooks.
 
-6. **Interact with the Hypervisor**
+![Hypervisor Client](./images/hypervisor_client.png)
+**Figure 5: Hypervisor Client**
 
-   Once Windows boots, use `client.exe` to interact with the hypervisor and perform various operations, such as Hidden EPT hooks.
+### PoC
+
+Verify the execution of the EPT hooking proof of concept (PoC) by checking the hypervisor's logs (serial port logger through COM ports) and Windbg. A PoC screenshot is provided below.
+
+![Logs and Windbg PoC](./images/hypervisor_poc.png)
+**Figure 6: Logs and Windbg PoC**
+
+## Usage 2: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on Baremetal (Supported)
+
+The following outlines a supported method to execute a UEFI blue-pill hypervisor using the UEFI Shell. By leveraging either the EDK2 EFI shell or the UEFI-Shell, users can set up a USB drive to boot into a UEFI shell environment. From there, the hypervisor can be loaded and executed directly.
+
+1. **Build the Project**
+
+   Follow the build instructions provided in the previous sections to compile the project.
+
+2. **Download EDK2 EFI Shell or UEFI-Shell**
+
+   - [EDK2 EFI Shell](https://github.com/tianocore/edk2/releases)
+   - [UEFI-Shell](https://github.com/pbatard/UEFI-Shell/releases)
+
+3. **Prepare the USB Drive**
+
+   a. Extract the downloaded EFI shell and rename the file `Shell.efi` (found in the `UefiShell/X64` folder) to `bootx64.efi`.
+   
+   b. Format the USB drive to FAT32.
+   
+   c. Create the following folder structure on the USB drive:
+   ```
+   USB:.
+   │   loader.efi
+   │   illusion.efi
+   │
+   └───EFI
+       └───Boot
+              bootx64.efi
+   ```
+
+## Usage 3: Infecting the Windows Boot Manager (bootmgfw.efi) on Disk (Unsupported)
+
+UEFI blue-pill hypervisors can target the Windows Boot Manager (`bootmgfw.efi`) found in the EFI partition at `\EFI\Microsoft\Boot\bootmgfw.efi` (also at `C:\Windows\Boot\EFI\bootmgfw.efi`). The process involves:
+
+1. Convert the hypervisor into position-independent code (PIC) or shellcode.
+2. Locate `bootmgfw.efi` in the EFI partition.
+3. Add a new `.efi` section to `bootmgfw.efi`.
+4. Inject the hypervisor shellcode into the new `.efi` section.
+5. Modify the entry point to point to the shellcode.
+6. Reboot the system.
+
+More information: [Bootkitting Windows Sandbox](https://secret.club/2022/08/29/bootkitting-windows-sandbox.html)
 
 ## Acknowledgments, References, and Motivation
 
 Big thanks to the amazing people and resources that have shaped this project. A special shout-out to everyone listed below. While I didn't use all these resources in my work, they've been goldmines of information, super helpful for anyone diving into hypervisor development, including me.
 
-- **[Daax Rynd (@daaximus)](https://github.com/daaximus)**: For his outstanding free series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations. His support and answers to my questions were invaluable in getting me started with hypervisor development:
+- **[Daax (@daaximus)](https://github.com/daaximus)**: For his outstanding free series on hypervisor development, which is one of the best resources available and has greatly influenced my work with its thorough research and clear explanations. His support and answers to my questions were invaluable in getting me started with hypervisor development:
   - [7 Days to Virtualization](https://revers.engineering/7-days-to-virtualization-a-series-on-hypervisor-development/).
   - [MMU Virtualization via Intel EPT](https://revers.engineering/mmu-virtualization-via-intel-ept-index/).
 
@@ -199,7 +310,7 @@ Big thanks to the amazing people and resources that have shaped this project. A 
 #### Helpers and Collaborators
 
 Special thanks to:
-- [Daax Rynd](https://revers.engineering/).
+- [Daax](https://revers.engineering/).
 - [Satoshi Tanda (@tandasat)](https://github.com/tandasat).
 - [Drew (@drew)](https://github.com/drew-gpf).
 - [iPower (@iPower)](https://github.com/iPower).

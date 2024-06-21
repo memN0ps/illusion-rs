@@ -26,15 +26,6 @@ pub struct KernelHook {
 
     /// The size of ntoskrnl.exe.
     ntoskrnl_size: u64,
-
-    /// The base virtual address of win32k.sys.
-    win32k_base_va: u64,
-
-    /// The base physical address of win32k.sys.
-    win32k_base_pa: u64,
-
-    /// The size of win32k.sys.
-    win32k_size: u64,
 }
 
 impl KernelHook {
@@ -49,9 +40,6 @@ impl KernelHook {
             ntoskrnl_base_va: 0,
             ntoskrnl_base_pa: 0,
             ntoskrnl_size: 0,
-            win32k_base_va: 0,
-            win32k_base_pa: 0,
-            win32k_size: 0,
         })
     }
 
@@ -77,134 +65,49 @@ impl KernelHook {
         Ok(())
     }
 
-    /// Sets the base address and size of the Win32k kernel.
+    /// Manages an EPT hook for a kernel function, enabling or disabling it.
     ///
     /// # Arguments
     ///
-    /// * `guest_va` - The virtual address of the guest.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - The kernel base and size were set successfully.
-    pub fn set_win32k_base_and_size(&mut self, guest_va: u64) -> Result<(), HypervisorError> {
-        // Get the base address of win32k.sys.
-        self.win32k_base_va = unsafe { get_image_base_address(guest_va).ok_or(HypervisorError::FailedToGetImageBaseAddress)? };
-
-        // Get the physical address of win32k.sys using GUEST_CR3 and the virtual address.
-        self.win32k_base_pa = PhysicalAddress::pa_from_va(self.win32k_base_va);
-
-        // Get the size of win32k.sys.
-        self.win32k_size = unsafe { get_size_of_image(self.win32k_base_pa as _).ok_or(HypervisorError::FailedToGetKernelSize)? } as u64;
-
-        Ok(())
-    }
-
-    /// Enables an EPT hook for a kernel function.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine to install the hook on.
-    /// * `function_hash` - The hash of the function to hook.
+    /// * `vm` - The virtual machine to install/remove the hook on.
+    /// * `function_hash` - The hash of the function to hook/unhook.
+    /// * `syscall_number` - The syscall number to use if `get_export_by_hash` fails.
     /// * `ept_hook_type` - The type of EPT hook to use.
+    /// * `enable` - A boolean indicating whether to enable (true) or disable (false) the hook.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - The hook was installed successfully.
-    /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn enable_kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Setting up EPT hook for function: {:#x}", function_hash);
-
-        let function_va = unsafe {
-            get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash)
-                .or_else(|| get_export_by_hash(self.win32k_base_pa as _, self.win32k_base_va as _, function_hash))
-                .ok_or(HypervisorError::FailedToGetExport)?
-        };
-
-        HookManager::ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
-
-        Ok(())
-    }
-
-    /// Disables an EPT hook for a kernel function.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine to remove the hook from.
-    /// * `function_hash` - The hash of the function to unhook.
-    /// * `ept_hook_type` - The type of EPT hook to use.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - The hook was removed successfully.
-    /// * `Err(HypervisorError)` - If the hook removal fails.
-    pub fn disable_kernel_ept_hook(&mut self, vm: &mut Vm, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Disabling EPT hook for function: {:#x}", function_hash);
-
-        let function_va = unsafe {
-            get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash)
-                .or_else(|| get_export_by_hash(self.win32k_base_pa as _, self.win32k_base_va as _, function_hash))
-                .ok_or(HypervisorError::FailedToGetExport)?
-        };
-
-        HookManager::ept_unhook_function(vm, function_va as _, ept_hook_type)?;
-
-        Ok(())
-    }
-
-    /// Enables an EPT hook for a syscall.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine to install the hook on.
-    /// * `syscall_number` - The number of the syscall to hook.
-    /// * `ept_hook_type` - The type of EPT hook to use.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - The hook was installed successfully.
-    /// * `Err(HypervisorError)` - If the hook installation fails.
-    pub fn enable_syscall_ept_hook(
+    /// * `Ok(())` - The hook was managed successfully.
+    /// * `Err(HypervisorError)` - If the hook management fails.
+    pub fn manage_kernel_ept_hook(
         &mut self,
         vm: &mut Vm,
         function_hash: u32,
         syscall_number: u16,
         ept_hook_type: EptHookType,
+        enable: bool,
     ) -> Result<(), HypervisorError> {
-        debug!("Setting up EPT hook for syscall: {:#x}", syscall_number);
+        let action = if enable { "Enabling" } else { "Disabling" };
+        debug!("{} EPT hook for function: {}", action, function_hash);
 
-        let ssdt = SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _)
-            .or_else(|_| SsdtHook::find_ssdt_function_address(syscall_number as _, true, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _))
-            .map_err(|_| HypervisorError::FailedToGetExport)?;
+        let function_va = unsafe {
+            if let Some(va) = get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash) {
+                va
+            } else {
+                let ssdt_function_address =
+                    SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _);
+                match ssdt_function_address {
+                    Ok(ssdt_hook) => ssdt_hook.guest_function_va as *mut u8,
+                    Err(_) => return Err(HypervisorError::FailedToGetExport),
+                }
+            }
+        };
 
-        let function_va = ssdt.guest_function_va as u64;
-
-        HookManager::ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
-
-        Ok(())
-    }
-
-    /// Disables an EPT hook for a syscall.
-    ///
-    /// # Arguments
-    ///
-    /// * `vm` - The virtual machine to remove the hook from.
-    /// * `syscall_number` - The number of the syscall to unhook.
-    /// * `ept_hook_type` - The type of EPT hook to use.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - The hook was removed successfully.
-    /// * `Err(HypervisorError)` - If the hook removal fails.
-    pub fn disable_syscall_ept_hook(&mut self, vm: &mut Vm, syscall_number: u16, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
-        debug!("Disabling EPT hook for syscall: {:#x}", syscall_number);
-
-        let ssdt = SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _)
-            .or_else(|_| SsdtHook::find_ssdt_function_address(syscall_number as _, true, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _))
-            .map_err(|_| HypervisorError::FailedToGetExport)?;
-
-        let function_va = ssdt.guest_function_va as u64;
-
-        HookManager::ept_unhook_function(vm, function_va as _, ept_hook_type)?;
+        if enable {
+            HookManager::ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
+        } else {
+            HookManager::ept_unhook_function(vm, function_va as _, ept_hook_type)?;
+        }
 
         Ok(())
     }
