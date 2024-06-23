@@ -13,7 +13,6 @@ use {
             capture::GuestRegisters,
             descriptor::Descriptors,
             ept::Ept,
-            hooks::hook_manager::HookManager,
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -46,9 +45,6 @@ pub struct Vm {
 
     /// Paging tables for the host.
     pub host_paging: PageTables,
-
-    /// The hook manager for the VM.
-    pub hook_manager: HookManager,
 
     /// A bitmap for handling MSRs.
     pub msr_bitmap: MsrBitmap,
@@ -110,16 +106,12 @@ impl Vm {
         trace!("Modifying MSR interception for LSTAR MSR write access");
         msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
-        trace!("Creating EPT hook manager");
-        let hook_manager = HookManager::new()?;
-
         trace!("VM created");
 
         Ok(Self {
             vmxon_region,
             vmcs_region,
             host_paging,
-            hook_manager,
             host_descriptor: Descriptors::new_for_host(),
             guest_descriptor: Descriptors::new_from_current(),
             msr_bitmap,

@@ -3,6 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             ept::AccessType,
+            hooks::hook_manager::HookManager,
             support::vmread,
             vm::Vm,
             vmerror::EptViolationExitQualification,
@@ -31,21 +32,22 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
     trace!("Faulting Guest Large Page PA: {:#x}", guest_large_page_pa);
 
+    let mut hook_manager = HookManager::get_hook_manager_mut();
+
+    // dump_primary_ept_entries(vm, guest_pa, &mut hook_manager)?;
+
     let shadow_page_pa = PAddr::from(
-        vm.hook_manager
+        hook_manager
             .memory_manager
             .get_shadow_page_as_ptr(guest_page_pa.as_u64())
             .ok_or(HypervisorError::ShadowPageNotFound)?,
     );
     trace!("Shadow Page PA: {:#x}", shadow_page_pa.as_u64());
 
-    let pre_alloc_pt = vm
-        .hook_manager
+    let pre_alloc_pt = hook_manager
         .memory_manager
         .get_page_table_as_mut(guest_large_page_pa.as_u64())
         .ok_or(HypervisorError::PageTableNotFound)?;
-
-    // dump_primary_ept_entries(vm, guest_pa)?;
 
     let exit_qualification_value = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let ept_violation_qualification = EptViolationExitQualification::from_exit_qualification(exit_qualification_value);
@@ -72,14 +74,14 @@ pub fn handle_ept_violation(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
         // We make this read-write-execute to allow the instruction performing a read-write
         // operation and then switch back to execute-only shadow page from handle_mtf vmexit
-        vm.hook_manager.mtf_counter = Some(1);
+        hook_manager.mtf_counter = Some(1);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
 
         // Ensure all data mutations to vm are done before calling this.
         // This function will update the guest interrupt flag to prevent interrupts while single-stepping
-        update_guest_interrupt_flag(vm, false)?;
+        update_guest_interrupt_flag(vm, &mut hook_manager, false)?;
     }
 
     trace!("EPT Violation handled successfully!");
@@ -111,8 +113,10 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> Result<ExitType, HypervisorEr
     // Retrieve the guest physical address that caused the EPT misconfiguration.
     let guest_physical_address = vmread(vmcs::ro::GUEST_PHYSICAL_ADDR_FULL);
 
+    let mut hook_manager = HookManager::get_hook_manager_mut();
+
     trace!("EPT Misconfiguration: Faulting guest address: {:#x}. This is a critical error that cannot be safely ignored.", guest_physical_address);
-    dump_primary_ept_entries(vm, guest_physical_address)?;
+    dump_primary_ept_entries(vm, guest_physical_address, &mut hook_manager)?;
 
     // Trigger a breakpoint exception to halt execution for debugging.
     // Continuing after this point is unsafe due to the potential for system instability.
@@ -133,7 +137,7 @@ pub fn handle_ept_misconfiguration(vm: &mut Vm) -> Result<ExitType, HypervisorEr
 ///
 /// * `vm` - The virtual machine instance.
 /// * `faulting_guest_pa` - The faulting guest physical address that caused the EPT misconfiguration or violation.
-pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(), HypervisorError> {
+pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64, hook_manager: &mut HookManager) -> Result<(), HypervisorError> {
     // Log the critical error information.
     trace!("Faulting guest address: {:#x}", faulting_guest_pa);
 
@@ -147,8 +151,7 @@ pub fn dump_primary_ept_entries(vm: &mut Vm, faulting_guest_pa: u64) -> Result<(
     // Get the primary EPTs.
     let primary_ept = &mut vm.primary_ept;
 
-    let pre_alloc_pt = vm
-        .hook_manager
+    let pre_alloc_pt = hook_manager
         .memory_manager
         .get_page_table_as_mut(guest_large_page_pa.as_u64())
         .ok_or(HypervisorError::PageTableNotFound)?;

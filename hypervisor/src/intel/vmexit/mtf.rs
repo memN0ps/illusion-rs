@@ -4,6 +4,7 @@ use {
         intel::{
             addresses::PhysicalAddress,
             ept::AccessType,
+            hooks::hook_manager::HookManager,
             support::{vmread, vmwrite},
             vm::Vm,
             vmexit::ExitType,
@@ -27,7 +28,9 @@ use {
 pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling Monitor Trap Flag exit.");
 
-    if let Some(counter) = vm.hook_manager.mtf_counter.as_mut() {
+    let mut hook_manager = HookManager::get_hook_manager_mut();
+
+    if let Some(counter) = hook_manager.mtf_counter.as_mut() {
         trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
         trace!("MTF counter before decrement: {}", *counter);
         *counter = counter.saturating_sub(1); // Safely decrement the counter
@@ -47,15 +50,14 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
             trace!("Guest Large Page PA: {:#x}", guest_large_page_pa.as_u64());
 
             let shadow_page_pa = PAddr::from(
-                vm.hook_manager
+                hook_manager
                     .memory_manager
                     .get_shadow_page_as_ptr(guest_page_pa.as_u64())
                     .ok_or(HypervisorError::ShadowPageNotFound)?,
             );
             trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
-            let pre_alloc_pt = vm
-                .hook_manager
+            let pre_alloc_pt = hook_manager
                 .memory_manager
                 .get_page_table_as_mut(guest_large_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
@@ -64,7 +66,7 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
             vm.primary_ept
                 .swap_page(guest_pa.align_down_to_base_page().as_u64(), shadow_page_pa.as_u64(), AccessType::EXECUTE, pre_alloc_pt)?;
 
-            restore_guest_interrupt_flag(vm)?;
+            restore_guest_interrupt_flag(vm, &mut hook_manager)?;
         } else {
             set_monitor_trap_flag(true); // Keep MTF enabled if there are more steps
         }
@@ -102,11 +104,12 @@ pub fn set_monitor_trap_flag(set: bool) {
 ///
 /// # Parameters
 /// * `vm`: A mutable reference to the virtual machine instance.
+/// * `hook_manager`: A mutable reference to the hook manager instance.
 /// * `enable`: If `true`, sets the Interrupt Flag; if `false`, clears the Interrupt Flag and optionally restores from old RFLAGS.
 ///
 /// # Returns
 /// * `Result<(), HypervisorError>`: Ok if successful, Err if an error occurred during VMCS read/write operations.
-pub fn update_guest_interrupt_flag(vm: &mut Vm, enable: bool) -> Result<(), HypervisorError> {
+pub fn update_guest_interrupt_flag(vm: &mut Vm, hook_manager: &mut HookManager, enable: bool) -> Result<(), HypervisorError> {
     trace!("Updating guest interrupt flag...");
 
     // Retrieve the current RFLAGS from the VMCS guest state area
@@ -115,7 +118,7 @@ pub fn update_guest_interrupt_flag(vm: &mut Vm, enable: bool) -> Result<(), Hype
     trace!("Current guest RFLAGS before update: {:#x}", current_rflags_bits);
 
     // Optionally save the current RFLAGS to old_rflags before modification
-    vm.hook_manager.old_rflags = Some(current_rflags_bits);
+    hook_manager.old_rflags = Some(current_rflags_bits);
 
     // Set or clear the Interrupt Flag based on the 'enable' parameter
     if enable {
@@ -138,11 +141,12 @@ pub fn update_guest_interrupt_flag(vm: &mut Vm, enable: bool) -> Result<(), Hype
 ///
 /// # Parameters
 /// * `vm`: A mutable reference to the virtual machine instance.
+/// * `hook_manager`: A mutable reference to the hook manager instance.
 ///
 /// # Returns
 /// * `Result<(), HypervisorError>`: Ok if successful, Err if an error occurred during VMCS read/write operations.
-pub fn restore_guest_interrupt_flag(vm: &mut Vm) -> Result<(), HypervisorError> {
-    if let Some(old_rflags_bits) = vm.hook_manager.old_rflags {
+pub fn restore_guest_interrupt_flag(vm: &mut Vm, hook_manager: &mut HookManager) -> Result<(), HypervisorError> {
+    if let Some(old_rflags_bits) = hook_manager.old_rflags {
         trace!("Restoring guest RFLAGS to old value: {:#x}", old_rflags_bits);
 
         // Update VM register state first
