@@ -76,7 +76,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
 
-    trace!("VMCS Dump: {:#?}", vm.vmcs_region);
+    trace!("VMCS Dump: {:#x?}", vm.vmcs_region);
 
     /*
     match HookManager::hide_hypervisor_memory(&mut vm, AccessType::READ_WRITE_EXECUTE) {
