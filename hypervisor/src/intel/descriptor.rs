@@ -23,7 +23,7 @@ use {
 /// for both host and guest VMX operations.
 pub struct Descriptors {
     /// Vector holding the GDT entries.
-    gdt: Vec<u64>,
+    pub gdt: Vec<u64>,
 
     /// Descriptor table pointer to the GDT.
     pub gdtr: DescriptorTablePointer<u64>,
@@ -38,17 +38,6 @@ pub struct Descriptors {
     pub tss: TaskStateSegment,
 }
 
-impl Default for Descriptors {
-    fn default() -> Self {
-        Self {
-            gdt: Vec::new(),
-            gdtr: DescriptorTablePointer::<u64>::default(),
-            cs: SegmentSelector::from_raw(0),
-            tr: SegmentSelector::from_raw(0),
-            tss: TaskStateSegment::default(),
-        }
-    }
-}
 impl Descriptors {
     /// Creates a new GDT based on the current one, including TSS.
     ///
@@ -64,10 +53,12 @@ impl Descriptors {
         let current_gdtr = sgdt();
         let current_gdt = unsafe { core::slice::from_raw_parts(current_gdtr.base.cast::<u64>(), usize::from(current_gdtr.limit + 1) / 8) };
 
-        // Copy the current GDT.
-        let mut descriptors = Self {
+        let mut descriptors = Descriptors {
             gdt: current_gdt.to_vec(),
-            ..Default::default()
+            gdtr: DescriptorTablePointer::<u64>::default(),
+            cs: SegmentSelector::from_raw(0),
+            tr: SegmentSelector::from_raw(0),
+            tss: TaskStateSegment::default(),
         };
 
         // Append the TSS descriptor. Push extra 0 as it is 16 bytes.
@@ -95,7 +86,13 @@ impl Descriptors {
     pub fn new_for_host() -> Self {
         log::debug!("Creating a new GDT with TSS for host");
 
-        let mut descriptors = Self::default();
+        let mut descriptors = Descriptors {
+            gdt: Vec::new(),
+            gdtr: DescriptorTablePointer::<u64>::default(),
+            cs: SegmentSelector::from_raw(0),
+            tr: SegmentSelector::from_raw(0),
+            tss: TaskStateSegment::default(),
+        };
 
         descriptors.gdt.push(0);
         descriptors.gdt.push(Self::code_segment_descriptor().as_u64());

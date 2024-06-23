@@ -60,9 +60,14 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("CPU is not supported: {:?}", e),
     };
 
-    let mut vm = match Vm::new(&guest_registers) {
-        Ok(vm) => vm,
-        Err(e) => panic!("Failed to create VM: {:?}", e),
+    let mut vm_uninit = Vm::zeroed();
+
+    let mut vm = unsafe {
+        let vm_ptr = &mut *vm_uninit.as_mut_ptr();
+        match vm_ptr.init(&guest_registers) {
+            Ok(_) => vm_uninit.assume_init(),
+            Err(e) => panic!("Failed to create VM: {:?}", e),
+        }
     };
 
     match vm.activate_vmxon() {
@@ -74,6 +79,8 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Ok(_) => debug!("VMCS activated"),
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
+
+    trace!("VMCS Dump: {:#?}", vm.vmcs_region);
 
     /*
     match HookManager::hide_hypervisor_memory(&mut vm, AccessType::READ_WRITE_EXECUTE) {

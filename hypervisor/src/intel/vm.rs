@@ -21,6 +21,7 @@ use {
             vmxon::Vmxon,
         },
     },
+    core::mem::MaybeUninit,
     log::*,
     x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
 };
@@ -37,23 +38,23 @@ pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
     pub vmcs_region: Vmcs,
 
-    /// Descriptor tables for the guest state.
-    pub guest_descriptor: Descriptors,
-
     /// Descriptor tables for the host state.
     pub host_descriptor: Descriptors,
 
+    /// Descriptor tables for the guest state.
+    pub guest_descriptor: Descriptors,
+
     /// Paging tables for the host.
     pub host_paging: PageTables,
-
-    /// A bitmap for handling MSRs.
-    pub msr_bitmap: MsrBitmap,
 
     /// The primary EPT (Extended Page Tables) for the VM.
     pub primary_ept: Ept,
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
+
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: MsrBitmap,
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
@@ -63,6 +64,11 @@ pub struct Vm {
 }
 
 impl Vm {
+    /// Creates a new zeroed VM instance.
+    pub fn zeroed() -> MaybeUninit<Self> {
+        MaybeUninit::zeroed()
+    }
+
     /// Initializes a new VM instance with specified guest registers.
     ///
     /// Sets up the necessary environment for the VM, including VMCS initialization, host and guest
@@ -76,50 +82,52 @@ impl Vm {
     ///
     /// Returns `Ok(Self)` with a newly created `Vm` instance, or an `Err(HypervisorError)` if
     /// any part of the setup fails.
-    pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
+    pub fn init(&mut self, guest_registers: &GuestRegisters) -> Result<(), HypervisorError> {
         trace!("Creating VM");
 
-        trace!("Allocating VMXON region");
-        let vmxon_region = Vmxon::new();
+        trace!("Initializing VMXON region");
+        self.vmxon_region.init();
 
-        trace!("Allocating VMCS region");
-        let vmcs_region = Vmcs::new();
+        trace!("Initializing VMCS region");
+        self.vmcs_region.init();
 
-        trace!("Allocating Memory for Host Paging");
-        let mut host_paging = PageTables::new();
+        trace!("Initializing Host Descriptor Tables");
+        self.host_descriptor = Descriptors::new_for_host();
+
+        trace!("Initializing Guest Descriptor Tables");
+        self.guest_descriptor = Descriptors::new_from_current();
+
+        trace!("Initializing Host Paging Tables");
+        self.host_paging.init();
 
         trace!("Building Identity Paging for Host");
-        host_paging.build_identity();
+        self.host_paging.build_identity();
 
-        trace!("Allocating MSR Bitmap");
-        let mut msr_bitmap = MsrBitmap::new();
-
-        trace!("Allocating Primary EPT");
-        let mut primary_ept = Ept::new();
+        trace!("Initializing Primary EPT");
+        self.primary_ept.init();
 
         trace!("Identity Mapping Primary EPT");
-        primary_ept.build_identity()?;
+        self.primary_ept.build_identity()?;
 
         trace!("Creating primary EPTP with WB and 4-level walk");
-        let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
+        self.primary_eptp = self.primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
+
+        trace!("Initializing MSR Bitmap");
+        self.msr_bitmap.init();
 
         trace!("Modifying MSR interception for LSTAR MSR write access");
-        msr_bitmap.modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+        self.msr_bitmap
+            .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+
+        trace!("Initializing Guest Registers");
+        self.guest_registers = guest_registers.clone();
+
+        trace!("Initializing Launch State");
+        self.has_launched = false;
 
         trace!("VM created");
 
-        Ok(Self {
-            vmxon_region,
-            vmcs_region,
-            host_paging,
-            host_descriptor: Descriptors::new_for_host(),
-            guest_descriptor: Descriptors::new_from_current(),
-            msr_bitmap,
-            primary_ept,
-            primary_eptp,
-            guest_registers: guest_registers.clone(),
-            has_launched: false,
-        })
+        Ok(())
     }
 
     /// Activates the VMXON region to enable VMX operation.
