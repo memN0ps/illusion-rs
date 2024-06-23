@@ -60,15 +60,11 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("CPU is not supported: {:?}", e),
     };
 
-    let mut vm_uninit = Vm::zeroed();
-
-    let mut vm = unsafe {
-        let vm_ptr = &mut *vm_uninit.as_mut_ptr();
-        match vm_ptr.init(&guest_registers) {
-            Ok(_) => vm_uninit.assume_init(),
-            Err(e) => panic!("Failed to create VM: {:?}", e),
-        }
-    };
+    let mut vm = unsafe { Vm::zeroed().assume_init() };
+    match vm.init(guest_registers) {
+        Ok(_) => debug!("VM initialized"),
+        Err(e) => panic!("Failed to initialize VM: {:?}", e),
+    }
 
     match vm.activate_vmxon() {
         Ok(_) => debug!("VMX enabled"),
