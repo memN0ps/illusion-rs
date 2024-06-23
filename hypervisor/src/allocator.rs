@@ -4,22 +4,25 @@
 //! debugging information.
 
 use {
-    crate::global_const::{HEAP_SIZE, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES},
+    crate::global_const::HEAP_SIZE,
     alloc::{boxed::Box, vec::Vec},
     core::{
         alloc::{GlobalAlloc, Layout},
         ptr,
-        sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
+        sync::atomic::{AtomicUsize, Ordering},
     },
     log::debug,
     spin::Mutex,
-    uefi::table::{boot::AllocateType, Boot, SystemTable},
-    x86::bits64::paging::BASE_PAGE_SIZE,
 };
 
 /// Global allocator instance with a heap size of `HEAP_SIZE`.
 #[global_allocator]
 pub static mut HEAP: ListHeap<HEAP_SIZE> = ListHeap::new();
+
+/// Initializes the linked list heap.
+pub unsafe fn heap_init() {
+    HEAP.reset();
+}
 
 /// A heap allocator based on a linked list of free chunks.
 ///
@@ -328,63 +331,6 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
 /// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
     unsafe { Box::<T>::new_zeroed().assume_init() }
-}
-
-/// Reference to the system table, used to call the boot services pool memory
-/// allocation functions.
-static SYSTEM_TABLE: AtomicPtr<SystemTable<Boot>> = AtomicPtr::new(ptr::null_mut());
-
-/// Initializes the system table and resets the global heap.
-///
-/// This function must be called before any memory allocation operations are performed. It initializes
-/// the system table reference and resets the global heap to its default state.
-///
-/// # Safety
-///
-/// This function is unsafe because it must be called exactly once and must be called
-/// before any allocations are made.
-///
-/// # Important
-///
-/// This function must be called to ensure that the global allocator is properly initialized and reset.
-///
-/// # Arguments
-///
-/// * `system_table` - A reference to the UEFI system table.
-pub unsafe fn initialize_system_table_and_heap(system_table: &SystemTable<Boot>) {
-    SYSTEM_TABLE.store(system_table as *const _ as *mut _, Ordering::Release);
-    HEAP.reset();
-}
-
-/// Allocates a block of memory pages using UEFI's allocate_pages function.
-///
-/// This function allocates memory pages that are not part of the global allocator.
-/// The allocated memory is of type `RUNTIME_SERVICES_DATA` and is allocated anywhere in memory.
-///
-/// # Returns
-///
-/// A pointer to the allocated memory block.
-///
-/// # Panics
-///
-/// This function will panic if memory allocation fails.
-pub fn allocate_host_stack() -> *mut u8 {
-    let _guard = ALLOCATOR_MUTEX.lock(); // Ensure thread safety
-
-    // Get the system table and boot services
-    let system_table = SYSTEM_TABLE.load(Ordering::Acquire);
-    let boot_services = unsafe { &(*system_table).boot_services() };
-
-    // Allocate the pages using UEFI's allocate_pages function
-    let allocated_pages = boot_services
-        .allocate_pages(AllocateType::AnyPages, STACK_MEMORY_TYPE, STACK_NUMBER_OF_PAGES)
-        .expect("Failed to allocate UEFI pages");
-
-    // Record the allocation
-    record_allocation(allocated_pages as usize, STACK_NUMBER_OF_PAGES * BASE_PAGE_SIZE); // Assuming 4KB pages
-
-    // Return the pointer to the allocated memory block
-    allocated_pages as *mut u8
 }
 
 /// Structure to store allocated memory ranges.

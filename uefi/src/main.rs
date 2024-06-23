@@ -10,9 +10,9 @@
 extern crate alloc;
 
 use {
-    crate::{processor::start_hypervisor_on_all_processors, setup::setup},
+    crate::{processor::start_hypervisor_on_all_processors, setup::setup, stack::init},
     hypervisor::{
-        allocator::initialize_system_table_and_heap,
+        allocator::heap_init,
         logger::{self, SerialPort},
     },
     log::*,
@@ -21,6 +21,7 @@ use {
 
 pub mod processor;
 pub mod setup;
+pub mod stack;
 pub mod virtualize;
 
 /// Custom panic handler for the UEFI application.
@@ -56,9 +57,12 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// The status of the application execution. Returns `Status::SUCCESS` on successful execution,
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
-fn main(_image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
+fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     unsafe {
-        initialize_system_table_and_heap(&system_table);
+        // Initialize the stack allocator.
+        init(&mut system_table);
+        // Initialize the global heap allocator.
+        heap_init();
     }
 
     // Initialize logging with the COM2 port and set the level filter to Debug.
