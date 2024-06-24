@@ -10,14 +10,18 @@
 extern crate alloc;
 
 use {
-    crate::{processor::start_hypervisor_on_all_processors, relocation::zap_relocations},
-    hypervisor::logger::{self, SerialPort},
+    crate::{processor::start_hypervisor_on_all_processors, setup::setup, stack::init},
+    hypervisor::{
+        allocator::heap_init,
+        logger::{self, SerialPort},
+    },
     log::*,
     uefi::prelude::*,
 };
 
 pub mod processor;
-pub mod relocation;
+pub mod setup;
+pub mod stack;
 pub mod virtualize;
 
 /// Custom panic handler for the UEFI application.
@@ -54,20 +58,24 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    // Initialize logging with the COM2 port and set the level filter to Trace.
-    logger::init(SerialPort::COM1, LevelFilter::Debug);
+    unsafe {
+        // Initialize the stack allocator.
+        init(&mut system_table);
+        // Initialize the global heap allocator.
+        heap_init();
+    }
 
-    // Initialize UEFI services.
-    uefi::helpers::init(&mut system_table).unwrap();
+    // Initialize logging with the COM2 port and set the level filter to Debug.
+    logger::init(SerialPort::COM1, LevelFilter::Trace);
 
     info!("The Matrix is an illusion");
 
     let boot_services = system_table.boot_services();
 
-    // Attempt to zap relocations in the UEFI environment.
-    debug!("Zapping relocations");
-    if let Err(e) = zap_relocations(boot_services) {
-        error!("Failed to zap relocations: {:?}", e);
+    // Set up the hypervisor
+    debug!("Setting up the hypervisor");
+    if let Err(e) = setup(boot_services) {
+        error!("Failed to set up the hypervisor: {:?}", e);
         return Status::ABORTED;
     }
 

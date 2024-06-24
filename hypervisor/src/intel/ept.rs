@@ -39,6 +39,14 @@ pub struct Ept {
 }
 
 impl Ept {
+    /// Initializes the Extended Page Table (EPT) structure.
+    pub fn init(&mut self) {
+        self.pml4 = Pml4(Table { entries: [Entry(0); 512] });
+        self.pdpt = Pdpt(Table { entries: [Entry(0); 512] });
+        self.pd = [Pd(Table { entries: [Entry(0); 512] }); 512];
+        self.pt = Pt(Table { entries: [Entry(0); 512] });
+    }
+
     /// Builds an identity-mapped Extended Page Table (EPT) structure with considerations for Memory Type Range Registers (MTRR).
     /// This function initializes the EPT with a 1:1 physical-to-virtual memory mapping,
     /// setting up the required PML4, PDPT, and PD entries for the initial memory range.

@@ -1,6 +1,5 @@
 use {
     crate::{
-        allocate::ALLOCATED_MEMORY,
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -13,13 +12,20 @@ use {
             invvpid::invvpid_all_contexts,
             vm::Vm,
         },
+        tracker::{print_allocated_memory, ALLOCATED_MEMORY_HEAD},
         windows::kernel::KernelHook,
     },
-    alloc::{boxed::Box, vec::Vec},
-    core::intrinsics::copy_nonoverlapping,
+    core::{
+        intrinsics::copy_nonoverlapping,
+        sync::atomic::{AtomicU64, Ordering},
+    },
     log::*,
     x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
 };
+
+/// Global variable to store the address of the created dummy page.
+/// This variable can be accessed by multiple cores/threads/processors.
+pub static DUMMY_PAGE_ADDRESS: AtomicU64 = AtomicU64::new(0);
 
 /// Enum representing different types of hooks that can be applied.
 #[derive(Debug, Clone, Copy)]
@@ -38,10 +44,10 @@ pub enum EptHookType {
 #[derive(Debug, Clone)]
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
-    pub memory_manager: Box<MemoryManager>,
+    pub memory_manager: MemoryManager,
 
     /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
-    pub kernel_hook: Option<Box<KernelHook>>,
+    pub kernel_hook: Option<KernelHook>,
 
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
@@ -64,49 +70,60 @@ impl HookManager {
     ///
     /// # Returns
     /// A result containing a boxed `HookManager` instance or an error of type `HypervisorError`.
-    pub fn new() -> Result<Box<Self>, HypervisorError> {
+    pub fn new() -> Result<Self, HypervisorError> {
         trace!("Initializing hook manager");
 
-        let memory_manager = Box::new(MemoryManager::new()?);
-        let kernel_hook = Some(Box::new(KernelHook::new()?));
+        let memory_manager = MemoryManager::new();
+        let kernel_hook = Some(KernelHook::new()?);
 
-        Ok(Box::new(Self {
+        Ok(Self {
             memory_manager,
             has_cpuid_cache_info_been_called: false,
             kernel_hook,
             old_rflags: None,
             mtf_counter: None,
-        }))
+        })
     }
 
     /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.
     ///
-    /// This function iterates through the `ALLOCATED_MEMORY` set and calls `ept_hide_hypervisor_memory`
+    /// This function iterates through the recorded memory allocations and calls `ept_hide_hypervisor_memory`
     /// for each page to split the 2MB pages into 4KB pages and fill the shadow page with a specified value.
     /// It then swaps the guest page with the shadow page and sets the desired permissions.
     ///
     /// # Arguments
     ///
     /// * `vm` - The virtual machine instance of the hypervisor.
-    /// * `dummy_page_pa` - The physical address of the dummy page.
     /// * `page_permissions` - The desired permissions for the hooked page.
     ///
     /// # Returns
     ///
-    /// * Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
+    /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
-        let allocated_memory: Vec<(u64, u64)> = {
-            let allocated_memory = ALLOCATED_MEMORY.lock();
-            allocated_memory.iter().copied().collect()
-        };
+        // Print the tracked memory allocations for debugging purposes.
+        print_allocated_memory();
 
-        debug!("Allocated memory ranges:");
-        for &(base, end) in &allocated_memory {
-            debug!("Memory range: {:#x} - {:#x}", base, end);
-        }
+        // Load the head of the allocated memory list.
+        let mut current_node = ALLOCATED_MEMORY_HEAD.load(Ordering::Acquire);
 
-        for &(base, _end) in &allocated_memory {
-            HookManager::ept_hide_hypervisor_memory(vm, base, page_permissions)?;
+        // Iterate through the linked list and hide each memory range.
+        while !current_node.is_null() {
+            // Get a reference to the current node.
+            let node = unsafe { &*current_node };
+
+            // Print the memory range.
+            trace!("Memory Range: Start = {:#X}, Size = {}", node.start, node.size);
+
+            // Iterate through the memory range in 4KB steps.
+            for offset in (0..node.size).step_by(BASE_PAGE_SIZE) {
+                let guest_page_pa = node.start + offset;
+                // Print the page address before hiding it.
+                trace!("Hiding memory page at: {:#X}", guest_page_pa);
+                HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
+            }
+
+            // Move to the next node.
+            current_node = node.next.load(Ordering::Acquire);
         }
 
         Ok(())
@@ -126,20 +143,18 @@ impl HookManager {
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
     fn ept_hide_hypervisor_memory(vm: &mut Vm, guest_page_pa: u64, page_permissions: AccessType) -> Result<(), HypervisorError> {
         let guest_page_pa = PAddr::from(guest_page_pa).align_down_to_base_page();
-        debug!("Guest page PA: {:#x}", guest_page_pa.as_u64());
+        trace!("Guest page PA: {:#x}", guest_page_pa.as_u64());
 
         let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
-        debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
+        trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        let dummy_page_pa = vm.dummy_page_pa;
+        let dummy_page_pa = DUMMY_PAGE_ADDRESS.load(Ordering::SeqCst);
+
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
-        debug!("Mapping large page");
+        trace!("Mapping large page");
         // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
         vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
-
-        debug!("Filling shadow page with 0xff");
-        Self::unsafe_fill_shadow_page(PAddr::from(dummy_page_pa), 0xff);
 
         let pre_alloc_pt = vm
             .hook_manager
@@ -149,18 +164,18 @@ impl HookManager {
 
         // Check if a guest page has already been split.
         if vm.primary_ept.is_large_page(guest_page_pa.as_u64()) {
-            debug!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
+            trace!("Splitting 2MB page to 4KB pages for Primary EPT: {:#x}", guest_large_page_pa);
             vm.primary_ept.split_2mb_to_4kb(guest_large_page_pa.as_u64(), pre_alloc_pt)?;
         }
 
-        debug!("Swapping guest page: {:#x} with dummy page: {:#x}", guest_page_pa.as_u64(), dummy_page_pa);
+        trace!("Swapping guest page: {:#x} with dummy page: {:#x}", guest_page_pa.as_u64(), dummy_page_pa);
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), dummy_page_pa, page_permissions, pre_alloc_pt)?;
 
         invept_all_contexts();
         invvpid_all_contexts();
 
-        debug!("EPT hide hypervisor memory completed successfully");
+        trace!("EPT hide hypervisor memory completed successfully");
 
         Ok(())
     }

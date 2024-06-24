@@ -30,7 +30,6 @@ use {
                 xsetbv::handle_xsetbv,
                 ExitType,
             },
-            vmx::Vmx,
         },
     },
     log::*,
@@ -61,22 +60,23 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
         Err(e) => panic!("CPU is not supported: {:?}", e),
     };
 
-    let mut vmx = Vmx::new();
+    let mut vm = unsafe { Vm::zeroed().assume_init() };
+    match vm.init(guest_registers) {
+        Ok(_) => debug!("VM initialized"),
+        Err(e) => panic!("Failed to initialize VM: {:?}", e),
+    }
 
-    match vmx.activate_vmxon() {
+    match vm.activate_vmxon() {
         Ok(_) => debug!("VMX enabled"),
         Err(e) => panic!("Failed to enable VMX: {:?}", e),
-    };
-
-    let mut vm = match Vm::new(&guest_registers) {
-        Ok(vm) => vm,
-        Err(e) => panic!("Failed to create VM: {:?}", e),
-    };
+    }
 
     match vm.activate_vmcs() {
         Ok(_) => debug!("VMCS activated"),
         Err(e) => panic!("Failed to activate VMCS: {:?}", e),
     }
+
+    trace!("VMCS Dump: {:#x?}", vm.vmcs_region);
 
     /*
     match HookManager::hide_hypervisor_memory(&mut vm, AccessType::READ_WRITE_EXECUTE) {

@@ -49,4 +49,33 @@ impl Page {
     pub fn size() -> usize {
         BASE_PAGE_SIZE
     }
+
+    /// Returns a pointer to the page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `*const u8` - A pointer to the page buffer.
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
+    }
+
+    /// Returns a mutable pointer to the page buffer.
+    ///
+    /// # Returns
+    ///
+    /// * `*mut u8` - A mutable pointer to the page buffer.
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
+        self.0.as_mut_ptr()
+    }
+
+    /// Fills the page with a specified byte value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The byte value to fill the page with.
+    pub fn fill(&mut self, value: u8) {
+        for byte in self.0.iter_mut() {
+            *byte = value;
+        }
+    }
 }

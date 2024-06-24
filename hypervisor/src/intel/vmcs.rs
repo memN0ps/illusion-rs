@@ -13,12 +13,11 @@ use {
             descriptor::Descriptors,
             invept::invept_single_context,
             invvpid::{invvpid_single_context, VPID_TAG},
-            paging::PageTables,
             segmentation::{access_rights_from_native, lar, lsl},
             support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
         },
     },
-    alloc::boxed::Box,
+    bit_field::BitField,
     core::fmt,
     x86::{
         bits64::{paging::BASE_PAGE_SIZE, rflags},
@@ -44,21 +43,13 @@ pub struct Vmcs {
     pub reserved: [u8; BASE_PAGE_SIZE - 8],
 }
 
-impl Default for Vmcs {
-    /// Constructs a default `Vmcs` instance with the necessary revision ID.
-    ///
-    /// Initializes the VMCS with the appropriate revision identifier obtained from the IA32_VMX_BASIC MSR,
-    /// sets the abort indicator to 0, and fills the reserved area with zeros, preparing the VMCS for use.
-    fn default() -> Self {
-        Self {
-            revision_id: rdmsr(msr::IA32_VMX_BASIC) as u32,
-            abort_indicator: 0,
-            reserved: [0; BASE_PAGE_SIZE - 8],
-        }
-    }
-}
-
 impl Vmcs {
+    /// Initializes the VMCS region.
+    pub fn init(&mut self) {
+        self.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
+        self.revision_id.set_bit(31, false);
+    }
+
     /// Initialize the guest state for the currently loaded VMCS.
     ///
     /// The method sets up various guest state fields in the VMCS as per the
@@ -132,10 +123,8 @@ impl Vmcs {
     /// # Arguments
     /// * `host_descriptor` - Descriptor tables for the host.
     /// * `host_paging` - Paging tables for the host.
-    pub fn setup_host_registers_state(host_descriptor: &Descriptors, host_paging: &Box<PageTables>) -> Result<(), HypervisorError> {
+    pub fn setup_host_registers_state(host_descriptor: &Descriptors, pml4_pa: u64) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
-
-        let pml4_pa = host_paging.get_pml4_pa()?;
 
         vmwrite(vmcs::host::CR0, cr0().bits() as u64);
         vmwrite(vmcs::host::CR3, pml4_pa);

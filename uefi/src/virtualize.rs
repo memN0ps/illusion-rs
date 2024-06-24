@@ -4,8 +4,13 @@
 //! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/switch_stack.rs
 
 use {
-    core::arch::global_asm,
-    hypervisor::{allocate::allocate_stack_space, intel::capture::GuestRegisters, vmm::start_hypervisor},
+    crate::stack::allocate_host_stack,
+    core::{alloc::Layout, arch::global_asm, intrinsics::copy_nonoverlapping},
+    hypervisor::{
+        global_const::STACK_PAGES_PER_PROCESSOR,
+        intel::{capture::GuestRegisters, page::Page},
+        vmm::start_hypervisor,
+    },
     log::debug,
 };
 
@@ -16,9 +21,22 @@ use {
 /// * `guest_registers` - The guest registers to use for the hypervisor.
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
-    let host_stack = allocate_stack_space(0x3000);
 
-    unsafe { switch_stack(guest_registers, start_hypervisor as usize, host_stack) };
+    let layout = Layout::array::<Page>(STACK_PAGES_PER_PROCESSOR).unwrap();
+    let stack = unsafe { allocate_host_stack(layout) };
+    let size = layout.size();
+
+    debug!("Zeroing stack space for host");
+    unsafe { copy_nonoverlapping(0 as _, stack, size) }
+
+    if stack == core::ptr::null_mut() {
+        panic!("Failed to allocate stack");
+    }
+
+    let stack_base = stack as u64 + layout.size() as u64 - 0x10;
+    log::trace!("Stack range: {:#x?}", stack as u64..stack_base);
+
+    unsafe { switch_stack(guest_registers, start_hypervisor as usize, stack_base as _) };
 }
 
 extern "efiapi" {

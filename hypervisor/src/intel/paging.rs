@@ -40,6 +40,13 @@ pub struct PageTables {
 }
 
 impl PageTables {
+    /// Initializes the Page Tables structure with empty tables.
+    pub fn init(&mut self) {
+        self.pml4 = Pml4(Table { entries: [Entry(0); 512] });
+        self.pdpt = Pdpt(Table { entries: [Entry(0); 512] });
+        self.pd = [Pd(Table { entries: [Entry(0); 512] }); 512];
+    }
+
     /// Builds a basic identity map for the page tables.
     ///
     /// This setup ensures that each virtual address directly maps to the same physical address,

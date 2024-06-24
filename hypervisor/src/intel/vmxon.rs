@@ -26,19 +26,13 @@ pub struct Vmxon {
     pub data: [u8; BASE_PAGE_SIZE - 4],
 }
 
-impl Default for Vmxon {
-    /// Constructs a default `Vmxon` instance.
-    ///
-    /// Sets the revision ID to the value read from the IA32_VMX_BASIC MSR and initializes the data array to zeros, preparing the VMXON region for use.
-    fn default() -> Self {
-        Self {
-            revision_id: rdmsr(msr::IA32_VMX_BASIC) as u32,
-            data: [0; BASE_PAGE_SIZE - 4],
-        }
-    }
-}
-
 impl Vmxon {
+    /// Initializes the VMXON region.
+    pub fn init(&mut self) {
+        self.revision_id = rdmsr(msr::IA32_VMX_BASIC) as u32;
+        self.revision_id.set_bit(31, false);
+    }
+
     /// Enables VMX operation by setting the VMX-enable bit in CR4.
     ///
     /// Sets the CR4_VMX_ENABLE_BIT to enable VMX operations, preparing the processor to enter VMX operation mode.

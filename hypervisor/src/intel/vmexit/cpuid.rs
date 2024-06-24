@@ -81,7 +81,7 @@ const PASSWORD: u64 = 0xDEADBEEF;
 ///
 /// # Arguments
 ///
-/// * `registers` - A mutable reference to the guest's current register state.
+/// * `vm` - A mutable reference to the virtual machine (VM) instance.
 ///
 /// # Returns
 ///

@@ -7,7 +7,6 @@
 
 use {
     crate::{
-        allocate::{box_zeroed, create_dummy_page},
         error::HypervisorError,
         intel::{
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
@@ -16,16 +15,16 @@ use {
             ept::Ept,
             hooks::hook_manager::HookManager,
             paging::PageTables,
-            support::{rdmsr, vmclear, vmptrld, vmread},
+            support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
             vmerror::{VmInstructionError, VmxBasicExitReason},
             vmlaunch::launch_vm,
+            vmxon::Vmxon,
         },
     },
-    alloc::boxed::Box,
-    bit_field::BitField,
+    core::mem::MaybeUninit,
     log::*,
-    x86::{bits64::rflags::RFlags, vmx::vmcs},
+    x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
 };
 
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
@@ -34,29 +33,29 @@ use {
 /// It holds the VMCS region, guest and host descriptor tables, paging information, MSR bitmaps,
 /// and the state of guest registers. Additionally, it tracks whether the VM has been launched.
 pub struct Vm {
-    /// The VMCS (Virtual Machine Control Structure) for the VM.
-    pub vmcs_region: Box<Vmcs>,
+    /// The VMXON (Virtual Machine Extensions On) region for the VM.
+    pub vmxon_region: Vmxon,
 
-    /// Descriptor tables for the guest state.
-    pub guest_descriptor: Descriptors,
+    /// The VMCS (Virtual Machine Control Structure) for the VM.
+    pub vmcs_region: Vmcs,
 
     /// Descriptor tables for the host state.
     pub host_descriptor: Descriptors,
 
+    /// Descriptor tables for the guest state.
+    pub guest_descriptor: Descriptors,
+
     /// Paging tables for the host.
-    pub host_paging: Box<PageTables>,
-
-    /// The hook manager for the VM.
-    pub hook_manager: Box<HookManager>,
-
-    /// A bitmap for handling MSRs.
-    pub msr_bitmap: Box<MsrBitmap>,
+    pub host_paging: PageTables,
 
     /// The primary EPT (Extended Page Tables) for the VM.
-    pub primary_ept: Box<Ept>,
+    pub primary_ept: Ept,
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
+
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: MsrBitmap,
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
@@ -64,11 +63,16 @@ pub struct Vm {
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
 
-    /// Physical address of a dummy page.
-    pub dummy_page_pa: u64,
+    /// The hook manager for the VM.
+    pub hook_manager: HookManager,
 }
 
 impl Vm {
+    /// Creates a new zeroed VM instance.
+    pub fn zeroed() -> MaybeUninit<Self> {
+        MaybeUninit::zeroed()
+    }
+
     /// Initializes a new VM instance with specified guest registers.
     ///
     /// Sets up the necessary environment for the VM, including VMCS initialization, host and guest
@@ -82,53 +86,105 @@ impl Vm {
     ///
     /// Returns `Ok(Self)` with a newly created `Vm` instance, or an `Err(HypervisorError)` if
     /// any part of the setup fails.
-    pub fn new(guest_registers: &GuestRegisters) -> Result<Self, HypervisorError> {
+    pub fn init(&mut self, guest_registers: &GuestRegisters) -> Result<(), HypervisorError> {
         trace!("Creating VM");
-        let mut vmcs_region = unsafe { box_zeroed::<Vmcs>() };
-        vmcs_region.revision_id = rdmsr(x86::msr::IA32_VMX_BASIC) as u32;
 
-        trace!("Allocating Memory for Host Paging");
-        let mut host_paging = unsafe { box_zeroed::<PageTables>() };
+        trace!("Initializing VMXON region");
+        self.vmxon_region.init();
+
+        trace!("Initializing VMCS region");
+        self.vmcs_region.init();
+
+        trace!("Initializing Host Descriptor Tables");
+        self.host_descriptor = Descriptors::new_for_host();
+
+        trace!("Initializing Guest Descriptor Tables");
+        self.guest_descriptor = Descriptors::new_from_current();
+
+        trace!("Initializing Host Paging Tables");
+        self.host_paging.init();
 
         trace!("Building Identity Paging for Host");
-        host_paging.build_identity();
+        self.host_paging.build_identity();
 
-        trace!("Allocating MSR Bitmap");
-        let mut msr_bitmap = MsrBitmap::new();
-
-        trace!("Allocating Primary EPT");
-        let mut primary_ept = unsafe { box_zeroed::<Ept>() };
+        trace!("Initializing Primary EPT");
+        self.primary_ept.init();
 
         trace!("Identity Mapping Primary EPT");
-        primary_ept.build_identity()?;
+        self.primary_ept.build_identity()?;
 
         trace!("Creating primary EPTP with WB and 4-level walk");
-        let primary_eptp = primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
+        self.primary_eptp = self.primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
+
+        trace!("Initializing MSR Bitmap");
+        self.msr_bitmap.init();
 
         trace!("Modifying MSR interception for LSTAR MSR write access");
-        msr_bitmap.modify_msr_interception(x86::msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+        self.msr_bitmap
+            .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
-        trace!("Creating EPT hook manager");
-        let hook_manager = HookManager::new()?;
+        trace!("Initializing Guest Registers");
+        self.guest_registers = guest_registers.clone();
 
-        trace!("Creating dummy page filled with 0xffs");
-        let dummy_page_pa = create_dummy_page(0xff);
+        trace!("Initializing Launch State");
+        self.has_launched = false;
+
+        trace!("Initializing Hook Manager");
+        self.hook_manager = HookManager::new()?;
 
         trace!("VM created");
 
-        Ok(Self {
-            vmcs_region,
-            host_paging,
-            hook_manager,
-            host_descriptor: Descriptors::new_for_host(),
-            guest_descriptor: Descriptors::new_from_current(),
-            msr_bitmap,
-            primary_ept,
-            primary_eptp,
-            guest_registers: guest_registers.clone(),
-            has_launched: false,
-            dummy_page_pa,
-        })
+        Ok(())
+    }
+
+    /// Activates the VMXON region to enable VMX operation.
+    ///
+    /// Sets up the VMXON region and executes the VMXON instruction. This involves configuring control registers,
+    /// adjusting the IA32_FEATURE_CONTROL MSR, and validating the VMXON region's revision ID to ensure the CPU is ready
+    /// for VMX operation mode.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if any step in the activation process fails.
+    pub fn activate_vmxon(&mut self) -> Result<(), HypervisorError> {
+        trace!("Setting up VMXON region");
+        self.setup_vmxon()?;
+        trace!("VMXON region setup successfully!");
+
+        trace!("Executing VMXON instruction");
+        vmxon(&self.vmxon_region as *const _ as _);
+        trace!("VMXON executed successfully!");
+
+        Ok(())
+    }
+
+    /// Prepares the system for VMX operation by configuring necessary control registers and MSRs.
+    ///
+    /// Ensures that the system meets all prerequisites for VMX operation as defined by Intel's specifications.
+    /// This includes enabling VMX operation through control register modifications, setting the lock bit in
+    /// IA32_FEATURE_CONTROL MSR, and adjusting mandatory CR0 and CR4 bits.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if all configurations are successfully applied, or an `Err(HypervisorError)` if adjustments fail.
+    fn setup_vmxon(&mut self) -> Result<(), HypervisorError> {
+        trace!("Enabling Virtual Machine Extensions (VMX)");
+        Vmxon::enable_vmx_operation();
+        trace!("VMX enabled");
+
+        trace!("Adjusting IA32_FEATURE_CONTROL MSR");
+        Vmxon::adjust_feature_control_msr()?;
+        trace!("IA32_FEATURE_CONTROL MSR adjusted");
+
+        trace!("Setting CR0 bits");
+        Vmxon::set_cr0_bits();
+        trace!("CR0 bits set");
+
+        trace!("Setting CR4 bits");
+        Vmxon::set_cr4_bits();
+        trace!("CR4 bits set");
+
+        Ok(())
     }
 
     /// Activates the VMCS region for the VM, preparing it for execution.
@@ -141,14 +197,12 @@ impl Vm {
     /// Returns `Ok(())` on successful activation, or an `Err(HypervisorError)` if activation fails.
     pub fn activate_vmcs(&mut self) -> Result<(), HypervisorError> {
         trace!("Activating VMCS");
-        self.vmcs_region.revision_id.set_bit(31, false);
-
         // Clear the VMCS region.
-        vmclear(self.vmcs_region.as_ref() as *const _ as _);
+        vmclear(&self.vmcs_region as *const _ as _);
         trace!("VMCLEAR successful!");
 
         // Load current VMCS pointer.
-        vmptrld(self.vmcs_region.as_ref() as *const _ as _);
+        vmptrld(&self.vmcs_region as *const _ as _);
         trace!("VMPTRLD successful!");
 
         self.setup_vmcs()?;
@@ -167,10 +221,11 @@ impl Vm {
         trace!("Setting up VMCS");
 
         let primary_eptp = self.primary_eptp;
-        let msr_bitmap = self.msr_bitmap.as_ref() as *const _ as u64;
+        let msr_bitmap = &self.msr_bitmap as *const _ as u64;
+        let pml4_pa = self.host_paging.get_pml4_pa()?;
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
-        Vmcs::setup_host_registers_state(&self.host_descriptor, &self.host_paging)?;
+        Vmcs::setup_host_registers_state(&self.host_descriptor, pml4_pa)?;
         Vmcs::setup_vmcs_control_fields(primary_eptp, msr_bitmap)?;
 
         trace!("VMCS setup successfully!");
