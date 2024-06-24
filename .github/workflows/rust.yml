@@ -15,10 +15,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install
-      run: cargo install cargo-make
-    - name: Build
-      run: cargo make build-debug
-    - name: Test
-      run: cargo test --lib .\hypervisor\ --no-run --verbose
+      - uses: actions/checkout@v3
+
+      - name: Install cargo-make
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --debug cargo-make
+
+      - name: Run CI
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: ci-flow
+
+      - name: Build
+        run: cargo make build-debug
+
+      - name: Test
+        run: cargo test --lib .\hypervisor\ --no-run --verbose
