@@ -6,8 +6,9 @@ use {
     alloc::boxed::Box,
     core::sync::atomic::Ordering,
     hypervisor::{
-        allocator::{box_zeroed, record_allocation},
+        allocator::box_zeroed,
         intel::{hooks::hook_manager::DUMMY_PAGE_ADDRESS, page::Page},
+        tracker::record_allocation,
     },
     log::debug,
     uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},

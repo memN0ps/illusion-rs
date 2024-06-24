@@ -1,6 +1,5 @@
 use {
     crate::{
-        allocator::{print_tracked_allocations, ALLOCATED_MEMORY},
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
@@ -13,6 +12,7 @@ use {
             invvpid::invvpid_all_contexts,
             vm::Vm,
         },
+        tracker::{print_allocated_memory, ALLOCATED_MEMORY_HEAD},
         windows::kernel::KernelHook,
     },
     core::{
@@ -101,17 +101,29 @@ impl HookManager {
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
         // Print the tracked memory allocations for debugging purposes.
-        print_tracked_allocations();
+        print_allocated_memory();
 
-        // Lock the allocated memory list to ensure thread safety.
-        let allocated_memory = ALLOCATED_MEMORY.lock();
+        // Load the head of the allocated memory list.
+        let mut current_node = ALLOCATED_MEMORY_HEAD.load(Ordering::Acquire);
 
-        // Iterate through the recorded memory allocations and hide each page.
-        for range in allocated_memory.iter() {
-            for offset in (0..range.size).step_by(BASE_PAGE_SIZE) {
-                let guest_page_pa = range.start + offset;
+        // Iterate through the linked list and hide each memory range.
+        while !current_node.is_null() {
+            // Get a reference to the current node.
+            let node = unsafe { &*current_node };
+
+            // Print the memory range.
+            trace!("Memory Range: Start = {:#X}, Size = {}", node.start, node.size);
+
+            // Iterate through the memory range in 4KB steps.
+            for offset in (0..node.size).step_by(BASE_PAGE_SIZE) {
+                let guest_page_pa = node.start + offset;
+                // Print the page address before hiding it.
+                trace!("Hiding memory page at: {:#X}", guest_page_pa);
                 HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
             }
+
+            // Move to the next node.
+            current_node = node.next.load(Ordering::Acquire);
         }
 
         Ok(())

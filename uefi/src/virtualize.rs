@@ -7,7 +7,7 @@ use {
     crate::stack::allocate_host_stack,
     core::{alloc::Layout, arch::global_asm, intrinsics::copy_nonoverlapping},
     hypervisor::{
-        global_const::STACK_NUMBER_OF_PAGES,
+        global_const::STACK_PAGES_PER_PROCESSOR,
         intel::{capture::GuestRegisters, page::Page},
         vmm::start_hypervisor,
     },
@@ -22,7 +22,7 @@ use {
 pub fn virtualize_system(guest_registers: &GuestRegisters) -> ! {
     debug!("Allocating stack space for host");
 
-    let layout = Layout::array::<Page>(STACK_NUMBER_OF_PAGES).unwrap();
+    let layout = Layout::array::<Page>(STACK_PAGES_PER_PROCESSOR).unwrap();
     let stack = unsafe { allocate_host_stack(layout) };
     let size = layout.size();
 

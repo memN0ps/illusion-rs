@@ -5,7 +5,7 @@ use {
         ptr,
         sync::atomic::{AtomicPtr, AtomicU32, Ordering},
     },
-    hypervisor::allocator::record_allocation,
+    hypervisor::tracker::record_allocation,
     uefi::{
         prelude::{Boot, BootServices, SystemTable},
         proto::loaded_image::LoadedImage,
@@ -85,7 +85,9 @@ pub unsafe fn allocate_host_stack(layout: Layout) -> *mut u8 {
         // use `allocate_pool` directly.
         boot_services.allocate_pool(memory_type, size).map(|ptr| ptr).unwrap_or(ptr::null_mut())
     };
-    // record_allocation(stack as usize, layout.size()); // This will cause a deadlock
+
+    // Record the allocation without causing a deadlock.
+    record_allocation(stack as usize, layout.size());
 
     stack
 }

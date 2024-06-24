@@ -4,12 +4,11 @@
 //! debugging information.
 
 use {
-    crate::global_const::HEAP_SIZE,
-    alloc::{boxed::Box, vec::Vec},
+    crate::global_const::TOTAL_HEAP_SIZE,
+    alloc::boxed::Box,
     core::{
         alloc::{GlobalAlloc, Layout},
         ptr,
-        sync::atomic::{AtomicUsize, Ordering},
     },
     log::debug,
     spin::Mutex,
@@ -17,7 +16,7 @@ use {
 
 /// Global allocator instance with a heap size of `HEAP_SIZE`.
 #[global_allocator]
-pub static mut HEAP: ListHeap<HEAP_SIZE> = ListHeap::new();
+pub static mut HEAP: ListHeap<TOTAL_HEAP_SIZE> = ListHeap::new();
 
 /// Initializes the linked list heap.
 pub unsafe fn heap_init() {
@@ -331,55 +330,4 @@ unsafe impl<const SIZE: usize> GlobalAlloc for ListHeap<SIZE> {
 /// Panics if memory allocation fails.
 pub unsafe fn box_zeroed<T>() -> Box<T> {
     unsafe { Box::<T>::new_zeroed().assume_init() }
-}
-
-/// Structure to store allocated memory ranges.
-///
-/// This struct is used to keep track of memory allocations by storing the
-/// start address and size of each allocated memory block.
-#[derive(Debug)]
-pub struct MemoryRange {
-    /// The start address of the allocated memory range.
-    pub start: usize,
-    /// The size of the allocated memory range.
-    pub size: usize,
-}
-
-/// Global list to store allocated memory ranges.
-///
-/// This global mutex-protected vector keeps track of all allocated memory ranges
-/// for monitoring and debugging purposes.
-pub static ALLOCATED_MEMORY: Mutex<Vec<MemoryRange>> = Mutex::new(Vec::new());
-
-/// Atomic counter to track the total allocated memory size.
-///
-/// This atomic counter is incremented whenever a new memory block is allocated
-/// and provides a quick way to get the total allocated memory size.
-static TOTAL_ALLOCATED_MEMORY: AtomicUsize = AtomicUsize::new(0);
-
-/// Records an allocation by adding the memory range to the global list and updating the total allocated memory.
-///
-/// This function is called whenever a new memory block is allocated. It stores the start address
-/// and size of the allocated memory in the global list and updates the total allocated memory counter.
-///
-/// # Arguments
-///
-/// * `start` - The start address of the allocated memory range.
-/// * `size` - The size of the allocated memory range.
-pub fn record_allocation(start: usize, size: usize) {
-    let mut allocated_memory = ALLOCATED_MEMORY.lock();
-    allocated_memory.push(MemoryRange { start, size });
-    TOTAL_ALLOCATED_MEMORY.fetch_add(size, Ordering::SeqCst);
-}
-
-/// Prints the tracked memory allocations.
-///
-/// This function iterates over all recorded memory allocations and prints the start address
-/// and size of each allocated memory range. It also prints the total allocated memory size.
-pub fn print_tracked_allocations() {
-    let allocated_memory = ALLOCATED_MEMORY.lock();
-    for range in allocated_memory.iter() {
-        debug!("Allocated memory range: start = {:#x}, size = {:#x}", range.start, range.size);
-    }
-    debug!("Total allocated memory: {:#x} bytes", TOTAL_ALLOCATED_MEMORY.load(Ordering::SeqCst));
 }
