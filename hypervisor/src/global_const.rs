@@ -23,6 +23,3 @@ pub const TOTAL_HEAP_SIZE: usize = 64 * 1024 * 1024 * DEFAULT_LOGICAL_PROCESSORS
 ///
 /// This stack size is allocated individually for each processor.
 pub const STACK_PAGES_PER_PROCESSOR: usize = 0x4000;
-
-/// The size of each memory page in bytes.
-pub const BASE_PAGE_SIZE: usize = 4096;
