@@ -59,10 +59,8 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
     trace!("Guest Large Page PA: {:#x}", guest_large_page_pa.as_u64());
 
-    let mut hook_manager = HookManager::get_hook_manager_mut();
-
     // Set the current hook to the EPT hook for handling MTF exit
-    let exit_type = if let Some(shadow_page_pa) = hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
+    let exit_type = if let Some(shadow_page_pa) = vm.hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
         trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
         trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_function_pa, vm.guest_registers.rip);
@@ -71,7 +69,8 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         // crate::windows::log::log_nt_open_process_params(&vm.guest_registers);
         // crate::windows::log::log_mm_is_address_valid_params(&vm.guest_registers);
 
-        let pre_alloc_pt = hook_manager
+        let pre_alloc_pt = vm
+            .hook_manager
             .memory_manager
             .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
@@ -80,7 +79,8 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
-        let hook_info = hook_manager
+        let hook_info = vm
+            .hook_manager
             .memory_manager
             .get_hook_info_by_function_pa(guest_page_pa.as_u64(), guest_function_pa.as_u64())
             .ok_or(HypervisorError::HookInfoNotFound)?;
@@ -88,16 +88,17 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         debug!("Hook info: {:#x?}", hook_info);
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
+        // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)
         let instruction_count =
             unsafe { HookManager::calculate_instruction_count(guest_function_pa.as_u64(), HookManager::hook_size(hook_info.ept_hook_type)) as u64 };
-        hook_manager.mtf_counter = Some(instruction_count);
+        vm.hook_manager.mtf_counter = Some(instruction_count);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);
 
         // Ensure all data mutations to vm are done before calling this.
         // This function will update the guest interrupt flag to prevent interrupts while single-stepping
-        update_guest_interrupt_flag(vm, &mut hook_manager, false)?;
+        update_guest_interrupt_flag(vm, false)?;
 
         Ok(ExitType::Continue)
     } else {

@@ -1,10 +1,7 @@
 use {
     crate::intel::{
         addresses::PhysicalAddress,
-        hooks::{
-            hook_manager::{EptHookType, HookManager},
-            inline::InlineHookType,
-        },
+        hooks::{hook_manager::EptHookType, inline::InlineHookType},
         vm::Vm,
     },
     log::*,
@@ -38,26 +35,29 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     let result = match client_data.command {
         Commands::EnableKernelEptHook | Commands::DisableKernelEptHook => {
             let enable = client_data.command == Commands::EnableKernelEptHook;
+            if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                let result = kernel_hook.manage_kernel_ept_hook(
+                    vm,
+                    client_data.function_hash,
+                    client_data.syscall_number,
+                    EptHookType::Function(InlineHookType::Vmcall),
+                    enable,
+                );
 
-            // Lock the global HookManager once
-            let mut hook_manager = HookManager::get_hook_manager_mut();
+                // Put the kernel hook back in the box
+                vm.hook_manager.kernel_hook = Some(kernel_hook);
 
-            let result = HookManager::manage_kernel_ept_hook(
-                &mut hook_manager,
-                vm,
-                client_data.function_hash,
-                client_data.syscall_number,
-                EptHookType::Function(InlineHookType::Vmcall),
-                enable,
-            );
-
-            match result {
-                Ok(_) => true,
-                Err(e) => {
-                    let action = if enable { "setup" } else { "disable" };
-                    error!("Failed to {} kernel EPT hook: {:?}", action, e);
-                    false
+                match result {
+                    Ok(_) => true,
+                    Err(e) => {
+                        let action = if enable { "setup" } else { "disable" };
+                        error!("Failed to {} kernel EPT hook: {:?}", action, e);
+                        false
+                    }
                 }
+            } else {
+                error!("KernelHook is missing");
+                false
             }
         }
         Commands::Invalid => {

@@ -5,7 +5,6 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::hook_manager::HookManager,
             vm::Vm,
             vmexit::{commands::handle_guest_commands, ExitType},
         },
@@ -92,6 +91,8 @@ const PASSWORD: u64 = 0xDEADBEEF;
 pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Handling CPUID VM exit...");
 
+    // const HYPERV_CPUID_LEAF_RANGE: RangeInclusive<u32> = 0x40000000..=0x4FFFFFFF;
+
     let leaf = vm.guest_registers.rax as u32;
     let sub_leaf = vm.guest_registers.rcx as u32;
 
@@ -124,46 +125,46 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             }
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
-
-                // Lock the global HookManager once
-                let mut hook_manager = HookManager::get_hook_manager_mut();
-
-                if !hook_manager.has_cpuid_cache_info_been_called {
+                if vm.hook_manager.has_cpuid_cache_info_been_called == false {
+                    /*
                     // Test UEFI boot-time hooks
-                    HookManager::manage_kernel_ept_hook(
-                        &mut hook_manager,
-                        vm,
-                        crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
-                        0x0036,
-                        crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
-                        true,
-                    )?;
-                    HookManager::manage_kernel_ept_hook(
-                        &mut hook_manager,
-                        vm,
-                        crate::windows::nt::pe::djb2_hash("NtCreateFile".as_bytes()),
-                        0x0055,
-                        crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
-                        true,
-                    )?;
-                    HookManager::manage_kernel_ept_hook(
-                        &mut hook_manager,
-                        vm,
-                        crate::windows::nt::pe::djb2_hash("NtAllocateVirtualMemory".as_bytes()),
-                        0x18,
-                        crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
-                        true,
-                    )?;
-                    HookManager::manage_kernel_ept_hook(
-                        &mut hook_manager,
-                        vm,
-                        crate::windows::nt::pe::djb2_hash("NtQueryInformationProcess".as_bytes()),
-                        0x19,
-                        crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
-                        true,
-                    )?;
-                    // Set the flag
-                    hook_manager.has_cpuid_cache_info_been_called = true;
+                    if let Some(mut kernel_hook) = vm.hook_manager.kernel_hook.take() {
+                        kernel_hook.manage_kernel_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtQuerySystemInformation".as_bytes()),
+                            0x0036,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
+                        )?;
+                        kernel_hook.manage_kernel_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtCreateFile".as_bytes()),
+                            0x0055,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
+                        )?;
+                        kernel_hook.manage_kernel_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtAllocateVirtualMemory".as_bytes()),
+                            0x18,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
+                        )?;
+                        kernel_hook.manage_kernel_ept_hook(
+                            vm,
+                            crate::windows::nt::pe::djb2_hash("NtQueryInformationProcess".as_bytes()),
+                            0x19,
+                            crate::intel::hooks::hook_manager::EptHookType::Function(crate::intel::hooks::inline::InlineHookType::Vmcall),
+                            true,
+                        )?;
+                        // Place the kernel hook back in the box
+                        vm.hook_manager.kernel_hook = Some(kernel_hook);
+                        // Set the flag
+                        vm.hook_manager.has_cpuid_cache_info_been_called = true;
+                    } else {
+                        return Err(HypervisorError::KernelHookMissing);
+                    }
+                     */
                 }
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {

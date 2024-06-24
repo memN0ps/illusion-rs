@@ -13,6 +13,7 @@ use {
             capture::GuestRegisters,
             descriptor::Descriptors,
             ept::Ept,
+            hooks::hook_manager::HookManager,
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -61,6 +62,9 @@ pub struct Vm {
 
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
+
+    /// The hook manager for the VM.
+    pub hook_manager: HookManager,
 }
 
 impl Vm {
@@ -124,6 +128,9 @@ impl Vm {
 
         trace!("Initializing Launch State");
         self.has_launched = false;
+
+        trace!("Initializing Hook Manager");
+        self.hook_manager = HookManager::new()?;
 
         trace!("VM created");
 
