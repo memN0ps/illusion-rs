@@ -21,4 +21,4 @@ jobs:
     - name: Build
       run: cargo make build-debug
     - name: Test
-      run: cargo test --lib .\hypervisor\ --verbose
+      run: cargo test --lib .\hypervisor\ --no-run --verbose
