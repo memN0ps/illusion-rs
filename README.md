@@ -118,6 +118,13 @@ A UEFI blue-pill hypervisor operates under the following conditions:
 - **Exploiting Known UEFI Flaws**: Using outdated or unsupported firmware, including the Bring Your Own Vulnerable Binary (BYOVB) technique, to bypass Secure Boot.
 - **Exploiting Unspecified UEFI Flaws**: Using zero-day vulnerabilities to disable Secure Boot.
 
+### Configuration Note
+
+When setting up this UEFI hypervisor, it's important to configure the file depending on the number of logical processors/cores/threads based on your system. Please edit the relevant code in [global_const.rs](https://github.com/memN0ps/illusion-rs/blob/main/hypervisor/src/global_const.rs). 
+
+The global heap allocator is shared among all processors/cores/threads and is a pre-allocated pool of memory. The stack size is allocated per processor/core/thread. This design makes it easier to keep track of memory allocations, especially for tasks like setting up hooks that require pre-allocated buffers. By adjusting the settings in this file, you ensure that enough memory is allocated to accommodate all processors while maintaining optimal performance and resource management.
+
+
 ## Usage 1: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on VMware Workstation (Supported)
 
 1. **Setup for VMware Workstation**
