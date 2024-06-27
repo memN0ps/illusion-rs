@@ -15,7 +15,8 @@ use {
             vmerror::VmxBasicExitReason,
             vmexit::{
                 cpuid::handle_cpuid,
-                ept::{handle_ept_misconfiguration, handle_ept_violation},
+                ept_misconfiguration::handle_ept_misconfiguration,
+                ept_violation::handle_ept_violation,
                 exception::{handle_exception, handle_undefined_opcode_exception},
                 halt::handle_halt,
                 init::handle_init_signal,

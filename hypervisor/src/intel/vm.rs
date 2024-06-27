@@ -13,7 +13,6 @@ use {
             capture::GuestRegisters,
             descriptor::Descriptors,
             ept::Ept,
-            hooks::hook_manager::HookManager,
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -63,8 +62,12 @@ pub struct Vm {
     /// Flag indicating if the VM has been launched.
     pub has_launched: bool,
 
-    /// The hook manager for the VM.
-    pub hook_manager: HookManager,
+    /// The old RFLAGS value before turning off the interrupt flag.
+    /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
+    pub old_rflags: Option<u64>,
+
+    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
+    pub mtf_counter: Option<u64>,
 }
 
 impl Vm {
@@ -129,8 +132,9 @@ impl Vm {
         trace!("Initializing Launch State");
         self.has_launched = false;
 
-        trace!("Initializing Hook Manager");
-        self.hook_manager = HookManager::new()?;
+        trace!("Initializing Old RFLAGS and MTF Counter");
+        self.old_rflags = None;
+        self.mtf_counter = None;
 
         trace!("VM created");
 

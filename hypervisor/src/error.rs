@@ -235,4 +235,7 @@ pub enum HypervisorError {
 
     #[error("Failed to get hook info")]
     HookInfoNotFound,
+
+    #[error("EPT misconfiguration error")]
+    EptMisconfiguration,
 }
