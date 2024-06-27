@@ -3,6 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
+            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             ept::AccessType,
             hooks::{
                 inline::{InlineHook, InlineHookType},
@@ -22,7 +23,10 @@ use {
     lazy_static::lazy_static,
     log::*,
     spin::Mutex,
-    x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
+    x86::{
+        bits64::paging::{PAddr, BASE_PAGE_SIZE},
+        msr,
+    },
 };
 
 /// Enum representing different types of hooks that can be applied.
@@ -43,6 +47,9 @@ pub enum EptHookType {
 pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
     pub memory_manager: MemoryManager,
+
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: MsrBitmap,
 
     /// The physical address of the dummy page used for hiding hypervisor memory.
     pub dummy_page_pa: u64,
@@ -74,6 +81,7 @@ lazy_static! {
     /// - `has_cpuid_cache_info_been_called`: Flag indicating whether the CPUID cache information has been called.
     pub static ref SHARED_HOOK_MANAGER: Mutex<HookManager> = Mutex::new(HookManager {
         memory_manager: MemoryManager::new(),
+        msr_bitmap: MsrBitmap::new(),
         dummy_page_pa: 0,
         ntoskrnl_base_va: 0,
         ntoskrnl_base_pa: 0,
@@ -95,6 +103,10 @@ impl HookManager {
     pub fn initialize_shared_hook_manager(dummy_page_pa: u64) {
         let mut hook_manager = SHARED_HOOK_MANAGER.lock();
         hook_manager.dummy_page_pa = dummy_page_pa;
+        trace!("Modifying MSR interception for LSTAR MSR write access");
+        hook_manager
+            .msr_bitmap
+            .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
     }
 
     /// Sets the base address and size of the Windows kernel.
@@ -142,7 +154,11 @@ impl HookManager {
         enable: bool,
     ) -> Result<(), HypervisorError> {
         let action = if enable { "Enabling" } else { "Disabling" };
-        debug!("{} EPT hook for function: {}", action, function_hash);
+        debug!("{} EPT hook for function: {:#x}", action, function_hash);
+
+        trace!("Ntoskrnl base VA: {:#x}", self.ntoskrnl_base_va);
+        trace!("Ntoskrnl base PA: {:#x}", self.ntoskrnl_base_pa);
+        trace!("Ntoskrnl size: {:#x}", self.ntoskrnl_size);
 
         let function_va = unsafe {
             if let Some(va) = get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash) {

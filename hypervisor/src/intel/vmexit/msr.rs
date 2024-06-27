@@ -100,12 +100,14 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 // log::trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
                 // log::trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
 
-                vm.msr_bitmap
+                // Lock the shared hook manager
+                let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+
+                hook_manager
+                    .msr_bitmap
                     .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Unhook);
                 log::trace!("Unhooked MSR_IA32_LSTAR");
 
-                // Lock the shared hook manager
-                let mut hook_manager = SHARED_HOOK_MANAGER.lock();
                 // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation` or by the guest client.
                 hook_manager.set_kernel_base_and_size(msr_value)?;
 

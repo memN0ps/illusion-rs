@@ -9,10 +9,10 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             capture::GuestRegisters,
             descriptor::Descriptors,
             ept::Ept,
+            hooks::hook_manager::SHARED_HOOK_MANAGER,
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -23,7 +23,7 @@ use {
     },
     core::mem::MaybeUninit,
     log::*,
-    x86::{bits64::rflags::RFlags, msr, vmx::vmcs},
+    x86::{bits64::rflags::RFlags, vmx::vmcs},
 };
 
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
@@ -52,9 +52,6 @@ pub struct Vm {
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
     pub primary_eptp: u64,
-
-    /// A bitmap for handling MSRs.
-    pub msr_bitmap: MsrBitmap,
 
     /// State of guest general-purpose registers.
     pub guest_registers: GuestRegisters,
@@ -118,13 +115,6 @@ impl Vm {
 
         trace!("Creating primary EPTP with WB and 4-level walk");
         self.primary_eptp = self.primary_ept.create_eptp_with_wb_and_4lvl_walk()?;
-
-        trace!("Initializing MSR Bitmap");
-        self.msr_bitmap.init();
-
-        trace!("Modifying MSR interception for LSTAR MSR write access");
-        self.msr_bitmap
-            .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
 
         trace!("Initializing Guest Registers");
         self.guest_registers = guest_registers.clone();
@@ -225,7 +215,11 @@ impl Vm {
         trace!("Setting up VMCS");
 
         let primary_eptp = self.primary_eptp;
-        let msr_bitmap = &self.msr_bitmap as *const _ as u64;
+
+        // Lock the shared hook manager
+        let hook_manager = SHARED_HOOK_MANAGER.lock();
+
+        let msr_bitmap = &hook_manager.msr_bitmap as *const _ as u64;
         let pml4_pa = self.host_paging.get_pml4_pa()?;
 
         Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);

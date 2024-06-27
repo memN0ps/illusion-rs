@@ -28,6 +28,7 @@ pub enum MsrOperation {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 25.6.9 MSR-Bitmap Address
 #[repr(C, align(4096))]
+#[derive(Debug, Clone, Copy)]
 pub struct MsrBitmap {
     /// Read bitmap for low MSRs. Contains one bit for each MSR address in the range 00000000H to 00001FFFH.
     /// Determines whether an execution of RDMSR applied to that MSR causes a VM exit.
@@ -47,12 +48,14 @@ pub struct MsrBitmap {
 }
 
 impl MsrBitmap {
-    /// Initializes the MSR bitmap by setting all bits to 0.
-    pub fn init(&mut self) {
-        self.read_low_msrs.iter_mut().for_each(|byte| *byte = 0);
-        self.read_high_msrs.iter_mut().for_each(|byte| *byte = 0);
-        self.write_low_msrs.iter_mut().for_each(|byte| *byte = 0);
-        self.write_high_msrs.iter_mut().for_each(|byte| *byte = 0);
+    /// Creates a new MSR bitmap, initializing all bitmaps to zero.
+    pub fn new() -> Self {
+        Self {
+            read_low_msrs: [0; 0x400],
+            read_high_msrs: [0; 0x400],
+            write_low_msrs: [0; 0x400],
+            write_high_msrs: [0; 0x400],
+        }
     }
 
     /// Modifies the interception for a specific MSR based on the specified operation and access type.
