@@ -8,7 +8,7 @@ use {
             addresses::PhysicalAddress,
             ept::AccessType,
             events::EventInjection,
-            hooks::hook_manager::HookManager,
+            hooks::hook_manager::{HookManager, SHARED_HOOK_MANAGER},
             vm::Vm,
             vmexit::{
                 mtf::{set_monitor_trap_flag, update_guest_interrupt_flag},
@@ -19,14 +19,6 @@ use {
     log::*,
     x86::bits64::paging::PAddr,
 };
-
-/// Represents various VMCALL commands that a guest can issue to the hypervisor.
-#[repr(u64)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum VmcallCommand {
-    /// Command to indicate an unknown or unimplemented VMCALL command.
-    Unknown = 0,
-}
 
 /// Handles a VMCALL VM exit by executing the corresponding action based on the VMCALL command.
 ///
@@ -59,18 +51,15 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
     trace!("Guest Large Page PA: {:#x}", guest_large_page_pa.as_u64());
 
+    let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+
     // Set the current hook to the EPT hook for handling MTF exit
-    let exit_type = if let Some(shadow_page_pa) = vm.hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
+    let exit_type = if let Some(shadow_page_pa) = hook_manager.memory_manager.get_shadow_page_as_ptr(guest_page_pa.as_u64()) {
         trace!("Shadow Page PA: {:#x}", shadow_page_pa);
 
         trace!("Executing VMCALL hook on shadow page for EPT hook at PA: {:#x} with VA: {:#x}", guest_function_pa, vm.guest_registers.rip);
-        // crate::windows::log::log_nt_query_system_information_params(&vm.guest_registers);
-        // crate::windows::log::log_nt_create_file_params(&vm.guest_registers);
-        // crate::windows::log::log_nt_open_process_params(&vm.guest_registers);
-        // crate::windows::log::log_mm_is_address_valid_params(&vm.guest_registers);
 
-        let pre_alloc_pt = vm
-            .hook_manager
+        let pre_alloc_pt = hook_manager
             .memory_manager
             .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
@@ -79,8 +68,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
-        let hook_info = vm
-            .hook_manager
+        let hook_info = hook_manager
             .memory_manager
             .get_hook_info_by_function_pa(guest_page_pa.as_u64(), guest_function_pa.as_u64())
             .ok_or(HypervisorError::HookInfoNotFound)?;
@@ -88,10 +76,9 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
         debug!("Hook info: {:#x?}", hook_info);
 
         // Calculate the number of instructions in the function to set the MTF counter for restoring overwritten instructions by single-stepping.
-        // (NOTE: CHANGE HOOK SIZE IF YOU MOVE THIS INTO CPUID OR INT3)
         let instruction_count =
             unsafe { HookManager::calculate_instruction_count(guest_function_pa.as_u64(), HookManager::hook_size(hook_info.ept_hook_type)) as u64 };
-        vm.hook_manager.mtf_counter = Some(instruction_count);
+        vm.mtf_counter = Some(instruction_count);
 
         // Set the monitor trap flag and initialize counter to the number of overwritten instructions
         set_monitor_trap_flag(true);

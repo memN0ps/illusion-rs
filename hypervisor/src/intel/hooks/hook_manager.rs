@@ -3,6 +3,7 @@ use {
         error::HypervisorError,
         intel::{
             addresses::PhysicalAddress,
+            bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
             ept::AccessType,
             hooks::{
                 inline::{InlineHook, InlineHookType},
@@ -13,19 +14,20 @@ use {
             vm::Vm,
         },
         tracker::{print_allocated_memory, ALLOCATED_MEMORY_HEAD},
-        windows::kernel::KernelHook,
+        windows::{
+            nt::pe::{get_export_by_hash, get_image_base_address, get_size_of_image},
+            ssdt::ssdt_hook::SsdtHook,
+        },
     },
-    core::{
-        intrinsics::copy_nonoverlapping,
-        sync::atomic::{AtomicU64, Ordering},
-    },
+    core::{intrinsics::copy_nonoverlapping, sync::atomic::Ordering},
+    lazy_static::lazy_static,
     log::*,
-    x86::bits64::paging::{PAddr, BASE_PAGE_SIZE},
+    spin::Mutex,
+    x86::{
+        bits64::paging::{PAddr, BASE_PAGE_SIZE},
+        msr,
+    },
 };
-
-/// Global variable to store the address of the created dummy page.
-/// This variable can be accessed by multiple cores/threads/processors.
-pub static DUMMY_PAGE_ADDRESS: AtomicU64 = AtomicU64::new(0);
 
 /// Enum representing different types of hooks that can be applied.
 #[derive(Debug, Clone, Copy)]
@@ -46,43 +48,138 @@ pub struct HookManager {
     /// The memory manager instance for the pre-allocated shadow pages and page tables.
     pub memory_manager: MemoryManager,
 
-    /// The hook instance for the Windows kernel, storing the VA and PA of ntoskrnl.exe. This is retrieved from the first LSTAR_MSR write operation, intercepted by the hypervisor.
-    pub kernel_hook: Option<KernelHook>,
+    /// A bitmap for handling MSRs.
+    pub msr_bitmap: MsrBitmap,
+
+    /// The physical address of the dummy page used for hiding hypervisor memory.
+    pub dummy_page_pa: u64,
+
+    /// The base virtual address of ntoskrnl.exe.
+    pub ntoskrnl_base_va: u64,
+
+    /// The base physical address of ntoskrnl.exe.
+    pub ntoskrnl_base_pa: u64,
+
+    /// The size of ntoskrnl.exe.
+    pub ntoskrnl_size: u64,
 
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
     pub has_cpuid_cache_info_been_called: bool,
+}
 
-    /// The old RFLAGS value before turning off the interrupt flag.
-    /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
-    pub old_rflags: Option<u64>,
-
-    /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
-    pub mtf_counter: Option<u64>,
+lazy_static! {
+    /// A global static instance of `HookManager` wrapped in a `Mutex` to ensure thread-safe access.
+    /// This instance is initialized lazily on first access using the `lazy_static!` macro.
+    ///
+    /// The `HookManager` contains the following fields:
+    /// - `memory_manager`: An instance of `MemoryManager` for managing shadow pages and page tables.
+    /// - `dummy_page_pa`: Physical address of the dummy page used for hiding hypervisor memory.
+    /// - `ntoskrnl_base_va`: Virtual address of the Windows kernel (ntoskrnl.exe).
+    /// - `ntoskrnl_base_pa`: Physical address of the Windows kernel (ntoskrnl.exe).
+    /// - `ntoskrnl_size`: Size of the Windows kernel (ntoskrnl.exe).
+    /// - `has_cpuid_cache_info_been_called`: Flag indicating whether the CPUID cache information has been called.
+    pub static ref SHARED_HOOK_MANAGER: Mutex<HookManager> = Mutex::new(HookManager {
+        memory_manager: MemoryManager::new(),
+        msr_bitmap: MsrBitmap::new(),
+        dummy_page_pa: 0,
+        ntoskrnl_base_va: 0,
+        ntoskrnl_base_pa: 0,
+        ntoskrnl_size: 0,
+        has_cpuid_cache_info_been_called: false,
+    });
 }
 
 impl HookManager {
-    /// Creates a new instance of `HookManager`.
+    /// Initializes the `SHARED_HOOK_MANAGER` with the provided dummy page physical address.
+    ///
+    /// This function should be called during the hypervisor setup process to set the `dummy_page_pa`
+    /// field of the `HookManager` instance. It ensures that the `dummy_page_pa` is correctly set before
+    /// any operations that depend on this field.
     ///
     /// # Arguments
     ///
-    /// * `primary_ept_pre_alloc_pts` - A mutable reference to a vector of pre-allocated page tables.
+    /// * `dummy_page_pa`: The physical address of the dummy page used for hiding hypervisor memory.
+    pub fn initialize_shared_hook_manager(dummy_page_pa: u64) {
+        let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+        hook_manager.dummy_page_pa = dummy_page_pa;
+        trace!("Modifying MSR interception for LSTAR MSR write access");
+        hook_manager
+            .msr_bitmap
+            .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+    }
+
+    /// Sets the base address and size of the Windows kernel.
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_va` - The virtual address of the guest.
     ///
     /// # Returns
-    /// A result containing a boxed `HookManager` instance or an error of type `HypervisorError`.
-    pub fn new() -> Result<Self, HypervisorError> {
-        trace!("Initializing hook manager");
+    ///
+    /// * `Ok(())` - The kernel base and size were set successfully.
+    pub fn set_kernel_base_and_size(&mut self, guest_va: u64) -> Result<(), HypervisorError> {
+        // Get the base address of ntoskrnl.exe.
+        self.ntoskrnl_base_va = unsafe { get_image_base_address(guest_va).ok_or(HypervisorError::FailedToGetImageBaseAddress)? };
 
-        let memory_manager = MemoryManager::new();
-        let kernel_hook = Some(KernelHook::new()?);
+        // Get the physical address of ntoskrnl.exe using GUEST_CR3 and the virtual address.
+        self.ntoskrnl_base_pa = PhysicalAddress::pa_from_va(self.ntoskrnl_base_va);
 
-        Ok(Self {
-            memory_manager,
-            has_cpuid_cache_info_been_called: false,
-            kernel_hook,
-            old_rflags: None,
-            mtf_counter: None,
-        })
+        // Get the size of ntoskrnl.exe.
+        self.ntoskrnl_size = unsafe { get_size_of_image(self.ntoskrnl_base_pa as _).ok_or(HypervisorError::FailedToGetKernelSize)? } as u64;
+
+        Ok(())
+    }
+
+    /// Manages an EPT hook for a kernel function, enabling or disabling it.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm` - The virtual machine to install/remove the hook on.
+    /// * `function_hash` - The hash of the function to hook/unhook.
+    /// * `syscall_number` - The syscall number to use if `get_export_by_hash` fails.
+    /// * `ept_hook_type` - The type of EPT hook to use.
+    /// * `enable` - A boolean indicating whether to enable (true) or disable (false) the hook.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - The hook was managed successfully.
+    /// * `Err(HypervisorError)` - If the hook management fails.
+    pub fn manage_kernel_ept_hook(
+        &mut self,
+        vm: &mut Vm,
+        function_hash: u32,
+        syscall_number: u16,
+        ept_hook_type: EptHookType,
+        enable: bool,
+    ) -> Result<(), HypervisorError> {
+        let action = if enable { "Enabling" } else { "Disabling" };
+        debug!("{} EPT hook for function: {:#x}", action, function_hash);
+
+        trace!("Ntoskrnl base VA: {:#x}", self.ntoskrnl_base_va);
+        trace!("Ntoskrnl base PA: {:#x}", self.ntoskrnl_base_pa);
+        trace!("Ntoskrnl size: {:#x}", self.ntoskrnl_size);
+
+        let function_va = unsafe {
+            if let Some(va) = get_export_by_hash(self.ntoskrnl_base_pa as _, self.ntoskrnl_base_va as _, function_hash) {
+                va
+            } else {
+                let ssdt_function_address =
+                    SsdtHook::find_ssdt_function_address(syscall_number as _, false, self.ntoskrnl_base_pa as _, self.ntoskrnl_size as _);
+                match ssdt_function_address {
+                    Ok(ssdt_hook) => ssdt_hook.guest_function_va as *mut u8,
+                    Err(_) => return Err(HypervisorError::FailedToGetExport),
+                }
+            }
+        };
+
+        if enable {
+            self.ept_hook_function(vm, function_va as _, function_hash, ept_hook_type)?;
+        } else {
+            self.ept_unhook_function(vm, function_va as _, ept_hook_type)?;
+        }
+
+        Ok(())
     }
 
     /// Hides the hypervisor memory from the guest by installing EPT hooks on all allocated memory regions.
@@ -99,7 +196,7 @@ impl HookManager {
     /// # Returns
     ///
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
-    pub fn hide_hypervisor_memory(vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
+    pub fn hide_hypervisor_memory(&mut self, vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
         // Print the tracked memory allocations for debugging purposes.
         print_allocated_memory();
 
@@ -119,7 +216,7 @@ impl HookManager {
                 let guest_page_pa = node.start + offset;
                 // Print the page address before hiding it.
                 trace!("Hiding memory page at: {:#X}", guest_page_pa);
-                HookManager::ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
+                self.ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
             }
 
             // Move to the next node.
@@ -141,23 +238,22 @@ impl HookManager {
     /// # Returns
     ///
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
-    fn ept_hide_hypervisor_memory(vm: &mut Vm, guest_page_pa: u64, page_permissions: AccessType) -> Result<(), HypervisorError> {
+    fn ept_hide_hypervisor_memory(&mut self, vm: &mut Vm, guest_page_pa: u64, page_permissions: AccessType) -> Result<(), HypervisorError> {
         let guest_page_pa = PAddr::from(guest_page_pa).align_down_to_base_page();
         trace!("Guest page PA: {:#x}", guest_page_pa.as_u64());
 
         let guest_large_page_pa = guest_page_pa.align_down_to_large_page();
         trace!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        let dummy_page_pa = DUMMY_PAGE_ADDRESS.load(Ordering::SeqCst);
+        let dummy_page_pa = self.dummy_page_pa;
 
         trace!("Dummy page PA: {:#x}", dummy_page_pa);
 
         trace!("Mapping large page");
         // Map the large page to the pre-allocated page table, if it hasn't been mapped already.
-        vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
+        self.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
 
-        let pre_alloc_pt = vm
-            .hook_manager
+        let pre_alloc_pt = self
             .memory_manager
             .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
@@ -211,7 +307,13 @@ impl HookManager {
     /// # Returns
     ///
     /// * Returns `Ok(())` if the hook was successfully installed, `Err(HypervisorError)` otherwise.
-    pub fn ept_hook_function(vm: &mut Vm, guest_function_va: u64, function_hash: u32, ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+    pub fn ept_hook_function(
+        &mut self,
+        vm: &mut Vm,
+        guest_function_va: u64,
+        function_hash: u32,
+        ept_hook_type: EptHookType,
+    ) -> Result<(), HypervisorError> {
         debug!("Creating EPT hook for function at VA: {:#x}", guest_function_va);
 
         let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va));
@@ -226,14 +328,13 @@ impl HookManager {
         // 1. Map the large page to the pre-allocated page table, if it hasn't been mapped already.
         // We must map the large page to the pre-allocated page table before accessing it.
         debug!("Mapping large page");
-        vm.hook_manager.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
+        self.memory_manager.map_large_page_to_pt(guest_large_page_pa.as_u64())?;
 
         // 2. Check if the large page has already been split. If not, split it into 4KB pages.
         debug!("Checking if large page has already been split");
         if vm.primary_ept.is_large_page(guest_page_pa.as_u64()) {
             // We must map the large page to the pre-allocated page table before accessing it.
-            let pre_alloc_pt = vm
-                .hook_manager
+            let pre_alloc_pt = self
                 .memory_manager
                 .get_page_table_as_mut(guest_large_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
@@ -244,10 +345,10 @@ impl HookManager {
 
         // 3. Check if the guest page is already processed. If not, map the guest page to the shadow page.
         // Ensure the memory manager maintains a set of processed guest pages to track this mapping.
-        if !vm.hook_manager.memory_manager.is_guest_page_processed(guest_page_pa.as_u64()) {
+        if !self.memory_manager.is_guest_page_processed(guest_page_pa.as_u64()) {
             // We must map the guest page to the shadow page before accessing it.
             debug!("Mapping guest page and shadow page");
-            vm.hook_manager.memory_manager.map_guest_to_shadow_page(
+            self.memory_manager.map_guest_to_shadow_page(
                 guest_page_pa.as_u64(),
                 guest_function_va,
                 guest_function_pa.as_u64(),
@@ -257,8 +358,7 @@ impl HookManager {
 
             // We must map the guest page to the shadow page before accessing it.
             let shadow_page_pa = PAddr::from(
-                vm.hook_manager
-                    .memory_manager
+                self.memory_manager
                     .get_shadow_page_as_ptr(guest_page_pa.as_u64())
                     .ok_or(HypervisorError::ShadowPageNotFound)?,
             );
@@ -281,8 +381,7 @@ impl HookManager {
                 }
             }
 
-            let pre_alloc_pt = vm
-                .hook_manager
+            let pre_alloc_pt = self
                 .memory_manager
                 .get_page_table_as_mut(guest_large_page_pa.as_u64())
                 .ok_or(HypervisorError::PageTableNotFound)?;
@@ -315,7 +414,7 @@ impl HookManager {
     /// # Returns
     ///
     /// * Returns `Ok(())` if the hook was successfully removed, `Err(HypervisorError)` otherwise.
-    pub fn ept_unhook_function(vm: &mut Vm, guest_function_va: u64, _ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
+    pub fn ept_unhook_function(&mut self, vm: &mut Vm, guest_function_va: u64, _ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         debug!("Removing EPT hook for function at VA: {:#x}", guest_function_va);
 
         let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va));
@@ -327,8 +426,7 @@ impl HookManager {
         let guest_large_page_pa = guest_function_pa.align_down_to_large_page();
         debug!("Guest large page PA: {:#x}", guest_large_page_pa.as_u64());
 
-        let pre_alloc_pt = vm
-            .hook_manager
+        let pre_alloc_pt = self
             .memory_manager
             .get_page_table_as_mut(guest_large_page_pa.as_u64())
             .ok_or(HypervisorError::PageTableNotFound)?;
