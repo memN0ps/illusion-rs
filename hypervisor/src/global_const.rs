@@ -2,7 +2,7 @@
 ///
 /// This value is set to 1 for testing purposes but can be adjusted up to 64 or more based on the system.
 /// Adjusting this value will increase the total heap size accordingly.
-const DEFAULT_LOGICAL_PROCESSORS: usize = 8;
+const DEFAULT_LOGICAL_PROCESSORS: usize = 16;
 
 /// The number of pages for the stack per processor/core.
 ///
