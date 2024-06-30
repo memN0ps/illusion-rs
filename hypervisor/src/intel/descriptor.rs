@@ -1,12 +1,12 @@
-//! Manages GDT and TSS for VMX virtualization contexts.
+//! Manages GDT, IDT, and TSS for VMX virtualization contexts.
 //!
-//! Facilitates the creation and manipulation of the Global Descriptor Table (GDT) and
-//! Task State Segment (TSS) necessary for VMX operations. Supports both host and guest
-//! environments, ensuring compatibility and proper setup for virtualization.
+//! Facilitates the creation and manipulation of the Global Descriptor Table (GDT),
+//! Interrupt Descriptor Table (IDT), and Task State Segment (TSS) necessary for VMX operations.
+//! Supports both host and guest environments, ensuring compatibility and proper setup for virtualization.
 //! Credits to Satoshi Tanda: https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/intel_vt/descriptors.rs
 
 use {
-    crate::intel::support::sgdt,
+    crate::intel::support::{sgdt, sidt},
     alloc::vec::Vec,
     x86::{
         dtables::DescriptorTablePointer,
@@ -16,17 +16,21 @@ use {
     },
 };
 
-/// Manages GDT and TSS for VMX operations.
-///
-/// Supports creating a new GDT that includes TSS, addressing compatibility issues in UEFI environments
-/// and ensuring proper VM and hypervisor states. This struct is essential for setting up the environment
-/// for both host and guest VMX operations.
+/// Represents the descriptor tables (GDT and IDT) for the host and guest.
+/// Contains the GDT, IDT, TSS, and their respective register pointers.
+#[repr(C, align(4096))]
 pub struct Descriptors {
     /// Vector holding the GDT entries.
     pub gdt: Vec<u64>,
 
     /// Descriptor table pointer to the GDT.
     pub gdtr: DescriptorTablePointer<u64>,
+
+    /// Vector holding the IDT entries.
+    pub idt: Vec<u64>,
+
+    /// Descriptor table pointer to the IDT.
+    pub idtr: DescriptorTablePointer<u64>,
 
     /// Code segment selector.
     pub cs: SegmentSelector,
@@ -46,16 +50,22 @@ impl Descriptors {
     ///
     /// # Returns
     /// A `Descriptors` instance with an updated GDT including TSS.
-    pub fn new_from_current() -> Self {
+    pub fn initialize_for_guest() -> Self {
         log::debug!("Creating a new GDT with TSS for guest");
 
         // Get the current GDT.
         let current_gdtr = sgdt();
         let current_gdt = unsafe { core::slice::from_raw_parts(current_gdtr.base.cast::<u64>(), usize::from(current_gdtr.limit + 1) / 8) };
 
+        // Get the current IDT.
+        let current_idtr = sidt();
+        let current_idt = unsafe { core::slice::from_raw_parts(current_idtr.base.cast::<u64>(), usize::from(current_idtr.limit + 1) / 8) };
+
         let mut descriptors = Descriptors {
             gdt: current_gdt.to_vec(),
             gdtr: DescriptorTablePointer::<u64>::default(),
+            idt: current_idt.to_vec(),
+            idtr: DescriptorTablePointer::<u64>::default(),
             cs: SegmentSelector::from_raw(0),
             tr: SegmentSelector::from_raw(0),
             tss: TaskStateSegment::default(),
@@ -83,12 +93,14 @@ impl Descriptors {
     ///
     /// # Returns
     /// A `Descriptors` instance with a newly created GDT for the host.
-    pub fn new_for_host() -> Self {
+    pub fn initialize_for_host() -> Self {
         log::debug!("Creating a new GDT with TSS for host");
 
         let mut descriptors = Descriptors {
             gdt: Vec::new(),
             gdtr: DescriptorTablePointer::<u64>::default(),
+            idt: Vec::new(),
+            idtr: DescriptorTablePointer::<u64>::default(),
             cs: SegmentSelector::from_raw(0),
             tr: SegmentSelector::from_raw(0),
             tss: TaskStateSegment::default(),
@@ -103,7 +115,11 @@ impl Descriptors {
         descriptors.cs = SegmentSelector::new(1, x86::Ring::Ring0);
         descriptors.tr = SegmentSelector::new(2, x86::Ring::Ring0);
 
-        log::debug!("New GDT with TSS created for host successfully!");
+        // Initialize the IDT with empty descriptors for the host
+        descriptors.idt = Self::copy_current_idt();
+        descriptors.idtr = DescriptorTablePointer::new_from_slice(&descriptors.idt);
+
+        log::debug!("New GDT with TSS and IDT created for host successfully!");
 
         descriptors
     }
@@ -144,24 +160,29 @@ impl Descriptors {
             .finish()
     }
 
-    /// Converts a descriptor table pointer to a slice of GDT entries.
-    ///
-    /// # Arguments
-    ///
-    /// - `pointer`: A reference to the `DescriptorTablePointer` for the GDT.
-    ///
-    /// # Returns
-    ///
-    /// A slice of the GDT entries represented as `u64` values.
-    pub fn from_pointer(pointer: &DescriptorTablePointer<u64>) -> &[u64] {
-        unsafe { core::slice::from_raw_parts(pointer.base.cast::<u64>(), (pointer.limit + 1) as usize / size_of::<u64>()) }
+    /// Copies the current IDT for the guest.
+    fn copy_current_idt() -> Vec<u64> {
+        log::trace!("Copying current IDT");
+
+        // Get the current IDTR
+        let current_idtr = sidt();
+
+        // Create a slice from the current IDT entries.
+        let current_idt = unsafe { core::slice::from_raw_parts(current_idtr.base.cast::<u64>(), usize::from(current_idtr.limit + 1) / 8) };
+
+        // Create a new IDT from the slice.
+        let new_idt = current_idt.to_vec();
+
+        log::trace!("Copied current IDT");
+
+        new_idt
     }
 }
 
 /// Represents the Task State Segment (TSS).
 ///
 /// Encapsulates the TSS, which is critical for task-switching and storing state information
-/// in protected mode operations. Includes fields for the base address, limit, and access rights.:
+/// in protected mode operations. Includes fields for the base address, limit, and access rights.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct TaskStateSegment {
@@ -203,7 +224,5 @@ impl Default for TaskStateSegment {
 /// Low-level representation of the 64-bit Task State Segment (TSS).
 ///
 /// Encapsulates the raw structure of the TSS as defined in the x86_64 architecture.
-/// This structure is used internally to manage the TSS's memory layout directly.
-/// See: Figure 8-11. 64-Bit TSS Format
 #[allow(dead_code)]
 struct TaskStateSegmentRaw([u8; 104]);

@@ -38,11 +38,11 @@ pub struct Vm {
     /// The VMCS (Virtual Machine Control Structure) for the VM.
     pub vmcs_region: Vmcs,
 
-    /// Descriptor tables for the host state.
-    pub host_descriptor: Descriptors,
-
     /// Descriptor tables for the guest state.
     pub guest_descriptor: Descriptors,
+
+    /// Descriptor tables for the host state.
+    pub host_descriptor: Descriptors,
 
     /// Paging tables for the host.
     pub host_paging: PageTables,
@@ -95,11 +95,11 @@ impl Vm {
         trace!("Initializing VMCS region");
         self.vmcs_region.init();
 
-        trace!("Initializing Host Descriptor Tables");
-        self.host_descriptor = Descriptors::new_for_host();
-
         trace!("Initializing Guest Descriptor Tables");
-        self.guest_descriptor = Descriptors::new_from_current();
+        self.guest_descriptor = Descriptors::initialize_for_guest();
+
+        trace!("Initializing Host Descriptor Tables");
+        self.host_descriptor = Descriptors::initialize_for_host();
 
         trace!("Initializing Host Paging Tables");
         self.host_paging.init();
