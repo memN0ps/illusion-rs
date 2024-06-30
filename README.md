@@ -90,6 +90,10 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
 
 - :x: Neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
 
+### Isolation and Security
+
+- :white_check_mark: Custom implementations of the Global Descriptor Table (GDT), Interrupt Descriptor Table (IDT), and Page Tables to enhance the security and isolation of the hypervisor.
+
 ## Supported Hardware
 
 - :white_check_mark: Intel processors with VT-x and Extended Page Tables (EPT) support.
