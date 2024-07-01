@@ -6,6 +6,7 @@
 
 use {
     crate::intel::paging::PageTables,
+    core::ops::{Deref, DerefMut},
     x86::bits64::paging::{PAddr, BASE_PAGE_SHIFT},
 };
 
@@ -72,6 +73,22 @@ impl PhysicalAddress {
         // Still, the caller must ensure that reading from this specific address does not violate any safety contracts.
         let pa = PageTables::translate_guest_virtual_to_physical(guest_cr3, guest_va)?;
         unsafe { Some(*(pa as *const T)) }
+    }
+}
+
+impl const Deref for PhysicalAddress {
+    type Target = PAddr;
+
+    /// Dereferences the `PhysicalAddress` to retrieve the underlying `PAddr`.
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl const DerefMut for PhysicalAddress {
+    /// Provides mutable access to the underlying `PAddr`.
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
