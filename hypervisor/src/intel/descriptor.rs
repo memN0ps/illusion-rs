@@ -42,6 +42,9 @@ pub struct Descriptors {
     pub tss: TaskStateSegment,
 }
 
+unsafe impl Send for Descriptors {}
+unsafe impl Sync for Descriptors {}
+
 impl Descriptors {
     /// Creates a new GDT based on the current one, including TSS.
     ///

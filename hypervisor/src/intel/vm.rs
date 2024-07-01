@@ -10,9 +10,8 @@ use {
         error::HypervisorError,
         intel::{
             capture::GuestRegisters,
-            descriptor::Descriptors,
             ept::Ept,
-            hooks::hook_manager::SHARED_HOOK_MANAGER,
+            hooks::{descriptor_manager::SHARED_DESCRIPTOR_MANAGER, hook_manager::SHARED_HOOK_MANAGER},
             paging::PageTables,
             support::{vmclear, vmptrld, vmread, vmxon},
             vmcs::Vmcs,
@@ -29,41 +28,55 @@ use {
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
 ///
 /// This structure manages the VM's lifecycle, including setup, execution, and handling of VM-exits.
-/// It holds the VMCS region, guest and host descriptor tables, paging information, MSR bitmaps,
+/// It holds the VMCS region, and paging information
 /// and the state of guest registers. Additionally, it tracks whether the VM has been launched.
+///
+/// # Size
+/// - Total size in bytes: 4,204,969 bytes (0x4010B9)
+/// - Total size in pages: 1027 pages (0x403)
 pub struct Vm {
     /// The VMXON (Virtual Machine Extensions On) region for the VM.
+    /// - Aligned to 4096 bytes (0x1000)
     pub vmxon_region: Vmxon,
 
     /// The VMCS (Virtual Machine Control Structure) for the VM.
+    /// - Aligned to 4096 bytes (0x1000)
     pub vmcs_region: Vmcs,
 
-    /// Descriptor tables for the guest state.
-    pub guest_descriptor: Descriptors,
-
-    /// Descriptor tables for the host state.
-    pub host_descriptor: Descriptors,
-
     /// Paging tables for the host.
+    /// - Pml4: 4096 bytes (0x1000)
+    /// - Pdpt: 4096 bytes (0x1000)
+    /// - Pd: 512 * 4096 bytes (since each Pd is 4096 bytes) (0x200000)
+    /// - Total: 4096 + 4096 + (512 * 4096) = 2,096,128 bytes (0x200800)
     pub host_paging: PageTables,
 
     /// The primary EPT (Extended Page Tables) for the VM.
+    /// - Pml4: 4096 bytes (0x1000)
+    /// - Pdpt: 4096 bytes (0x1000)
+    /// - Pd: 512 * 4096 bytes (0x200000)
+    /// - Pt: 4096 bytes (0x1000)
+    /// - Total: 4096 + 4096 + (512 * 4096) + 4096 = 2,100,224 bytes (0x201000)
     pub primary_ept: Ept,
 
     /// The primary EPTP (Extended Page Tables Pointer) for the VM.
+    /// - Size: 8 bytes (0x8)
     pub primary_eptp: u64,
 
     /// State of guest general-purpose registers.
+    /// - Size: 400 bytes (0x190)
     pub guest_registers: GuestRegisters,
 
     /// Flag indicating if the VM has been launched.
+    /// - Size: 1 byte (0x1)
     pub has_launched: bool,
 
     /// The old RFLAGS value before turning off the interrupt flag.
     /// Used for restoring the RFLAGS register after handling the Monitor Trap Flag (MTF) VM exit.
+    /// - Size: 8 bytes (Option<u64>) (0x8)
     pub old_rflags: Option<u64>,
 
     /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
+    /// - Size: 8 bytes (Option<u64>) (0x8)
     pub mtf_counter: Option<u64>,
 }
 
@@ -76,7 +89,7 @@ impl Vm {
     /// Initializes a new VM instance with specified guest registers.
     ///
     /// Sets up the necessary environment for the VM, including VMCS initialization, host and guest
-    /// descriptor tables, paging structures, and MSR bitmaps. Prepares the VM for execution.
+    /// descriptor tables, and paging structures. Prepares the VM for execution.
     ///
     /// # Arguments
     ///
@@ -94,12 +107,6 @@ impl Vm {
 
         trace!("Initializing VMCS region");
         self.vmcs_region.init();
-
-        trace!("Initializing Guest Descriptor Tables");
-        self.guest_descriptor = Descriptors::initialize_for_guest();
-
-        trace!("Initializing Host Descriptor Tables");
-        self.host_descriptor = Descriptors::initialize_for_host();
 
         trace!("Initializing Host Paging Tables");
         self.host_paging.init();
@@ -220,10 +227,17 @@ impl Vm {
         let hook_manager = SHARED_HOOK_MANAGER.lock();
 
         let msr_bitmap = &hook_manager.msr_bitmap as *const _ as u64;
+
+        // Lock the descriptor manager
+        let descriptor_manager = SHARED_DESCRIPTOR_MANAGER.lock();
+
+        let guest_descriptors = &descriptor_manager.guest_descriptor;
+        let host_descriptors = &descriptor_manager.host_descriptor;
+
         let pml4_pa = self.host_paging.get_pml4_pa()?;
 
-        Vmcs::setup_guest_registers_state(&self.guest_descriptor, &self.guest_registers);
-        Vmcs::setup_host_registers_state(&self.host_descriptor, pml4_pa)?;
+        Vmcs::setup_guest_registers_state(guest_descriptors, &self.guest_registers);
+        Vmcs::setup_host_registers_state(&host_descriptors, pml4_pa)?;
         Vmcs::setup_vmcs_control_fields(primary_eptp, msr_bitmap)?;
 
         trace!("VMCS setup successfully!");
