@@ -5,7 +5,6 @@ use {
     crate::{
         error::HypervisorError,
         intel::{
-            hooks::hook_manager::SHARED_HOOK_MANAGER,
             vm::Vm,
             vmexit::{commands::handle_guest_commands, ExitType},
         },
@@ -127,8 +126,9 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
 
+                /*
                 // Lock the shared hook manager
-                let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+                let mut hook_manager = crate::intel::hooks::hook_manager::SHARED_HOOK_MANAGER.lock();
 
                 if !hook_manager.has_cpuid_cache_info_been_called {
                     // Test UEFI boot-time hooks
@@ -163,6 +163,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                     // Set the flag
                     hook_manager.has_cpuid_cache_info_been_called = true;
                 }
+                 */
             }
             leaf if leaf == CpuidLeaf::ExtendedFeatureInformation as u32 => {
                 trace!("CPUID leaf 0x7 detected (Extended Feature Information).");

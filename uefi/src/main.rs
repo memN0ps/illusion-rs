@@ -66,7 +66,7 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     }
 
     // Initialize logging with the COM2 port and set the level filter to Debug.
-    logger::init(SerialPort::COM1, LevelFilter::Trace);
+    logger::init(SerialPort::COM1, LevelFilter::Info);
 
     info!("The Matrix is an illusion");
 
