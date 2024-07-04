@@ -11,7 +11,7 @@ const DEFAULT_LOGICAL_PROCESSORS: usize = 16;
 /// 0x4000 * 4096 = 67,108,864 bytes (64 MB)
 ///
 /// This stack size is allocated individually for each processor.
-pub const STACK_PAGES_PER_PROCESSOR: usize = 0x4000;
+pub const STACK_PAGES_PER_PROCESSOR: usize = 0x2000;
 
 /// The size of a page table in bytes.
 const PAGE_TABLE_SIZE: usize = 2 * 1024 * 1024; // 2 MB
