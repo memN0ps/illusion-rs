@@ -3,7 +3,6 @@
 // early logging, and direct manipulation of loaded image properties for hypervisor initialization.
 
 #![feature(new_uninit)]
-#![feature(panic_info_message)]
 #![no_main]
 #![no_std]
 

@@ -55,7 +55,7 @@ pub unsafe fn allocate_host_stack(layout: Layout) -> *mut u8 {
         // space so that we can return an appropriately-aligned pointer
         // within the allocation.
         let full_alloc_ptr = if let Ok(ptr) = boot_services.allocate_pool(memory_type, size + align) {
-            ptr
+            ptr.as_ptr()
         } else {
             return ptr::null_mut();
         };
@@ -83,7 +83,10 @@ pub unsafe fn allocate_host_stack(layout: Layout) -> *mut u8 {
         // The requested alignment is less than or equal to eight, and
         // `allocate_pool` always provides eight-byte alignment, so we can
         // use `allocate_pool` directly.
-        boot_services.allocate_pool(memory_type, size).map(|ptr| ptr).unwrap_or(ptr::null_mut())
+        boot_services
+            .allocate_pool(memory_type, size)
+            .map(|ptr| ptr.as_ptr())
+            .unwrap_or(ptr::null_mut())
     };
 
     // Record the allocation without causing a deadlock.
