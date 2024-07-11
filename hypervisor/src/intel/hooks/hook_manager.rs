@@ -13,13 +13,13 @@ use {
             invvpid::invvpid_all_contexts,
             vm::Vm,
         },
-        tracker::{print_allocated_memory, ALLOCATED_MEMORY_HEAD},
         windows::{
             nt::pe::{get_export_by_hash, get_image_base_address, get_size_of_image},
             ssdt::ssdt_hook::SsdtHook,
         },
     },
-    core::{intrinsics::copy_nonoverlapping, sync::atomic::Ordering},
+    alloc::vec::Vec,
+    core::intrinsics::copy_nonoverlapping,
     lazy_static::lazy_static,
     log::*,
     spin::Mutex,
@@ -66,6 +66,8 @@ pub struct HookManager {
     /// A flag indicating whether the CPUID cache information has been called. This will be used to perform hooks at boot time when SSDT has been initialized.
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
     pub has_cpuid_cache_info_been_called: bool,
+
+    pub stack_memory: Vec<(usize, usize)>,
 }
 
 lazy_static! {
@@ -87,6 +89,7 @@ lazy_static! {
         ntoskrnl_base_pa: 0,
         ntoskrnl_size: 0,
         has_cpuid_cache_info_been_called: false,
+        stack_memory: Vec::with_capacity(128),
     });
 }
 
@@ -107,6 +110,23 @@ impl HookManager {
         hook_manager
             .msr_bitmap
             .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+    }
+
+    /// Records a memory allocation for tracking purposes.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - The start address of the memory allocation.
+    /// * `size` - The size of the memory allocation.
+    pub fn record_allocation(&mut self, start: usize, size: usize) {
+        self.stack_memory.push((start, size));
+    }
+
+    /// Prints the allocated memory ranges for debugging purposes.
+    pub fn print_allocated_memory(&self) {
+        self.stack_memory.iter().for_each(|(start, size)| {
+            debug!("Memory Range: Start = {:#x}, Size = {:#x}", start, size);
+        });
     }
 
     /// Sets the base address and size of the Windows kernel.
@@ -197,30 +217,15 @@ impl HookManager {
     ///
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(&mut self, vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
-        // Print the tracked memory allocations for debugging purposes.
-        print_allocated_memory();
+        let pages: Vec<u64> = self
+            .stack_memory
+            .iter()
+            .step_by(BASE_PAGE_SIZE)
+            .map(|(start, _size)| *start as u64)
+            .collect();
 
-        // Load the head of the allocated memory list.
-        let mut current_node = ALLOCATED_MEMORY_HEAD.load(Ordering::Acquire);
-
-        // Iterate through the linked list and hide each memory range.
-        while !current_node.is_null() {
-            // Get a reference to the current node.
-            let node = unsafe { &*current_node };
-
-            // Print the memory range.
-            trace!("Memory Range: Start = {:#X}, Size = {}", node.start, node.size);
-
-            // Iterate through the memory range in 4KB steps.
-            for offset in (0..node.size).step_by(BASE_PAGE_SIZE) {
-                let guest_page_pa = node.start + offset;
-                // Print the page address before hiding it.
-                trace!("Hiding memory page at: {:#X}", guest_page_pa);
-                self.ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?;
-            }
-
-            // Move to the next node.
-            current_node = node.next.load(Ordering::Acquire);
+        for guest_page_pa in pages {
+            self.ept_hide_hypervisor_memory(vm, PAddr::from(guest_page_pa).align_down_to_base_page().as_u64(), page_permissions)?
         }
 
         Ok(())

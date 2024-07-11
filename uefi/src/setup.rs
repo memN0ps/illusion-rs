@@ -6,8 +6,10 @@ use {
     alloc::boxed::Box,
     hypervisor::{
         allocator::box_zeroed,
-        intel::{hooks::hook_manager::HookManager, page::Page},
-        tracker::record_allocation,
+        intel::{
+            hooks::hook_manager::{HookManager, SHARED_HOOK_MANAGER},
+            page::Page,
+        },
     },
     log::debug,
     uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},
@@ -44,7 +46,10 @@ pub fn record_image_base(loaded_image: &LoadedImage) {
     let (image_base, image_size) = loaded_image.info();
     let image_range = image_base as usize..(image_base as usize + image_size as usize);
     debug!("Loaded image base: {:#x?}", image_range);
-    record_allocation(image_base as usize, image_size as usize);
+
+    // Lock the shared hook manager
+    let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+    hook_manager.record_allocation(image_base as usize, image_size as usize);
 }
 
 /// Creates a dummy page filled with a specific byte value.
