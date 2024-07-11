@@ -5,7 +5,7 @@ use {
         ptr,
         sync::atomic::{AtomicPtr, AtomicU32, Ordering},
     },
-    hypervisor::tracker::record_allocation,
+    hypervisor::intel::hooks::hook_manager::SHARED_HOOK_MANAGER,
     uefi::{
         prelude::{Boot, BootServices, SystemTable},
         proto::loaded_image::LoadedImage,
@@ -89,8 +89,9 @@ pub unsafe fn allocate_host_stack(layout: Layout) -> *mut u8 {
             .unwrap_or(ptr::null_mut())
     };
 
-    // Record the allocation without causing a deadlock.
-    record_allocation(stack as usize, layout.size());
+    // Lock the shared hook manager
+    let mut hook_manager = SHARED_HOOK_MANAGER.lock();
+    hook_manager.record_allocation(stack as usize, layout.size());
 
     stack
 }

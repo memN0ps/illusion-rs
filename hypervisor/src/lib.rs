@@ -18,6 +18,5 @@ pub mod error;
 pub mod global_const;
 pub mod intel;
 pub mod logger;
-pub mod tracker;
 pub mod vmm;
 pub mod windows;
