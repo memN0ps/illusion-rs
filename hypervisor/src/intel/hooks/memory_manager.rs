@@ -4,8 +4,8 @@
 
 use {
     crate::{
+        allocator::box_zeroed,
         error::HypervisorError,
-        heap::box_zeroed,
         intel::{ept::Pt, hooks::hook_manager::EptHookType, page::Page},
     },
     alloc::{boxed::Box, collections::BTreeMap, vec::Vec},

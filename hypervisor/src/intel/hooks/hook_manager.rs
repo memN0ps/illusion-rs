@@ -1,7 +1,6 @@
 use {
     crate::{
         error::HypervisorError,
-        global_const::MAX_RECORDABLE_STACK_ALLOCATIONS,
         intel::{
             addresses::PhysicalAddress,
             bitmap::{MsrAccessType, MsrBitmap, MsrOperation},
@@ -68,8 +67,7 @@ pub struct HookManager {
     /// KiSetCacheInformation -> KiSetCacheInformationIntel -> KiSetStandardizedCacheInformation -> __cpuid(4, 0)
     pub has_cpuid_cache_info_been_called: bool,
 
-    /// A vector for tracking stack memory allocations. Each entry contains the base address and size of the allocation.
-    pub stack_memory_allocations: Vec<(usize, usize)>,
+    pub stack_memory: Vec<(usize, usize)>,
 }
 
 lazy_static! {
@@ -91,7 +89,7 @@ lazy_static! {
         ntoskrnl_base_pa: 0,
         ntoskrnl_size: 0,
         has_cpuid_cache_info_been_called: false,
-        stack_memory_allocations: Vec::with_capacity(MAX_RECORDABLE_STACK_ALLOCATIONS),
+        stack_memory: Vec::with_capacity(128),
     });
 }
 
@@ -121,12 +119,12 @@ impl HookManager {
     /// * `start` - The start address of the memory allocation.
     /// * `size` - The size of the memory allocation.
     pub fn record_allocation(&mut self, start: usize, size: usize) {
-        self.stack_memory_allocations.push((start, size));
+        self.stack_memory.push((start, size));
     }
 
     /// Prints the allocated memory ranges for debugging purposes.
     pub fn print_allocated_memory(&self) {
-        self.stack_memory_allocations.iter().for_each(|(start, size)| {
+        self.stack_memory.iter().for_each(|(start, size)| {
             debug!("Memory Range: Start = {:#x}, Size = {:#x}", start, size);
         });
     }
@@ -220,7 +218,7 @@ impl HookManager {
     /// Returns `Ok(())` if the hooks were successfully installed, `Err(HypervisorError)` otherwise.
     pub fn hide_hypervisor_memory(&mut self, vm: &mut Vm, page_permissions: AccessType) -> Result<(), HypervisorError> {
         let pages: Vec<u64> = self
-            .stack_memory_allocations
+            .stack_memory
             .iter()
             .step_by(BASE_PAGE_SIZE)
             .map(|(start, _size)| *start as u64)

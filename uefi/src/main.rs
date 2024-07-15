@@ -10,10 +10,8 @@ extern crate alloc;
 
 use {
     crate::{processor::start_hypervisor_on_all_processors, setup::setup, stack::init},
-    axalloc::GlobalAllocator,
     hypervisor::{
-        global_const::TOTAL_HEAP_SIZE,
-        heap::HEAP,
+        allocator::heap_init,
         logger::{self, SerialPort},
     },
     log::*,
@@ -44,9 +42,6 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-#[global_allocator]
-static GLOBAL_ALLOCATOR: GlobalAllocator = GlobalAllocator::new();
-
 /// Entry point for the UEFI application.
 ///
 /// Initializes logging, UEFI services, and attempts to start the hypervisor on all processors.
@@ -62,19 +57,17 @@ static GLOBAL_ALLOCATOR: GlobalAllocator = GlobalAllocator::new();
 /// or `Status::ABORTED` if the hypervisor fails to install.
 #[entry]
 fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    // Initialize logging with the COM1 port and set the level filter.
-    logger::init(SerialPort::COM1, LevelFilter::Info);
-    info!("The Matrix is an illusion");
-
     unsafe {
-        // Initialize the global heap allocator.
-        GLOBAL_ALLOCATOR.init(HEAP.as_mut_ptr() as usize, TOTAL_HEAP_SIZE);
-
         // Initialize the stack allocator.
         init(&mut system_table);
+        // Initialize the global heap allocator.
+        heap_init();
     }
 
-    debug!("Heap size: {:#x}", TOTAL_HEAP_SIZE);
+    // Initialize logging with the COM2 port and set the level filter to Debug.
+    logger::init(SerialPort::COM1, LevelFilter::Info);
+
+    info!("The Matrix is an illusion");
 
     let boot_services = system_table.boot_services();
 
