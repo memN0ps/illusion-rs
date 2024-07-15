@@ -5,7 +5,7 @@
 use {
     alloc::boxed::Box,
     hypervisor::{
-        allocator::box_zeroed,
+        heap::box_zeroed,
         intel::{
             hooks::hook_manager::{HookManager, SHARED_HOOK_MANAGER},
             page::Page,

@@ -1,5 +1,9 @@
 use {crate::intel::vm::Vm, core::mem::size_of};
 
+/// Maximum number of stack memory allocations that can be recorded per logical processor (128),
+/// plus one additional allocation for the image base itself.
+pub const MAX_RECORDABLE_STACK_ALLOCATIONS: usize = 128 + 1;
+
 /// Number of stack pages per logical processor.
 /// Includes size of `Vm` in pages plus 0x1000 (4096) pages for padding.
 /// - Size of `Vm`: 1027 pages (0x403 pages).
