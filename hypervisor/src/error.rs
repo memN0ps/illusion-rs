@@ -238,4 +238,10 @@ pub enum HypervisorError {
 
     #[error("EPT misconfiguration error")]
     EptMisconfiguration,
+
+    #[error("Large page table unmapping error")]
+    LargePageUnmapError,
+
+    #[error("Guest page table unmapping error")]
+    GuestPageUnmapError,
 }

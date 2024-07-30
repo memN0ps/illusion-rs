@@ -440,6 +440,10 @@ impl HookManager {
         vm.primary_ept
             .swap_page(guest_page_pa.as_u64(), guest_page_pa.as_u64(), AccessType::READ_WRITE_EXECUTE, pre_alloc_pt)?;
 
+        // Update the memory manager to indicate that the guest page is no longer processed (unmapped/unhooked).
+        // This will allow the page to be reprocessed/remapped/rehooked if needed.
+        self.memory_manager.unmap_guest_from_shadow_page(guest_page_pa.as_u64())?;
+
         Ok(())
     }
 

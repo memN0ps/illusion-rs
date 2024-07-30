@@ -144,6 +144,46 @@ impl MemoryManager {
         Ok(())
     }
 
+    /// Unmaps a shadow page from a guest physical address, removing the associated hooks.
+    ///
+    /// # Arguments
+    /// * `guest_page_pa` - The guest physical address to unmap.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or an error if the page was not mapped.
+    pub fn unmap_guest_from_shadow_page(&mut self, guest_page_pa: u64) -> Result<(), HypervisorError> {
+        trace!("Unmapping guest page and shadow page for PA: {:#x}", guest_page_pa);
+
+        // Remove the mapping if it exists
+        if self.guest_page_mappings.remove(&guest_page_pa).is_some() {
+            trace!("Guest page unmapped from shadow page successfully");
+            Ok(())
+        } else {
+            trace!("Guest page PA: {:#x} was not mapped", guest_page_pa);
+            Err(HypervisorError::GuestPageUnmapError)
+        }
+    }
+
+    /// Unmaps a page table from a large guest physical address.
+    ///
+    /// # Arguments
+    /// * `guest_large_page_pa` - The large guest physical address to unmap.
+    ///
+    /// # Returns
+    /// `Ok(())` if successful, or an error if the page table was not mapped.
+    pub fn unmap_large_page_from_pt(&mut self, guest_large_page_pa: u64) -> Result<(), HypervisorError> {
+        trace!("Unmapping large page and page table for PA: {:#x}", guest_large_page_pa);
+
+        // Remove the mapping if it exists
+        if self.large_page_table_mappings.remove(&guest_large_page_pa).is_some() {
+            trace!("Large page unmapped from page table successfully");
+            Ok(())
+        } else {
+            trace!("Large page PA: {:#x} was not mapped", guest_large_page_pa);
+            Err(HypervisorError::LargePageUnmapError)
+        }
+    }
+
     /// Retrieves a mutable reference to the page table associated with a large guest physical address.
     ///
     /// # Arguments
