@@ -104,14 +104,14 @@ pub enum HypervisorError {
     #[error("Invalid PML4 entry")]
     InvalidPml4Entry,
 
-    #[error("Invalid PML3 entry")]
+    #[error("Invalid PDPT entry")]
     InvalidPdptEntry,
 
-    #[error("Invalid PML2 entry")]
+    #[error("Invalid PD entry")]
     InvalidPdEntry,
 
-    #[error("Invalid PML1 entry")]
-    InvalidPml1Entry,
+    #[error("Invalid PT entry")]
+    InvalidPtEntry,
 
     #[error("Invalid Permission Character")]
     InvalidPermissionCharacter,

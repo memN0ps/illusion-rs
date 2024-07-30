@@ -17,7 +17,7 @@ use {
     bitfield::bitfield,
     core::ptr::addr_of,
     log::*,
-    x86::bits64::paging::{pd_index, pdpt_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, LARGE_PAGE_SIZE},
+    x86::bits64::paging::{pd_index, pdpt_index, pml4_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, HUGE_PAGE_SIZE, LARGE_PAGE_SIZE},
 };
 
 /// Represents the entire Extended Page Table structure.
@@ -119,6 +119,107 @@ impl Ept {
         }
 
         Ok(())
+    }
+
+    /// Reads a value from a given guest physical address.
+    ///
+    /// This function translates the guest physical address (GPA) to the corresponding host physical address (HPA)
+    /// using the EPT, and then reads the value at the HPA.
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_pa` - The guest physical address to read from.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<u64, HypervisorError>` containing the value read from the address on success.
+    pub fn read_guest_pa(&self, guest_pa: u64) -> Result<u64, HypervisorError> {
+        // Translate the guest physical address to host physical address.
+        // In a 1:1 mapping, the guest physical address is the same as the host physical address.
+        // Assuming the environment allows direct memory access to those addresses.
+        let host_pa = self.translate_guest_pa_to_host_pa(guest_pa)?;
+        trace!("Reading from GPA {:#x} (HPA: {:#x})", guest_pa, host_pa);
+
+        // Read the value at the host physical address.
+        // Assuming the host physical address can be directly dereferenced.
+        // You may need to adjust the pointer dereferencing method based on your environment.
+        let value = unsafe { *(host_pa as *const u64) };
+        trace!("Read value: {:#x}", value);
+
+        Ok(value)
+    }
+
+    /// Translates a guest physical address to a host physical address using the EPT.
+    ///
+    /// This function traverses the EPT hierarchy (PML4, PDPT, PD, PT) to translate the given
+    /// guest physical address (GPA) to its corresponding host physical address (HPA).
+    ///
+    /// # Arguments
+    ///
+    /// * `guest_pa` - The guest physical address to translate.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<u64, HypervisorError>` containing the host physical address on success.
+    pub fn translate_guest_pa_to_host_pa(&self, guest_pa: u64) -> Result<u64, HypervisorError> {
+        let guest_pa = VAddr::from(guest_pa);
+
+        // Calculate the PML4 index and access the corresponding entry.
+        let pmld4_index = pml4_index(guest_pa);
+        let pml4_entry = &self.pml4.0.entries[pmld4_index];
+
+        // Check if the PML4 entry is present (readable).
+        if !pml4_entry.readable() {
+            error!("PML4 entry is not present: {:#x}", guest_pa);
+            return Err(HypervisorError::InvalidPml4Entry);
+        }
+
+        // Calculate the PDPT index and access the corresponding entry.
+        let pdpt_index = pdpt_index(guest_pa);
+        let pdpt_entry = &self.pdpt.0.entries[pdpt_index];
+
+        // Check if the PDPT entry is present (readable).
+        if !pdpt_entry.readable() {
+            error!("PDPT entry is not present: {:#x}", guest_pa);
+            return Err(HypervisorError::InvalidPdptEntry);
+        }
+
+        // Check if the PDPT entry is huge page (1 GB), if so, calculate the host physical address.
+        if pdpt_entry.large() {
+            let host_pa = (pdpt_entry.pfn() << BASE_PAGE_SHIFT) + (guest_pa.as_u64() % HUGE_PAGE_SIZE as u64);
+            return Ok(host_pa);
+        }
+
+        // Calculate the PD index and access the corresponding entry.
+        let pd_index = pd_index(guest_pa);
+        let pd_entry = &self.pd[pdpt_index].0.entries[pd_index];
+
+        // Check if the PD entry is present (readable).
+        if !pd_entry.readable() {
+            error!("PD entry is not present: {:#x}", guest_pa);
+            return Err(HypervisorError::InvalidPdEntry);
+        }
+
+        // Check if the PD entry is large page (2 MB), if so, calculate the host physical address.
+        if pd_entry.large() {
+            let host_pa = (pd_entry.pfn() << BASE_PAGE_SHIFT) + (guest_pa.as_u64() % LARGE_PAGE_SIZE as u64);
+            return Ok(host_pa);
+        }
+
+        // Calculate the PT index and access the corresponding entry.
+        let pt_index = pt_index(guest_pa);
+        let pt_entry = &self.pt.0.entries[pt_index];
+
+        // Check if the PT entry is present (readable).
+        if !pt_entry.readable() {
+            error!("PT entry is not present: {:#x}", guest_pa);
+            return Err(HypervisorError::InvalidPtEntry);
+        }
+
+        // The PT entry is a 4 KB page, calculate the host physical address.
+        let host_pa = (pt_entry.pfn() << BASE_PAGE_SHIFT) + (guest_pa.as_u64() % BASE_PAGE_SIZE as u64);
+
+        Ok(host_pa)
     }
 
     /// Checks if a guest physical address is part of a large 2MB page.
