@@ -6,13 +6,11 @@
 //! https://github.com/tandasat/Hello-VT-rp/blob/main/hypervisor/src/paging_structures.rs
 
 use {
-    crate::{error::HypervisorError, intel::support::vmread},
+    crate::error::HypervisorError,
     bitfield::bitfield,
     core::ptr::addr_of,
-    x86::{
-        current::paging::{BASE_PAGE_SHIFT, LARGE_PAGE_SIZE},
-        vmx::vmcs,
-    },
+    log::error,
+    x86::bits64::paging::{pd_index, pdpt_index, pml4_index, pt_index, VAddr, BASE_PAGE_SHIFT, BASE_PAGE_SIZE, HUGE_PAGE_SIZE, LARGE_PAGE_SIZE},
 };
 
 /// Represents the entire Page Tables structure for the hypervisor.
@@ -88,14 +86,13 @@ impl PageTables {
         log::debug!("Identity map built successfully");
     }
 
-    /// Translates a guest virtual address to a physical address using the guest's CR3.
+    /// Translates a guest virtual address to a guest physical address using the guest's CR3.
     /// This function traverses the guest's page tables, assuming an identity-mapped
     /// host address space for simplicity.
     ///
     /// # Arguments
-    /// * `guest_cr3` - The guest CR3 register value, which contains the base address of the
-    /// guest's page table hierarchy.
-    /// * `virtual_address` - The guest virtual address to translate.
+    /// * `guest_cr3` - The guest CR3 register value, which contains the base address of the guest's page table hierarchy.
+    /// * `guest_va` - The guest virtual address to translate.
     ///
     /// # Safety
     /// This function is unsafe because it involves raw memory access based on potentially
@@ -103,58 +100,82 @@ impl PageTables {
     /// or the memory is not properly mapped.
     ///
     /// # Returns
-    /// Returns Some(usize) containing the translated physical address if successful,
-    /// or None if the translation fails at any level of the page table hierarchy.
+    /// Returns a `Result<u64, HypervisorError>` containing the translated guest physical address if successful,
+    /// or an error if the translation fails at any level of the page table hierarchy.
     ///
     /// # Credits
-    /// Credits to Jessie (jessiep_) for the initial concept.
-    pub fn translate_guest_virtual_to_physical(guest_cr3: usize, virtual_address: usize) -> Option<usize> {
-        // Mask used to clear the lower 12 bits of an address, effectively aligning it to a page boundary.
-        const ADDRESS_MASK: usize = ((1 << x86::bits64::paging::MAXPHYADDR) - 1) & !0xFFF;
+    /// Credits to Jessie (jessiep_) for the help.
+    pub unsafe fn translate_guest_virtual_to_guest_physical(guest_cr3: u64, guest_va: u64) -> Result<u64, HypervisorError> {
+        let guest_va = VAddr::from(guest_va);
 
-        // Start at the base of the guest's page table hierarchy.
-        let mut current_paging = guest_cr3 as *const usize;
+        // Cast guest CR3 to the PML4 table structure
+        let pml4_table = guest_cr3 as *const Pml4;
 
-        // Iterate through the page table levels, checking for large pages and
-        // extracting the physical address from the page table entries.
-        for (supports_large, index, offset_mask) in [
-            (false, (virtual_address >> 39) & 0x1FF, 0),
-            (true, (virtual_address >> 30) & 0x1FF, 0x3FFFFFFF),
-            (true, (virtual_address >> 21) & 0x1FF, 0x1FFFFF),
-        ] {
-            let page_entry = unsafe { *current_paging.add(index) };
+        // Calculate the PML4 index and access the corresponding entry.
+        let pml4_index = pml4_index(guest_va);
+        let pml4_entry = &(*pml4_table).0.entries[pml4_index];
 
-            // If the page is not present, translation fails.
-            if page_entry & 1 == 0 {
-                return None;
-            }
-
-            // If this is a large page, calculate the physical address and return it, taking into account the offset within the large page.
-            if supports_large && (page_entry & 0x80 != 0) {
-                return Some((page_entry & ADDRESS_MASK) | (virtual_address & offset_mask));
-            }
-
-            // go to the next page :)
-            current_paging = (page_entry & ADDRESS_MASK) as *const usize;
+        // Check if the PML4 entry is present (readable).
+        if !pml4_entry.present() {
+            error!("PML4 entry is not present: {:#x}", guest_va);
+            return Err(HypervisorError::InvalidPml4Entry);
         }
 
-        let page_entry = unsafe { *current_paging.add((virtual_address >> 12) & 0x1FF) };
+        // Cast the entry to the PDPT table structure.
+        let pdpt_table = (pml4_entry.pfn() << BASE_PAGE_SHIFT) as *const Pdpt;
 
-        // If the page is not present, translation fails.
-        if page_entry & 1 == 0 {
-            return None;
+        // Calculate the PDPT index and access the corresponding entry.
+        let pdpt_index = pdpt_index(guest_va);
+        let pdpt_entry = &(*pdpt_table).0.entries[pdpt_index];
+
+        // Check if the PDPT entry is present (readable).
+        if !pdpt_entry.present() {
+            error!("PDPT entry is not present: {:#x}", guest_va);
+            return Err(HypervisorError::InvalidPdptEntry);
         }
 
-        Some((page_entry & ADDRESS_MASK) | (virtual_address & 0xFFF))
-    }
+        // Check if the PDPT entry is a huge page (1 GB), if so, calculate the guest physical address.
+        if pdpt_entry.large() {
+            let guest_pa = (pdpt_entry.pfn() << BASE_PAGE_SHIFT) + (guest_va.as_u64() % HUGE_PAGE_SIZE as u64);
+            return Ok(guest_pa);
+        }
 
-    /// Gets the guest CR3 value from the VMCS.
-    ///
-    /// # Returns
-    ///
-    /// * The guest CR3 value from the VMCS.
-    pub fn get_guest_cr3() -> u64 {
-        vmread(vmcs::guest::CR3)
+        // Cast the entry to the PD table structure.
+        let pd_table = (pdpt_entry.pfn() << BASE_PAGE_SHIFT) as *const Pd;
+
+        // Calculate the PD index and access the corresponding entry.
+        let pd_index = pd_index(guest_va);
+        let pd_entry = &(*pd_table).0.entries[pd_index];
+
+        // Check if the PD entry is present (readable).
+        if !pd_entry.present() {
+            error!("PD entry is not present: {:#x}", guest_va);
+            return Err(HypervisorError::InvalidPdEntry);
+        }
+
+        // Check if the PD entry is a large page (2 MB), if so, calculate the guest physical address.
+        if pd_entry.large() {
+            let guest_pa = (pd_entry.pfn() << BASE_PAGE_SHIFT) + (guest_va.as_u64() % LARGE_PAGE_SIZE as u64);
+            return Ok(guest_pa);
+        }
+
+        // Cast the entry to the PT table structure.
+        let pt_table = (pd_entry.pfn() << BASE_PAGE_SHIFT) as *const Pt;
+
+        // Calculate the PT index and access the corresponding entry.
+        let pt_index = pt_index(guest_va);
+        let pt_entry = &(*pt_table).0.entries[pt_index];
+
+        // Check if the PT entry is present (readable).
+        if !pt_entry.present() {
+            error!("PT entry is not present: {:#x}", guest_va);
+            return Err(HypervisorError::InvalidPtEntry);
+        }
+
+        // The PT entry is a 4 KB page, calculate the guest physical address.
+        let guest_pa = (pt_entry.pfn() << BASE_PAGE_SHIFT) + (guest_va.as_u64() % BASE_PAGE_SIZE as u64);
+
+        Ok(guest_pa)
     }
 
     /// Gets the physical address of the PML4 table, ensuring it is 4KB aligned.
@@ -206,6 +227,14 @@ pub struct Pdpt(Table);
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 4.5 Paging
 #[derive(Debug, Clone, Copy)]
 struct Pd(Table);
+
+/// Represents an EPT Page-Table Entry (PTE) that maps a 4-KByte Page.
+///
+/// PTEs are part of the fourth level in the standard x86-64 paging hierarchy.
+///
+/// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 4.5 Paging
+#[derive(Debug, Clone, Copy)]
+pub struct Pt(Table);
 
 /*
 /// Represents a Page-Table Entry (PTE) that maps a 4-KByte Page.

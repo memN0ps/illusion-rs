@@ -38,7 +38,7 @@ pub fn handle_monitor_trap_flag(vm: &mut Vm) -> Result<ExitType, HypervisorError
         if *counter == 0 {
             set_monitor_trap_flag(false);
 
-            let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip));
+            let guest_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip)?);
             trace!("Guest PA: {:#x}", guest_pa.as_u64());
 
             let guest_page_pa = guest_pa.align_down_to_base_page();

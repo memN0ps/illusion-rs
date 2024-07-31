@@ -5,9 +5,15 @@
 //! as well as methods for extracting page frame numbers (PFNs) and other address-related information.
 
 use {
-    crate::intel::paging::PageTables,
-    core::ops::{Deref, DerefMut},
-    x86::bits64::paging::{PAddr, BASE_PAGE_SHIFT},
+    crate::{
+        error::HypervisorError,
+        intel::{ept::Ept, paging::PageTables, support::vmread},
+    },
+    log::trace,
+    x86::{
+        bits64::paging::{PAddr, BASE_PAGE_SHIFT},
+        vmx::vmcs,
+    },
 };
 
 /// A representation of physical addresses.
@@ -23,14 +29,14 @@ impl PhysicalAddress {
         Self(PAddr::from(pa))
     }
 
+    /// Constructs a `PhysicalAddress` from a given virtual address.
+    pub fn from_va(va: u64) -> Result<Self, HypervisorError> {
+        Ok(Self(PAddr::from(Self::pa_from_va(va)?)))
+    }
+
     /// Constructs a `PhysicalAddress` from a given page frame number (PFN).
     pub fn from_pfn(pfn: u64) -> Self {
         Self(PAddr::from(pfn << BASE_PAGE_SHIFT))
-    }
-
-    /// Constructs a `PhysicalAddress` from a given virtual address.
-    pub fn from_va(va: u64) -> Self {
-        Self(PAddr::from(Self::pa_from_va(va)))
     }
 
     /// Retrieves the page frame number (PFN) for the physical address.
@@ -43,60 +49,49 @@ impl PhysicalAddress {
         self.0.as_u64()
     }
 
-    /// Converts a virtual address to its corresponding physical address.
-    pub fn pa_from_va(va: u64) -> u64 {
-        let guest_cr3 = PageTables::get_guest_cr3();
-        PageTables::translate_guest_virtual_to_physical(guest_cr3 as usize, va as _).unwrap() as u64
-    }
-
-    /// Reads a value of a specified type from guest memory at the provided virtual address, ensuring safety by internal validation.
+    /// Converts a guest virtual address to its corresponding host physical address.
+    ///
+    /// This function first translates the guest virtual address to a guest physical address
+    /// using the guest's CR3. It then translates the guest physical address to a host physical
+    /// address using the EPT (Extended Page Table).
     ///
     /// # Arguments
     ///
-    /// * `guest_cr3` - The base address of the guest's page table hierarchy.
-    /// * `guest_va` - The guest virtual address from which to read.
+    /// * `va` - The guest virtual address to translate.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity
+    /// of the VMCS (Virtual Machine Control Structure).
     ///
     /// # Returns
     ///
-    /// * Returns an `Option<T>` which is `Some(value)` if the read is successful and safe, or `None` if the address cannot be translated or if safety conditions are not met.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `T` - The type of the value to read. This can be any type that implements the `Copy` trait and has a size that can be read atomically.
-    ///
-    /// # Credits
-    /// Credits to Jessie (jessiep_) for the initial concept.
-    pub fn read_guest_memory<T: Copy>(guest_cr3: usize, guest_va: usize) -> Option<T> {
-        // Safety justification:
-        // The translation function ensures that the physical address is valid and maps to a real physical memory location.
-        // The dereference is only performed if the translation succeeds, and it's constrained to types that are Copy, implying they can be safely duplicated and do not manage resources that require manual cleanup.
-        // Still, the caller must ensure that reading from this specific address does not violate any safety contracts.
-        let pa = PageTables::translate_guest_virtual_to_physical(guest_cr3, guest_va)?;
-        unsafe { Some(*(pa as *const T)) }
+    /// A `Result<u64, HypervisorError>` containing the host physical address on success, or an error if the translation fails.
+    pub fn pa_from_va(va: u64) -> Result<u64, HypervisorError> {
+        let guest_cr3 = vmread(vmcs::guest::CR3);
+        trace!("Guest CR3: {:#x}", guest_cr3);
+
+        let guest_pa = unsafe { PageTables::translate_guest_virtual_to_guest_physical(guest_cr3, va)? };
+        trace!("Guest VA: {:#x} -> Guest PA: {:#x}", va, guest_pa);
+
+        // Translate guest physical address (GPA) to host physical address (HPA) using Extended Page Tables (EPT)
+        // In a 1:1 mapping, the guest physical address is the same as the host physical address.
+        // This translation is not required in a 1:1 mapping but is done for demonstration purposes
+        // and in case changes are made to the Paging/EPT.
+        let vmcs_eptp = vmread(vmcs::control::EPTP_FULL);
+        trace!("VMCS EPTP: {:#x}", vmcs_eptp);
+
+        let (pml4_address, _, _) = Ept::decode_eptp(vmcs_eptp)?;
+        trace!("EPT PML4 Address: {:#x}", pml4_address);
+
+        // Note: This may cause a crash at `!pt_entry.readable()` because the hypervisor has pre-allocated page tables
+        // in the hook_manager that are not passed to this function. We're attempting to translate a guest physical address to a host physical address using the EPT.
+        // The hypervisor maps everything as 2MB pages. The hooked pages are split and stored in the pre-allocated Pt,
+        // which are usually passed as a parameter, those are not stored in the EPT structure.
+        // This translation is not required in a 1:1 mapping but is done for demonstration purposes and in case changes are made to the Paging/EPT.
+        // let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
+        // trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
+
+        Ok(guest_pa)
     }
-}
-
-impl Deref for PhysicalAddress {
-    type Target = PAddr;
-
-    /// Dereferences the `PhysicalAddress` to retrieve the underlying `PAddr`.
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for PhysicalAddress {
-    /// Provides mutable access to the underlying `PAddr`.
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-/// Converts a virtual address to its corresponding physical address.
-///
-/// # Arguments
-///
-/// * `ptr` - The virtual address to convert.
-pub fn physical_address(ptr: *const u64) -> PAddr {
-    PhysicalAddress::from_va(ptr as u64).0
 }
