@@ -477,6 +477,45 @@ impl Ept {
         Ok(())
     }
 
+    /// Decodes an EPTP value to extract the physical base address, memory type, and page walk length.
+    ///
+    /// This function reverses the encoding done in `create_eptp_with_wb_and_4lvl_walk`.
+    ///
+    /// # Parameters
+    ///
+    /// * `eptp`: The EPTP value to be decoded.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<(u64, MemoryType, u8), HypervisorError>` containing the base address, memory type, and page walk length.
+    /// Returns an error if the EPTP is invalid.
+    ///
+    /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 28.2.6 EPT Paging-Structure Entries
+    pub fn decode_eptp(eptp: u64) -> Result<(u64, MemoryType, u8), HypervisorError> {
+        // Extract the base address by masking out the lower 12 bits and other fields.
+        let base_addr = eptp & 0x000ffffffffff000;
+
+        // Extract the memory type (assuming it's stored in bits 2:0).
+        let memory_type = match eptp & 0b111 {
+            0 => MemoryType::Uncacheable,
+            1 => MemoryType::WriteCombining,
+            4 => MemoryType::WriteThrough,
+            5 => MemoryType::WriteProtected,
+            6 => MemoryType::WriteBack,
+            _ => return Err(HypervisorError::InvalidEptPml4BaseAddress),
+        };
+
+        // Extract the page walk length (stored in bits 5:3 and subtract 1).
+        let page_walk_length = ((eptp >> 3) & 0b111) + 1;
+
+        // Check if the base address is properly aligned.
+        if base_addr.trailing_zeros() >= 12 {
+            Ok((base_addr, memory_type, page_walk_length as u8))
+        } else {
+            Err(HypervisorError::InvalidEptPml4BaseAddress)
+        }
+    }
+
     /// Creates an Extended Page Table Pointer (EPTP) with a Write-Back memory type and a 4-level page walk.
     ///
     /// This function is used in the setup of Intel VT-x virtualization, specifically for configuring the EPT.
