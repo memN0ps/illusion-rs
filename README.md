@@ -113,6 +113,25 @@ The diagram below illustrates the structure and flow of the Windows UEFI Blue Pi
 - Debug: `cargo make build-debug`.
 - Release: `cargo make build-release`.
 
+## Debugging
+
+- **Serial Port Logging**: Use a serial port logger to capture logs from the hypervisor.
+
+#### Enabling Debug Modes
+
+- Test Mode: Activate test signing with `bcdedit.exe /set testsigning on`.
+- Windows Debugging: Follow the steps in this [Microsoft guide](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--bootdebug).
+
+```powershell
+bcdedit.exe /bootdebug {bootmgr} on
+bcdedit.exe /bootdebug on
+bcdedit.exe /debug on
+```
+
+#### Network Debugging with Windbg
+
+- Setup: `bcdedit.exe /dbgsettings net hostip:w.x.y.z port:n`.
+
 ## Usage
 
 A UEFI blue-pill hypervisor operates under the following conditions:
