@@ -150,7 +150,7 @@ The global heap allocator is shared among all processors/cores/threads and is a 
 
 ## Usage 1: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on VMware Workstation (Supported)
 
-0. **Create a USB Drive for Booting**
+0. **Create a Virtual USB Drive for Booting**
 
    Run the following PowerShell script as an administrator to create a new partition on the USB drive and format it as FAT32. This script shrinks the existing partition by 512 MB and creates a new partition with the label "Hypervisor" on the USB drive. Make sure to modify the drive letters according to your environment. Alternatively, you can use a physical USB drive.
 
@@ -190,7 +190,8 @@ The global heap allocator is shared among all processors/cores/threads and is a 
    Configure VMware Workstation to boot into the firmware setup on the next boot and to use the physical USB drive as the boot device:
 
    - **Add a Hard Disk:**
-     - Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive1 and Usage: Use entire disk -> Next -> Finish.`
+     - Physical USB: Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive1 and Usage: Use entire disk -> Next -> Finish.`
+     - Virtual USB: Go to `VM -> Settings -> Hardware -> Add -> Hard Disk -> Next -> SCSI or NVMe (Recommended) -> Next -> Use a physical disk (for advanced users) -> Next -> Device: PhysicalDrive0 and Usage: Use individual partitions -> Select Partition -> Next -> Finish.`
    - **Add a Serial Port:**
      - Go to `VM -> Settings -> Add -> Serial Port -> Finish`.
      - Select `Use output file: C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt` to direct the Serial Port output from COM1 to the `logs.txt` file. (You can choose any location, but the preference is within the project directory).
