@@ -84,9 +84,14 @@ impl PhysicalAddress {
         let (pml4_address, _, _) = Ept::decode_eptp(vmcs_eptp)?;
         trace!("EPT PML4 Address: {:#x}", pml4_address);
 
-        let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
-        trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
+        // Note: This may cause a crash at `!pt_entry.readable()` because the hypervisor has pre-allocated page tables
+        // in the hook_manager that are not passed to this function. We're attempting to translate a guest physical address to a host physical address using the EPT.
+        // The hypervisor maps everything as 2MB pages. The hooked pages are split and stored in the pre-allocated Pt,
+        // which are usually passed as a parameter, those are not stored in the EPT structure.
+        // This translation is not required in a 1:1 mapping but is done for demonstration purposes and in case changes are made to the Paging/EPT.
+        // let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
+        // trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
 
-        Ok(host_pa)
+        Ok(guest_pa)
     }
 }

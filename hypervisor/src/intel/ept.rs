@@ -526,6 +526,7 @@ impl Ept {
     pub fn create_eptp_with_wb_and_4lvl_walk(&self) -> Result<u64, HypervisorError> {
         // Get the virtual address of the PML4 table for EPT.
         let addr = addr_of!(self.pml4) as u64;
+        trace!("EPT PML4 (self) address: {:#x}", addr);
 
         // Get the physical address of the PML4 table for EPT.
         let ept_pml4_base_addr = addr;
