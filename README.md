@@ -150,6 +150,37 @@ The global heap allocator is shared among all processors/cores/threads and is a 
 
 ## Usage 1: Running a UEFI Blue-Pill Hypervisor through the UEFI Shell on VMware Workstation (Supported)
 
+0. **Create a USB Drive for Booting**
+
+   Run the following PowerShell script as an administrator to create a new partition on the USB drive and format it as FAT32. This script shrinks the existing partition by 512 MB and creates a new partition with the label "Hypervisor" on the USB drive. Make sure to modify the drive letters according to your environment. Alternatively, you can use a physical USB drive.
+
+    ```powershell
+    # Define the size to shrink in MB
+    $sizeToShrinkMB = 512
+    
+    # Define the drive letter of the existing partition to shrink
+    $existingDriveLetter = "C"
+    
+    # Define the drive letter and label for the new partition
+    $newDriveLetter = "D"
+    $newFileSystemLabel = "Hypervisor"
+    
+    # Shrink the existing partition
+    $volume = Get-Volume -DriveLetter $existingDriveLetter
+    $partition = $volume | Get-Partition
+    Resize-Partition -DriveLetter $partition.DriveLetter -Size ($partition.Size - ($sizeToShrinkMB * 1MB))
+    
+    # Create a new partition in the unallocated space
+    $disk = Get-Disk -Number $partition.DiskNumber
+    $newPartition = New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter $newDriveLetter
+    
+    # Format the new partition
+    Format-Volume -DriveLetter $newDriveLetter -FileSystem FAT32 -NewFileSystemLabel $newFileSystemLabel
+    
+    Write-Output "Partition created and formatted successfully."
+    ```
+
+
 1. **Setup for VMware Workstation**
 
    - **Build the Project**: Follow the build instructions provided in the previous sections to compile the project.
