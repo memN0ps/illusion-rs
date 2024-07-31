@@ -27,7 +27,14 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
     debug!("Handling commands");
 
     // Convert guest RCX register value to a pointer to ClientData
-    let client_data_ptr = PhysicalAddress::pa_from_va(vm.guest_registers.rcx);
+    let client_data_ptr = match PhysicalAddress::pa_from_va(vm.guest_registers.rcx) {
+        Ok(pa) => pa,
+        Err(e) => {
+            error!("Failed to convert guest RCX to pointer: {:?}", e);
+            return false;
+        }
+    };
+
     debug!("Client data pointer: {:#x}", client_data_ptr);
 
     // Convert the pointer to ClientData

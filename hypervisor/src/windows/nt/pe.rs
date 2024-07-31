@@ -3,6 +3,7 @@
 
 use {
     crate::{
+        error::HypervisorError,
         intel::addresses::PhysicalAddress,
         windows::nt::types::{
             IMAGE_DIRECTORY_ENTRY_EXPORT, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE, PIMAGE_DOS_HEADER, PIMAGE_EXPORT_DIRECTORY, PIMAGE_NT_HEADERS64,
@@ -173,14 +174,14 @@ pub fn djb2_hash(buffer: &[u8]) -> u32 {
 /// # Credits
 ///
 /// To Jessie (jessiep_) and Satoshi: https://gist.github.com/tandasat/bf0189952f113518f75c4f008c1e8d04#file-guestagent-c-L134-L161
-pub unsafe fn get_image_base_address(start_va: u64) -> Option<u64> {
+pub unsafe fn get_image_base_address(start_va: u64) -> Result<u64, HypervisorError> {
     // Align the start address down to the nearest page boundary.
     let mut guest_va = start_va & !0xFFF;
 
     loop {
         // Attempt to read the potential DOS signature at the current address.
-        match *(PhysicalAddress::pa_from_va(guest_va) as *const u16) {
-            IMAGE_DOS_SIGNATURE => return Some(guest_va), // Found the 'MZ' signature.
+        match *(PhysicalAddress::pa_from_va(guest_va)? as *const u16) {
+            IMAGE_DOS_SIGNATURE => return Ok(guest_va), // Found the 'MZ' signature.
             _ => {
                 if guest_va == 0 {
                     break; // Prevent underflow and ensure the loop eventually terminates.
@@ -190,5 +191,5 @@ pub unsafe fn get_image_base_address(start_va: u64) -> Option<u64> {
         }
     }
 
-    None // The 'MZ' signature was not found in the scanned range.
+    Err(HypervisorError::FailedToGetImageBaseAddress) // The 'MZ' signature was not found in the scanned range.
 }

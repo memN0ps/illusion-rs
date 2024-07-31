@@ -84,7 +84,7 @@ impl SsdtHook {
         // let offset = unsafe { ssdt.p_service_table.add(api_number as usize).read() as usize >> 4 }; // We can't do this because it's a guest VA.
         //
         let offset_ptr_va = unsafe { ssdt.p_service_table.add(api_number as usize) };
-        let offset_ptr_pa = PhysicalAddress::pa_from_va(offset_ptr_va as u64) as *const i32;
+        let offset_ptr_pa = PhysicalAddress::pa_from_va(offset_ptr_va as u64)? as *const i32;
         let offset = unsafe { offset_ptr_pa.read() as usize >> 4 };
         trace!("SSDT function offset: {:#x}", offset);
 
