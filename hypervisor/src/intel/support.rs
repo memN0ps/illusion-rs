@@ -47,8 +47,10 @@ where
 }
 
 /// Write to Extended Control Register XCR0. Only supported if CR4_ENABLE_OS_XSAVE is set.
-pub fn xsetbv(val: x86::controlregs::Xcr0) {
-    unsafe { x86::controlregs::xcr0_write(val) };
+pub fn xsetbv(val: u64) {
+    unsafe {
+        x86_64::registers::xcontrol::XCr0::write_raw(val);
+    }
 }
 
 /// Write back all modified cache contents to memory and invalidate the caches.
@@ -90,13 +92,13 @@ pub fn cr3() -> u64 {
 }
 
 /// Reads the CR4 register.
-pub fn cr4() -> x86::controlregs::Cr4 {
-    unsafe { x86::controlregs::cr4() }
+pub fn cr4() -> u64 {
+    x86_64::registers::control::Cr4::read_raw()
 }
 
 /// Writes a value to the CR4 register.
-pub fn cr4_write(val: x86::controlregs::Cr4) {
-    unsafe { x86::controlregs::cr4_write(val) };
+pub fn cr4_write(val: u64) {
+    unsafe { x86_64::registers::control::Cr4::write_raw(val) };
 }
 
 /// Writes a value to the Cr2 register.
