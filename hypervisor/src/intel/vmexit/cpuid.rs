@@ -172,10 +172,10 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 trace!("CPUID leaf 0x40000000 detected (Hypervisor Vendor Information).");
                 // Set the CPUID response to provide the hypervisor's vendor ID signature.
                 // We use the signature "Illusion" encoded in a little-endian format.
-                cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
-                cpuid_result.ebx = 0x756c6c49; // "ullI", part of "Illusion" (in reverse order due to little-endian storage).
-                cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
-                cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
+                // cpuid_result.eax = CpuidLeaf::HypervisorInterface as u32; // Maximum supported CPUID leaf range.
+                // cpuid_result.ebx = 0x756c6c49; // "ullI", part of "Illusion" (in reverse order due to little-endian storage).
+                // cpuid_result.ecx = 0x6e6f6973; // "nois", part of "Illusion" (in reverse order due to little-endian storage).
+                // cpuid_result.edx = 0x00000000; // Filled with null bytes as there are no more characters to encode.
             }
             leaf if leaf == CpuidLeaf::HypervisorInterface as u32 => {
                 trace!("CPUID leaf 0x40000001 detected (Hypervisor Interface Identification).");
