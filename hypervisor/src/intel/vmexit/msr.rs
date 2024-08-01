@@ -51,7 +51,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
     // Define the range for valid MSR access and Hyper-V MSRs
     const MSR_VALID_RANGE_LOW: RangeInclusive<u32> = 0x00000000..=0x00001FFF;
     const MSR_VALID_RANGE_HIGH: RangeInclusive<u32> = 0xC0000000..=0xC0001FFF;
-    const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000F0;
+    const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000FF;
 
     // Define the VMX lock bit for IA32_FEATURE_CONTROL MSR
     const VMX_LOCK_BIT: u64 = 1 << 0;
@@ -61,7 +61,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
 
     // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks)
     // by checking if the MSR address is in the Hyper-V range or outside other valid ranges
-    if !MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id) && MSR_HYPERV_RANGE.contains(&msr_id) {
+    if (!MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id)) || MSR_HYPERV_RANGE.contains(&msr_id) {
         log::trace!("Invalid MSR access attempted: {:#x}", msr_id);
         EventInjection::vmentry_inject_gp(0);
         return Ok(ExitType::Continue);
