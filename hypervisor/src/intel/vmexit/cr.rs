@@ -12,6 +12,7 @@ use {
     },
     bit_field::BitField,
     core::{ops::Range, ptr::addr_of},
+    log::trace,
     x86::vmx::{
         vmcs,
         vmcs::{control, guest},
@@ -34,6 +35,8 @@ use {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 26.1.3 Instructions That Cause VM Exits Conditionally
 pub fn handle_cr_reg_access(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
+    trace!("Handling ControlRegisterAccess VM exit...");
+
     let qual = vmread(vmcs::ro::EXIT_QUALIFICATION);
     let cr = ControlRegAccessExitQualification::from_exit_qualification(qual);
     match cr.access_type {
@@ -60,7 +63,10 @@ pub fn handle_cr_reg_access(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 /// * `ExitType`: The appropriate exit type.
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 26.1.3 Instructions That Cause VM Exits Conditionally
+/// Reference: Table 28-3. Exit Qualification for Control-Register Accesses
 fn handle_mov_to_cr0(vm: &mut Vm, gpr: u64) -> ExitType {
+    trace!("Handling MOV to CR0 VM exit...");
+
     let mut new_cr0 = unsafe { Cr0Flags::from_bits_retain(addr_of!(vm.guest_registers).cast::<u64>().add(gpr as usize).read_unaligned()) };
 
     let curr_cr0 = Cr0Flags::from_bits_retain(read_effective_guest_cr0());
@@ -132,6 +138,8 @@ fn handle_mov_to_cr0(vm: &mut Vm, gpr: u64) -> ExitType {
 
     vmwrite(guest::CR0, new_cr0.bits());
 
+    trace!("Handled MOV to CR0 successfully!");
+
     ExitType::IncrementRIP
 }
 
@@ -149,6 +157,8 @@ fn handle_mov_to_cr0(vm: &mut Vm, gpr: u64) -> ExitType {
 ///
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: 26.1.3 Instructions That Cause VM Exits Conditionally
 fn handle_mov_to_cr4(vm: &mut Vm, gpr: u64) -> Result<ExitType, HypervisorError> {
+    trace!("Handling MOV to CR4 VM exit...");
+
     const CR4_RESERVED_1: usize = 15;
     const CR4_RESERVED_2: Range<usize> = 32..64;
 
@@ -213,6 +223,8 @@ fn handle_mov_to_cr4(vm: &mut Vm, gpr: u64) -> Result<ExitType, HypervisorError>
     new_cr4 &= Cr4Flags::from_bits_retain(vmx_cr4_fixed1);
 
     vmwrite(guest::CR4, new_cr4.bits());
+
+    trace!("Handled MOV to CR4 successfully!");
 
     Ok(ExitType::IncrementRIP)
 }

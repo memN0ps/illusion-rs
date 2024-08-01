@@ -9,7 +9,10 @@
 //! Daax: https://github.com/daaximus
 //! Drew: https://github.com/drew-gpf
 
-use {crate::intel::capture::GuestRegisters, core::arch::global_asm};
+use {
+    crate::intel::capture::GuestRegisters,
+    core::{arch::global_asm, mem},
+};
 
 extern "efiapi" {
     /// Launches or resumes a virtual machine (VM) using VMX operations.
@@ -33,6 +36,7 @@ extern "efiapi" {
     pub fn launch_vm(registers: &mut GuestRegisters, launched: u64) -> u64;
 }
 
+// The guest register are required to be in this order: Table 28-3. Exit Qualification for Control-Register Accesses
 global_asm!(
     r#"
 // The `launch_vm` function is the main entry point for launching or resuming a VM using VMX operations.
@@ -132,43 +136,6 @@ movaps xmm0, xmmword ptr [rsp]
     add rsp, 0x100
 .endm
 
-// Offsets for each field in the GuestRegisters struct. These offsets are used
-// to facilitate the direct manipulation of guest register values stored in memory.
-.set registers_rax, 0x0
-.set registers_rbx, 0x8
-.set registers_rcx, 0x10
-.set registers_rdx, 0x18
-.set registers_rdi, 0x20
-.set registers_rsi, 0x28
-.set registers_rbp, 0x30
-.set registers_r8,  0x38
-.set registers_r9,  0x40
-.set registers_r10, 0x48
-.set registers_r11, 0x50
-.set registers_r12, 0x58
-.set registers_r13, 0x60
-.set registers_r14, 0x68
-.set registers_r15, 0x70
-.set registers_rip, 0x78
-.set registers_rsp, 0x80
-.set registers_rflags, 0x88
-.set registers_xmm0, 0x90
-.set registers_xmm1, 0xA0
-.set registers_xmm2, 0xB0
-.set registers_xmm3, 0xC0
-.set registers_xmm4, 0xD0
-.set registers_xmm5, 0xE0
-.set registers_xmm6, 0xF0
-.set registers_xmm7, 0x100
-.set registers_xmm8, 0x110
-.set registers_xmm9, 0x120
-.set registers_xmm10, 0x130
-.set registers_xmm11, 0x140
-.set registers_xmm12, 0x150
-.set registers_xmm13, 0x160
-.set registers_xmm14, 0x170
-.set registers_xmm15, 0x180
-
 // The main entry point for launching or resuming a VM using VMX operations.
 .global launch_vm
 launch_vm:
@@ -186,46 +153,46 @@ launch_vm:
 
     // Load guest general-purpose registers from the `registers` structure.
     // This setup prepares the guest state for execution.
-    mov     rax, [r15 + registers_rax]
-    mov     rbx, [r15 + registers_rbx]
-    mov     rcx, [r15 + registers_rcx]
-    mov     rdx, [r15 + registers_rdx]
-    mov     rdi, [r15 + registers_rdi]
-    mov     rsi, [r15 + registers_rsi]
-    mov     rbp, [r15 + registers_rbp]
-    mov     r8,  [r15 + registers_r8]
-    mov     r9,  [r15 + registers_r9]
-    mov     r10, [r15 + registers_r10]
-    mov     r11, [r15 + registers_r11]
-    mov     r12, [r15 + registers_r12]
+    mov     rax, [r15 + {registers_rax}]
+    mov     rbx, [r15 + {registers_rbx}]
+    mov     rcx, [r15 + {registers_rcx}]
+    mov     rdx, [r15 + {registers_rdx}]
+    mov     rdi, [r15 + {registers_rdi}]
+    mov     rsi, [r15 + {registers_rsi}]
+    mov     rbp, [r15 + {registers_rbp}]
+    mov     r8,  [r15 + {registers_r8}]
+    mov     r9,  [r15 + {registers_r9}]
+    mov     r10, [r15 + {registers_r10}]
+    mov     r11, [r15 + {registers_r11}]
+    mov     r12, [r15 + {registers_r12}]
 
     // Load guest general-purpose and XMM registers from the `registers` structure.
     // This prepares the CPU state for guest execution, including floating-point and SIMD state.
-    movaps  xmm0, [r15 + registers_xmm0]
-    movaps  xmm1, [r15 + registers_xmm1]
-    movaps  xmm2, [r15 + registers_xmm2]
-    movaps  xmm3, [r15 + registers_xmm3]
-    movaps  xmm4, [r15 + registers_xmm4]
-    movaps  xmm5, [r15 + registers_xmm5]
-    movaps  xmm6, [r15 + registers_xmm6]
-    movaps  xmm7, [r15 + registers_xmm7]
-    movaps  xmm8, [r15 + registers_xmm8]
-    movaps  xmm9, [r15 + registers_xmm9]
-    movaps  xmm10, [r15 + registers_xmm10]
-    movaps  xmm11, [r15 + registers_xmm11]
-    movaps  xmm12, [r15 + registers_xmm12]
-    movaps  xmm13, [r15 + registers_xmm13]
-    movaps  xmm14, [r15 + registers_xmm14]
-    movaps  xmm15, [r15 + registers_xmm15]
+    movaps  xmm0, [r15 + {registers_xmm0}]
+    movaps  xmm1, [r15 + {registers_xmm1}]
+    movaps  xmm2, [r15 + {registers_xmm2}]
+    movaps  xmm3, [r15 + {registers_xmm3}]
+    movaps  xmm4, [r15 + {registers_xmm4}]
+    movaps  xmm5, [r15 + {registers_xmm5}]
+    movaps  xmm6, [r15 + {registers_xmm6}]
+    movaps  xmm7, [r15 + {registers_xmm7}]
+    movaps  xmm8, [r15 + {registers_xmm8}]
+    movaps  xmm9, [r15 + {registers_xmm9}]
+    movaps  xmm10, [r15 + {registers_xmm10}]
+    movaps  xmm11, [r15 + {registers_xmm11}]
+    movaps  xmm12, [r15 + {registers_xmm12}]
+    movaps  xmm13, [r15 + {registers_xmm13}]
+    movaps  xmm14, [r15 + {registers_xmm14}]
+    movaps  xmm15, [r15 + {registers_xmm15}]
 
     // Determine whether to perform a VM launch or resume based on the `launched` flag.
     test    r14, r14
     je      .Launch
 
     // Resume guest execution. This path is taken if the VM has previously been launched.
-    mov     r13, [r15 + registers_r13]
-    mov     r14, [r15 + registers_r14]
-    mov     r15, [r15 + registers_r15]
+    mov     r13, [r15 + {registers_r13}]
+    mov     r14, [r15 + {registers_r14}]
+    mov     r15, [r15 + {registers_r15}]
     vmresume
     jmp     .VmEntryFailure
 
@@ -237,9 +204,9 @@ launch_vm:
     lea     r13, [rip + .VmExit]
     mov     r14, 0x6C16 // VMCS_HOST_RIP
     vmwrite r14, r13
-    mov     r13, [r15 + registers_r13]
-    mov     r14, [r15 + registers_r14]
-    mov     r15, [r15 + registers_r15]
+    mov     r13, [r15 + {registers_r13}]
+    mov     r14, [r15 + {registers_r14}]
+    mov     r15, [r15 + {registers_r15}]
     vmlaunch
 
 .VmEntryFailure:
@@ -250,42 +217,42 @@ launch_vm:
     // VM-exit handling. This block is responsible for saving the guest state upon exit
     // and preparing for transition back to host execution.
     xchg    r15, [rsp]  // Swap guest R15 with `registers` pointer on the stack.
-    mov     [r15 + registers_rax], rax
-    mov     [r15 + registers_rbx], rbx
-    mov     [r15 + registers_rcx], rcx
-    mov     [r15 + registers_rdx], rdx
-    mov     [r15 + registers_rsi], rsi
-    mov     [r15 + registers_rdi], rdi
-    mov     [r15 + registers_rbp], rbp
-    mov     [r15 + registers_r8],  r8
-    mov     [r15 + registers_r9],  r9
-    mov     [r15 + registers_r10], r10
-    mov     [r15 + registers_r11], r11
-    mov     [r15 + registers_r12], r12
-    mov     [r15 + registers_r13], r13
-    mov     [r15 + registers_r14], r14
+    mov     [r15 + {registers_rax}], rax
+    mov     [r15 + {registers_rbx}], rbx
+    mov     [r15 + {registers_rcx}], rcx
+    mov     [r15 + {registers_rdx}], rdx
+    mov     [r15 + {registers_rsi}], rsi
+    mov     [r15 + {registers_rdi}], rdi
+    mov     [r15 + {registers_rbp}], rbp
+    mov     [r15 + {registers_r8}],  r8
+    mov     [r15 + {registers_r9}],  r9
+    mov     [r15 + {registers_r10}], r10
+    mov     [r15 + {registers_r11}], r11
+    mov     [r15 + {registers_r12}], r12
+    mov     [r15 + {registers_r13}], r13
+    mov     [r15 + {registers_r14}], r14
 
     // Upon VM-exit, save the guest's XMM registers to the `registers` structure.
     // This captures the guest's floating-point and SIMD state at the time of the VM-exit.
-    movaps  [r15 + registers_xmm0], xmm0
-    movaps  [r15 + registers_xmm1], xmm1
-    movaps  [r15 + registers_xmm2], xmm2
-    movaps  [r15 + registers_xmm3], xmm3
-    movaps  [r15 + registers_xmm4], xmm4
-    movaps  [r15 + registers_xmm5], xmm5
-    movaps  [r15 + registers_xmm6], xmm6
-    movaps  [r15 + registers_xmm7], xmm7
-    movaps  [r15 + registers_xmm8], xmm8
-    movaps  [r15 + registers_xmm9], xmm9
-    movaps  [r15 + registers_xmm10], xmm10
-    movaps  [r15 + registers_xmm11], xmm11
-    movaps  [r15 + registers_xmm12], xmm12
-    movaps  [r15 + registers_xmm13], xmm13
-    movaps  [r15 + registers_xmm14], xmm14
-    movaps  [r15 + registers_xmm15], xmm15
+    movaps  [r15 + {registers_xmm0}], xmm0
+    movaps  [r15 + {registers_xmm1}], xmm1
+    movaps  [r15 + {registers_xmm2}], xmm2
+    movaps  [r15 + {registers_xmm3}], xmm3
+    movaps  [r15 + {registers_xmm4}], xmm4
+    movaps  [r15 + {registers_xmm5}], xmm5
+    movaps  [r15 + {registers_xmm6}], xmm6
+    movaps  [r15 + {registers_xmm7}], xmm7
+    movaps  [r15 + {registers_xmm8}], xmm8
+    movaps  [r15 + {registers_xmm9}], xmm9
+    movaps  [r15 + {registers_xmm10}], xmm10
+    movaps  [r15 + {registers_xmm11}], xmm11
+    movaps  [r15 + {registers_xmm12}], xmm12
+    movaps  [r15 + {registers_xmm13}], xmm13
+    movaps  [r15 + {registers_xmm14}], xmm14
+    movaps  [r15 + {registers_xmm15}], xmm15
 
     mov     rax, [rsp]  // Retrieve original guest R15 from the stack.
-    mov     [r15 + registers_r15], rax
+    mov     [r15 + {registers_r15}], rax
 
 .Exit:
     // Finalize the VM-exit sequence by adjusting the stack and restoring the host state.
@@ -301,5 +268,40 @@ launch_vm:
     pushfq
     pop     rax
     ret
-"#
+"#,
+    registers_rax = const mem::offset_of!(GuestRegisters, rax),
+    registers_rcx = const mem::offset_of!(GuestRegisters, rcx),
+    registers_rdx = const mem::offset_of!(GuestRegisters, rdx),
+    registers_rbx = const mem::offset_of!(GuestRegisters, rbx),
+    //registers_rsp = const mem::offset_of!(GuestRegisters, rsp),
+    registers_rbp = const mem::offset_of!(GuestRegisters, rbp),
+    registers_rsi = const mem::offset_of!(GuestRegisters, rsi),
+    registers_rdi = const mem::offset_of!(GuestRegisters, rdi),
+    registers_r8  = const mem::offset_of!(GuestRegisters, r8),
+    registers_r9  = const mem::offset_of!(GuestRegisters, r9),
+    registers_r10 = const mem::offset_of!(GuestRegisters, r10),
+    registers_r11 = const mem::offset_of!(GuestRegisters, r11),
+    registers_r12 = const mem::offset_of!(GuestRegisters, r12),
+    registers_r13 = const mem::offset_of!(GuestRegisters, r13),
+    registers_r14 = const mem::offset_of!(GuestRegisters, r14),
+    registers_r15 = const mem::offset_of!(GuestRegisters, r15),
+    //registers_rip = const mem::offset_of!(GuestRegisters, rip),
+    //registers_rflags = const mem::offset_of!(GuestRegisters, rflags),
+    registers_xmm0 = const mem::offset_of!(GuestRegisters, xmm0),
+    registers_xmm1 = const mem::offset_of!(GuestRegisters, xmm1),
+    registers_xmm2 = const mem::offset_of!(GuestRegisters, xmm2),
+    registers_xmm3 = const mem::offset_of!(GuestRegisters, xmm3),
+    registers_xmm4 = const mem::offset_of!(GuestRegisters, xmm4),
+    registers_xmm5 = const mem::offset_of!(GuestRegisters, xmm5),
+    registers_xmm6 = const mem::offset_of!(GuestRegisters, xmm6),
+    registers_xmm7 = const mem::offset_of!(GuestRegisters, xmm7),
+    registers_xmm8 = const mem::offset_of!(GuestRegisters, xmm8),
+    registers_xmm9 = const mem::offset_of!(GuestRegisters, xmm9),
+    registers_xmm10 = const mem::offset_of!(GuestRegisters, xmm10),
+    registers_xmm11 = const mem::offset_of!(GuestRegisters, xmm11),
+    registers_xmm12 = const mem::offset_of!(GuestRegisters, xmm12),
+    registers_xmm13 = const mem::offset_of!(GuestRegisters, xmm13),
+    registers_xmm14 = const mem::offset_of!(GuestRegisters, xmm14),
+    registers_xmm15 = const mem::offset_of!(GuestRegisters, xmm15),
 );
+// The guest register are required to be in this order: Table 28-3. Exit Qualification for Control-Register Accesses
