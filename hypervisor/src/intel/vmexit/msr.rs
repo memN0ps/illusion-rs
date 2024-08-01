@@ -19,6 +19,7 @@ use {
             vmexit::ExitType,
         },
     },
+    bit_field::BitField,
     core::ops::RangeInclusive,
     x86::msr,
 };
@@ -54,7 +55,8 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
     const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000FF;
 
     // Define the VMX lock bit for IA32_FEATURE_CONTROL MSR
-    const VMX_LOCK_BIT: u64 = 1 << 0;
+    const VMX_LOCK_BIT: u64 = 0;
+    const VMXON_OUTSIDE_SMX: u64 = 2;
 
     let msr_id = vm.guest_registers.rcx as u32;
     let msr_value = (vm.guest_registers.rdx << 32) | (vm.guest_registers.rax & MSR_MASK_LOW);
@@ -85,7 +87,10 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 // Set lock bit, indicating that feature control is locked.
                 msr::IA32_FEATURE_CONTROL => {
                     log::trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
-                    VMX_LOCK_BIT
+                    let mut result_value = rdmsr(msr_id as _);
+                    result_value.set_bit(VMX_LOCK_BIT as usize, true);
+                    result_value.set_bit(VMXON_OUTSIDE_SMX as usize, false);
+                    result_value
                 }
                 _ => rdmsr(msr_id),
             };
