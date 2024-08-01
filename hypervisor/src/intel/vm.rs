@@ -22,7 +22,11 @@ use {
     },
     core::mem::MaybeUninit,
     log::*,
-    x86::{bits64::rflags::RFlags, vmx::vmcs},
+    x86::{
+        bits64::rflags::RFlags,
+        cpuid::{cpuid, CpuId, FeatureInfo},
+        vmx::vmcs,
+    },
 };
 
 /// Represents a Virtual Machine (VM) instance, encapsulating its state and control mechanisms.
@@ -78,6 +82,12 @@ pub struct Vm {
     /// The number of times the MTF (Monitor Trap Flag) should be triggered before disabling it for restoring overwritten instructions.
     /// - Size: 8 bytes (Option<u64>) (0x8)
     pub mtf_counter: Option<u64>,
+
+    /// The CPUID feature information for the VM.
+    pub cpuid_feature_info: FeatureInfo,
+
+    /// The CPUID extended feature information for the VM.
+    pub xcr0_unsupported_mask: u64,
 }
 
 impl Vm {
@@ -132,6 +142,11 @@ impl Vm {
         trace!("Initializing Old RFLAGS and MTF Counter");
         self.old_rflags = None;
         self.mtf_counter = None;
+
+        trace!("Getting and Setting CPUID Feature Information and XCR0 Unsupported Mask");
+        let cpuid_ext_state_info = cpuid!(0x0d, 0x00);
+        self.cpuid_feature_info = CpuId::new().get_feature_info().ok_or(HypervisorError::CPUUnsupported)?;
+        self.xcr0_unsupported_mask = !((cpuid_ext_state_info.edx as u64) << 32 | cpuid_ext_state_info.eax as u64);
 
         trace!("VM created");
 

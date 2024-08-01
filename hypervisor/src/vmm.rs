@@ -15,6 +15,7 @@ use {
             vmerror::VmxBasicExitReason,
             vmexit::{
                 cpuid::handle_cpuid,
+                cr::handle_cr_reg_access,
                 ept_misconfiguration::handle_ept_misconfiguration,
                 ept_violation::handle_ept_violation,
                 exception::{handle_exception, handle_undefined_opcode_exception},
@@ -131,6 +132,8 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 VmxBasicExitReason::Vmxoff => handle_undefined_opcode_exception(),
                 // 27
                 VmxBasicExitReason::Vmxon => handle_undefined_opcode_exception(),
+                // 28
+                VmxBasicExitReason::ControlRegisterAccesses => handle_cr_reg_access(&mut vm).expect("Failed to handle CR access"),
                 // 31
                 VmxBasicExitReason::Rdmsr => handle_msr_access(&mut vm, MsrAccessType::Read).expect("Failed to handle RDMSR"),
                 // 32
@@ -148,7 +151,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 // 53
                 VmxBasicExitReason::Invvpid => handle_invvpid(),
                 // 55
-                VmxBasicExitReason::Xsetbv => handle_xsetbv(&mut vm.guest_registers),
+                VmxBasicExitReason::Xsetbv => handle_xsetbv(&mut vm),
                 _ => panic!("Unhandled VM exit reason: {:?}", basic_exit_reason),
             };
 

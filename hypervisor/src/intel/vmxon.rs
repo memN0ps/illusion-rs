@@ -4,10 +4,13 @@
 //! It covers setting up the VMXON region, adjusting necessary control registers, and handling model-specific registers to meet Intel's virtualization requirements.
 
 use {
-    crate::{error::HypervisorError, intel::support::rdmsr},
+    crate::{
+        error::HypervisorError,
+        intel::support::{cr0_write, rdmsr},
+    },
     bitfield::BitMut,
-    x86::{controlregs, current::paging::BASE_PAGE_SIZE, msr},
-    x86_64::registers::control::Cr4,
+    x86::{current::paging::BASE_PAGE_SIZE, msr},
+    x86_64::registers::control::{Cr0, Cr4},
 };
 
 /// A representation of the VMXON region in memory.
@@ -70,12 +73,12 @@ impl Vmxon {
         let ia32_vmx_cr0_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED0) };
         let ia32_vmx_cr0_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED1) };
 
-        let mut cr0 = unsafe { controlregs::cr0() };
+        let mut cr0 = Cr0::read_raw();
 
-        cr0 |= controlregs::Cr0::from_bits_truncate(ia32_vmx_cr0_fixed0 as usize);
-        cr0 &= controlregs::Cr0::from_bits_truncate(ia32_vmx_cr0_fixed1 as usize);
+        cr0 |= ia32_vmx_cr0_fixed0;
+        cr0 &= ia32_vmx_cr0_fixed1;
 
-        unsafe { controlregs::cr0_write(cr0) };
+        cr0_write(cr0);
     }
 
     /// Modifies CR4 to set and clear mandatory bits for VMX operation.

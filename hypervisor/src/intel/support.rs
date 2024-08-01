@@ -82,8 +82,8 @@ pub fn cr0() -> x86::controlregs::Cr0 {
 }
 
 /// Writes a value to the CR0 register.
-pub fn cr0_write(val: x86::controlregs::Cr0) {
-    unsafe { x86::controlregs::cr0_write(val) };
+pub fn cr0_write(val: u64) {
+    unsafe { x86_64::registers::control::Cr0::write_raw(val) };
 }
 
 /// Reads the CR3 register.
@@ -99,6 +99,18 @@ pub fn cr4() -> u64 {
 /// Writes a value to the CR4 register.
 pub fn cr4_write(val: u64) {
     unsafe { x86_64::registers::control::Cr4::write_raw(val) };
+}
+
+/// Reads the effective guest cr0 using cr0 and cr0 read shadow.
+pub fn read_effective_guest_cr0() -> u64 {
+    let mask = vmread(x86::vmx::vmcs::control::CR0_GUEST_HOST_MASK);
+    vmread(x86::vmx::vmcs::control::CR0_READ_SHADOW) & mask | vmread(x86::vmx::vmcs::guest::CR0) & !mask
+}
+
+/// Reads the effective guest cr4 using cr4 and cr4 read shadow.
+pub fn read_effective_guest_cr4() -> u64 {
+    let mask = vmread(x86::vmx::vmcs::control::CR4_GUEST_HOST_MASK);
+    vmread(x86::vmx::vmcs::control::CR4_READ_SHADOW) & mask | vmread(x86::vmx::vmcs::guest::CR4) & !mask
 }
 
 /// Writes a value to the Cr2 register.

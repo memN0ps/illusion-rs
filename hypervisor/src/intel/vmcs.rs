@@ -14,7 +14,7 @@ use {
             invept::invept_single_context,
             invvpid::{invvpid_single_context, VPID_TAG},
             segmentation::{access_rights_from_native, lar, lsl},
-            support::{cr0, cr3, rdmsr, sidt, vmread, vmwrite},
+            support::{cr3, rdmsr, sidt, vmread, vmwrite},
         },
     },
     bit_field::BitField,
@@ -26,7 +26,7 @@ use {
         segmentation::{cs, ds, es, fs, gs, ss},
         vmx::vmcs,
     },
-    x86_64::registers::control::Cr4,
+    x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags},
 };
 
 /// Represents the VMCS region in memory.
@@ -63,7 +63,7 @@ impl Vmcs {
 
         let idtr = sidt();
 
-        vmwrite(vmcs::guest::CR0, cr0().bits() as u64);
+        vmwrite(vmcs::guest::CR0, Cr0::read_raw());
         vmwrite(vmcs::guest::CR3, cr3());
         vmwrite(vmcs::guest::CR4, Cr4::read_raw());
 
@@ -126,7 +126,7 @@ impl Vmcs {
     pub fn setup_host_registers_state(host_descriptor: &Descriptors, pml4_pa: u64) -> Result<(), HypervisorError> {
         log::debug!("Setting up Host Registers State");
 
-        vmwrite(vmcs::host::CR0, cr0().bits() as u64);
+        vmwrite(vmcs::host::CR0, Cr0::read_raw());
         vmwrite(vmcs::host::CR3, pml4_pa);
         vmwrite(vmcs::host::CR4, Cr4::read_raw());
 
@@ -168,9 +168,14 @@ impl Vmcs {
             | vmcs::control::SecondaryControls::ENABLE_INVPCID.bits()
             | vmcs::control::SecondaryControls::ENABLE_VPID.bits()
             | vmcs::control::SecondaryControls::ENABLE_EPT.bits()
+            | vmcs::control::SecondaryControls::CONCEAL_VMX_FROM_PT.bits()
             | vmcs::control::SecondaryControls::UNRESTRICTED_GUEST.bits()) as u64;
-        const ENTRY_CTL: u64 = vmcs::control::EntryControls::IA32E_MODE_GUEST.bits() as u64;
-        const EXIT_CTL: u64 = vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits() as u64;
+        const ENTRY_CTL: u64 = (vmcs::control::EntryControls::IA32E_MODE_GUEST.bits()
+            | vmcs::control::EntryControls::LOAD_DEBUG_CONTROLS.bits()
+            | vmcs::control::EntryControls::CONCEAL_VMX_FROM_PT.bits()) as u64;
+        const EXIT_CTL: u64 = (vmcs::control::ExitControls::HOST_ADDRESS_SPACE_SIZE.bits()
+            | vmcs::control::ExitControls::SAVE_DEBUG_CONTROLS.bits()
+            | vmcs::control::ExitControls::CONCEAL_VMX_FROM_PT.bits()) as u64;
         const PINBASED_CTL: u64 = 0;
 
         vmwrite(vmcs::control::PRIMARY_PROCBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::ProcessorBased, PRIMARY_CTL));
@@ -179,8 +184,20 @@ impl Vmcs {
         vmwrite(vmcs::control::VMEXIT_CONTROLS, adjust_vmx_controls(VmxControl::VmExit, EXIT_CTL));
         vmwrite(vmcs::control::PINBASED_EXEC_CONTROLS, adjust_vmx_controls(VmxControl::PinBased, PINBASED_CTL));
 
-        vmwrite(vmcs::control::CR0_READ_SHADOW, cr0().bits() as u64);
-        vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw());
+        let vmx_cr0_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED0) };
+        let vmx_cr0_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR0_FIXED1) };
+
+        let vmx_cr4_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED0) };
+        let vmx_cr4_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED1) };
+
+        vmwrite(
+            vmcs::control::CR0_GUEST_HOST_MASK,
+            vmx_cr0_fixed0 | !vmx_cr0_fixed1 | Cr0Flags::CACHE_DISABLE.bits() | Cr0Flags::WRITE_PROTECT.bits(),
+        );
+        vmwrite(vmcs::control::CR4_GUEST_HOST_MASK, vmx_cr4_fixed0 | !vmx_cr4_fixed1);
+
+        vmwrite(vmcs::control::CR0_READ_SHADOW, Cr0::read_raw());
+        vmwrite(vmcs::control::CR4_READ_SHADOW, Cr4::read_raw() & !Cr4Flags::VIRTUAL_MACHINE_EXTENSIONS.bits());
 
         vmwrite(vmcs::control::MSR_BITMAPS_ADDR_FULL, msr_bitmap);
         //vmwrite(vmcs::control::EXCEPTION_BITMAP, 1u64 << (ExceptionInterrupt::Breakpoint as u32));

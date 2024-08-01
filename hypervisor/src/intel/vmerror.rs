@@ -2,6 +2,8 @@
 //! VM instruction errors, and VM Exit Qualification errors. These enumerations are utilized to understand and
 //! handle the various reasons for VM exits, specific VM instruction errors, and specific VM Exit Qualification errors.
 
+use {bit_field::BitField, num_derive::FromPrimitive, num_traits::FromPrimitive};
+
 /// Represents the basic VM exit reasons.
 ///
 /// These are the reasons for which a VM might exit based on the VMCS exit reason field.
@@ -366,6 +368,54 @@ impl core::fmt::Display for VmInstructionError {
         };
         write!(f, "{}", description)
     }
+}
+
+/// Represents the exit qualification for Control-Register Accesses.
+///
+/// This struct interprets the exit qualification for Control-Register Accesses as described in
+/// Intel® 64 and IA-32 Architectures Software Developer's Manual: Table 28-3. Exit Qualification for Control-Register Accesses
+#[derive(Debug, Clone, Copy)]
+pub struct ControlRegAccessExitQualification {
+    pub control_reg: CrAccessReg,
+    pub access_type: CrAccessType,
+    pub lmsw_op_type: LmswOperandType,
+    pub gpr_mov_cr: u64,
+    // 31:16 not implemented for now
+}
+
+impl ControlRegAccessExitQualification {
+    /// Constructs an `ControlRegAccessExitQualification` from the raw 64-bit exit qualification value.
+    pub fn from_exit_qualification(value: u64) -> Self {
+        ControlRegAccessExitQualification {
+            control_reg: CrAccessReg::from_u64(value.get_bits(0..4)).unwrap(),
+            access_type: CrAccessType::from_u64(value.get_bits(4..6)).unwrap(),
+            lmsw_op_type: LmswOperandType::from_u64(value.get_bit(6) as u64).unwrap(),
+            gpr_mov_cr: value.get_bits(8..12),
+        }
+    }
+}
+
+#[derive(FromPrimitive, Clone, Copy, Debug)]
+pub enum CrAccessReg {
+    Cr0 = 0,
+    Cr2 = 2,
+    Cr3 = 3,
+    Cr4 = 4,
+    Cr8 = 8,
+}
+
+#[derive(FromPrimitive, Clone, Copy, Debug)]
+pub enum CrAccessType {
+    MovToCr = 0,
+    MovFromCr = 1,
+    Clts = 2,
+    Lmsw = 3,
+}
+
+#[derive(FromPrimitive, Clone, Copy, Debug)]
+pub enum LmswOperandType {
+    Register = 0,
+    Memory = 1,
 }
 
 /// Represents the exit qualification for EPT Violations.

@@ -3,13 +3,12 @@
 
 use {
     crate::intel::{
-        capture::GuestRegisters,
         events::EventInjection,
         support::{cr4, cr4_write, xsetbv},
+        vm::Vm,
         vmexit::ExitType,
     },
     core::arch::x86_64::_XCR_XFEATURE_ENABLED_MASK,
-    x86::cpuid::cpuid,
     x86_64::registers::{control::Cr4Flags, xcontrol::XCr0Flags},
 };
 
@@ -19,16 +18,16 @@ use {
 ///
 /// # Arguments
 ///
-/// * `registers` - A mutable reference to the guest VM's general-purpose registers.
+/// * `vm`: A mutable reference to the VM.
 ///
 /// # Returns
 ///
 /// * `ExitType::IncrementRIP` - To move past the `XSETBV` instruction in the VM.
-pub fn handle_xsetbv(guest_registers: &mut GuestRegisters) -> ExitType {
+pub fn handle_xsetbv(vm: &mut Vm) -> ExitType {
     log::debug!("Handling XSETBV VM VM exit...");
 
     // Extract the XCR (extended control register) number from the guest's RCX register.
-    let xcr: u32 = guest_registers.rcx as u32;
+    let xcr: u32 = vm.guest_registers.rcx as u32;
 
     if xcr != _XCR_XFEATURE_ENABLED_MASK {
         log::debug!("Invalid XCR value for xsetbv: {:#x}", xcr);
@@ -37,16 +36,13 @@ pub fn handle_xsetbv(guest_registers: &mut GuestRegisters) -> ExitType {
     }
 
     // Combine the guest's RAX and RDX registers to form the 64-bit value for the XCR0 register.
-    let value_raw = (guest_registers.rax & 0xffff_ffff) | ((guest_registers.rdx & 0xffff_ffff) << 32);
+    let value_raw = (vm.guest_registers.rax & 0xffff_ffff) | ((vm.guest_registers.rdx & 0xffff_ffff) << 32);
 
     // Attempt to create a Xcr0 structure from the given bits.
     let value = XCr0Flags::from_bits_retain(value_raw);
 
-    let cpuid_ext_state_info = cpuid!(0x0d, 0x00);
-    let xcr0_unsupported_mask = !((cpuid_ext_state_info.edx as u64) << 32 | cpuid_ext_state_info.eax as u64);
-
     // Make sure the guest is not trying to set any unsupported bits via cpuid cache
-    if value.bits() & xcr0_unsupported_mask != 0 {
+    if value.bits() & vm.xcr0_unsupported_mask != 0 {
         log::debug!("Trying to set unsupported XCR0 value for xsetbv: {:#x}", xcr);
         EventInjection::vmentry_inject_gp(0);
         return ExitType::Continue;
@@ -73,6 +69,15 @@ pub fn handle_xsetbv(guest_registers: &mut GuestRegisters) -> ExitType {
     ExitType::IncrementRIP
 }
 
+/// Validates the XCR0 value to ensure that the guest is not trying to set any unsupported bits.
+///
+/// # Arguments
+///
+/// * `xcr0`: The XCR0 value to validate.
+///
+/// # Returns
+///
+/// * `true` if the XCR0 value is valid, `false` otherwise.
 fn is_valid_xcr0(xcr0: XCr0Flags) -> bool {
     // #GP(0) if clearing XCR0.X87
     if !xcr0.contains(XCr0Flags::X87) {

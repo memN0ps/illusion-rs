@@ -25,4 +25,6 @@ bstr = { version = "1.9.0", default-features = false } # https://crates.io/crate
 derivative = { version = "2.2.0", features = ["use_core"]} # https://crates.io/crates/derivative
 spin = "0.9" # https://crates.io/crates/spin
 lde = "0.3.0" # https://crates.io/crates/lde
+num-traits = { version = "0.2.19", default-features = false } # https://crates.io/crates/num-traits
+num-derive = { version = "0.4.2", default-features = false } # https://crates.io/crates/num-derive
 shared = { path = "../shared" }
