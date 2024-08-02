@@ -27,7 +27,19 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 
 ### Hypervisor Detection
 
-- :x: Neither basic nor advanced techniques to evade hypervisor detection will be implemented in the public version of this hypervisor.
+- :white_check_mark: Hide hypervisor memory from guest using EPT (redirect guest memory that points to host memory to a dummy page filled with 0xFFs).
+- :white_check_mark: Custom Page Table-based hypervisor detection bypass (provides isolation and security from guest, including CR3 trashing).
+- :white_check_mark: Custom GDT and IDT-based hypervisor detection bypass (ensures isolation and security from guest).
+- :white_check_mark: CPUID-based hypervisor detection bypass (unset HypervisorPresent and HypervisorVmxSupportBits for Feature Information and Hypervisor Vendor).
+- :white_check_mark: MSR-based hypervisor detection bypass (inject #GP for invalid, unsupported, and reserved Hyper-V MSR vmexits).
+- :white_check_mark: CR-based hypervisor detection bypass (shadow CR0 and CR4 to hide hypervisor-specific bits).
+- :white_check_mark: XSETBV-based hypervisor detection bypass (inject #GP for invalid or unsupported XSETBV vmexits).
+- :white_check_mark: VMCALL-based hypervisor detection bypass (inject #GP for invalid or unsupported VMCALL vmexits).
+- :white_check_mark: ExceptionOrNMI-based hypervisor detection bypass (inject #GP, #PF, #BP, #UD for specific exception vmexits).
+- :white_check_mark: Unconditional vmexits (inject #UD for unconditional vmexits).
+- :x: EPT-based hypervisor detection bypass (write check, timing check, and thread check).
+- :x: RDTSC-based hypervisor detection bypass.
+- :x: Remove hypervisor memory from the UEFI memory map/table.
 
 ### Isolation and Security
 
