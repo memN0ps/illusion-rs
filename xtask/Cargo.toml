@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anything = { git = "https://intege.rs/xlib/anything.git" }
+env_logger = "0.11.3"
+log = "0.4.22"
+dunce = "1.0.4"
+ctrlc = "3.4.4"
