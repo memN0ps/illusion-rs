@@ -1,0 +1,1581 @@
+vcpu-0 INFO: The Matrix is an illusion
+vcpu-0 DEBUG: Setting up the hypervisor
+vcpu-0 DEBUG: Loaded image base: 0xa084000..0xe108000
+vcpu-0 TRACE: Initializing memory manager
+vcpu-0 TRACE: Modifying MSR interception for LSTAR MSR write access
+vcpu-0 DEBUG: Starting hypervisor on all processors
+vcpu-0 INFO: Total processors: 1
+vcpu-0 INFO: Enabled processors: 1
+vcpu-0 INFO: Found only one processor, virtualizing it
+vcpu-0 DEBUG: Is virtualized: false
+vcpu-0 DEBUG: Virtualizing the system
+vcpu-0 DEBUG: Allocating stack space for host
+vcpu-0 DEBUG: Zeroing stack space for host
+vcpu-0 TRACE: Stack range: 0x8c7b000..0xa082ff0
+vcpu-0 DEBUG: Starting hypervisor
+vcpu-0 INFO: CPU is Intel
+vcpu-0 INFO: Virtual Machine Extension (VMX) technology is supported
+vcpu-0 INFO: Memory Type Range Registers (MTRRs) are supported
+vcpu-0 INFO: Extended Page Tables (EPT) are supported
+vcpu-0 DEBUG: CPU is supported
+vcpu-0 TRACE: Creating VM
+vcpu-0 TRACE: Initializing VMXON region
+vcpu-0 TRACE: Initializing VMCS region
+vcpu-0 TRACE: Initializing Host Paging Tables
+vcpu-0 TRACE: Building Identity Paging for Host
+vcpu-0 DEBUG: Building identity map for page tables
+vcpu-0 DEBUG: Identity map built successfully
+vcpu-0 TRACE: Initializing Primary EPT
+vcpu-0 TRACE: Identity Mapping Primary EPT
+vcpu-0 TRACE: Mtrr {
+    descriptors: [
+        MtrrRangeDescriptor {
+            base_address: 0xc0000000,
+            end_address: 0xffffffff,
+            memory_type: Uncacheable,
+        },
+    ],
+}
+vcpu-0 TRACE: Initializing EPTs
+vcpu-0 TRACE: Creating primary EPTP with WB and 4-level walk
+vcpu-0 TRACE: EPT PML4 (self) address: 0x966c000
+vcpu-0 TRACE: Initializing Guest Registers
+vcpu-0 TRACE: Initializing Launch State
+vcpu-0 TRACE: Initializing Old RFLAGS and MTF Counter
+vcpu-0 TRACE: Getting and Setting CPUID Feature Information and XCR0 Unsupported Mask
+vcpu-0 TRACE: VM created
+vcpu-0 DEBUG: VM initialized
+vcpu-0 TRACE: Setting up VMXON region
+vcpu-0 TRACE: Enabling Virtual Machine Extensions (VMX)
+vcpu-0 TRACE: VMX enabled
+vcpu-0 TRACE: Adjusting IA32_FEATURE_CONTROL MSR
+vcpu-0 TRACE: IA32_FEATURE_CONTROL MSR adjusted
+vcpu-0 TRACE: Setting CR0 bits
+vcpu-0 TRACE: CR0 bits set
+vcpu-0 TRACE: Setting CR4 bits
+vcpu-0 TRACE: CR4 bits set
+vcpu-0 TRACE: VMXON region setup successfully!
+vcpu-0 TRACE: Executing VMXON instruction
+vcpu-0 TRACE: VMXON executed successfully!
+vcpu-0 DEBUG: VMX enabled
+vcpu-0 TRACE: Activating VMCS
+vcpu-0 TRACE: VMCLEAR successful!
+vcpu-0 TRACE: VMPTRLD successful!
+vcpu-0 TRACE: Setting up VMCS
+vcpu-0 DEBUG: Creating a new GDT with TSS for guest
+vcpu-0 DEBUG: New GDT with TSS created for guest successfully!
+vcpu-0 DEBUG: Creating a new GDT with TSS for host
+vcpu-0 TRACE: Copying current IDT
+vcpu-0 TRACE: Copied current IDT
+vcpu-0 DEBUG: New GDT with TSS and IDT created for host successfully!
+vcpu-0 DEBUG: Setting up Guest Registers State
+vcpu-0 DEBUG: Guest Registers State setup successfully!
+vcpu-0 DEBUG: Setting up Host Registers State
+vcpu-0 DEBUG: Host Registers State setup successfully!
+vcpu-0 DEBUG: Setting up VMCS Control Fields
+vcpu-0 DEBUG: VMCS Control Fields setup successfully!
+vcpu-0 TRACE: VMCS setup successfully!
+vcpu-0 TRACE: VMCS activated successfully!
+vcpu-0 DEBUG: VMCS activated
+vcpu-0 TRACE: VMCS Dump: Vmcs {
+    Current VMCS: : 0x000000000966b000,
+    Revision ID: : 0x1,
+    Guest CR0: : 0x80010033,
+    Guest CR3: : 0xff76000,
+    Guest CR4: : 0x2668,
+    Guest DR7: : 0x400,
+    Guest RSP: : 0xffbb7b0,
+    Guest RIP: : 0xa086d6b,
+    Guest RFLAGS: : 0x206,
+    Guest CS Selector: : 0x18,
+    Guest SS Selector: : 0x8,
+    Guest DS Selector: : 0x8,
+    Guest ES Selector: : 0x8,
+    Guest FS Selector: : 0x8,
+    Guest GS Selector: : 0x8,
+    Guest LDTR Selector: : 0x0,
+    Guest TR Selector: : 0x30,
+    Guest CS Base: : 0x0,
+    Guest SS Base: : 0x0,
+    Guest DS Base: : 0x0,
+    Guest ES Base: : 0x0,
+    Guest FS Base: : 0x0,
+    Guest GS Base: : 0x0,
+    Guest LDTR Base: : 0x0,
+    Guest TR Base: : 0x9449f20,
+    Guest CS Limit: : 0xffffffff,
+    Guest SS Limit: : 0xffffffff,
+    Guest DS Limit: : 0xffffffff,
+    Guest ES Limit: : 0xffffffff,
+    Guest FS Limit: : 0xffffffff,
+    Guest GS Limit: : 0xffffffff,
+    Guest LDTR Limit: : 0x0,
+    Guest TR Limit: : 0x30,
+    Guest CS Access Rights: : 0xa09b,
+    Guest SS Access Rights: : 0xc093,
+    Guest DS Access Rights: : 0xc093,
+    Guest ES Access Rights: : 0xc093,
+    Guest FS Access Rights: : 0xc093,
+    Guest GS Access Rights: : 0xc093,
+    Guest LDTR Access Rights: : 0x10000,
+    Guest TR Access Rights: : 0x8b,
+    Guest GDTR Base: : 0xa105840,
+    Guest IDTR Base: : 0xfec44e0,
+    Guest GDTR Limit: : 0x3f,
+    Guest IDTR Limit: : 0xfff,
+    Guest IA32_DEBUGCTL_FULL: : 0x0,
+    Guest IA32_SYSENTER_CS: : 0x0,
+    Guest IA32_SYSENTER_ESP: : 0x0,
+    Guest IA32_SYSENTER_EIP: : 0x0,
+    Guest IA32_EFER_FULL: : 0x0,
+    Guest VMCS Link Pointer: : 0xffffffffffffffff,
+    Guest Activity State: : 0x0,
+    Host CR0: : 0x80010033,
+    Host CR3: : 0x9468000,
+    Host CR4: : 0x2668,
+    Host RSP: : 0x0,
+    Host RIP: : 0x0,
+    Host CS Selector: : 0x8,
+    Host SS Selector: : 0x0,
+    Host DS Selector: : 0x0,
+    Host ES Selector: : 0x0,
+    Host FS Selector: : 0x0,
+    Host GS Selector: : 0x0,
+    Host TR Selector: : 0x10,
+    Host FS Base: : 0x0,
+    Host GS Base: : 0x0,
+    Host TR Base: : 0x9449f20,
+    Host GDTR Base: : 0xa1058b0,
+    Host IDTR Base: : 0xffffffffffffffff,
+    Host IA32_SYSENTER_CS: : 0x0,
+    Host IA32_SYSENTER_ESP: : 0x0,
+    Host IA32_SYSENTER_EIP: : 0x0,
+    Primary Proc Based Execution Controls: : 0x94006172,
+    Secondary Proc Based Execution Controls: : 0x1010aa,
+    VM Entry Controls: : 0x13ff,
+    VM Exit Controls: : 0x36fff,
+    Pin Based Execution Controls: : 0x16,
+    CR0 Read Shadow: : 0x80010033,
+    CR4 Read Shadow: : 0x668,
+    MSR Bitmaps Address: : 0xa0fe000,
+    EPT Pointer: : 0x966c01e,
+    VPID: : 0x1,
+    ..
+}
+vcpu-0 INFO: Launching the VM until a vmexit occurs...
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 DEBUG: Is virtualized: true
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 INFO: The hypervisor has been installed successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0xd
+vcpu-0 TRACE: CPUID leaf 0xD.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 TRACE: XSETBV executed with xcr: 0x0, value: 0x7
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 TRACE: XSETBV executed with xcr: 0x0, value: 0x3
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0xd
+vcpu-0 TRACE: CPUID leaf 0xD.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 TRACE: XSETBV executed with xcr: 0x0, value: 0x7
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0xd
+vcpu-0 TRACE: CPUID leaf 0xD.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0xd
+vcpu-0 TRACE: CPUID leaf 0xD.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0xd
+vcpu-0 TRACE: CPUID leaf 0xD.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 TRACE: XSETBV executed with xcr: 0x0, value: 0x3
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x6
+vcpu-0 TRACE: CPUID leaf 0x6.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000007
+vcpu-0 TRACE: CPUID leaf 0x80000007.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000007
+vcpu-0 TRACE: CPUID leaf 0x80000007.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000000
+vcpu-0 TRACE: CPUID leaf 0x80000000.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000001
+vcpu-0 TRACE: CPUID leaf 0x80000001.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1f
+vcpu-0 TRACE: CPUID leaf 0x1F.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1f
+vcpu-0 TRACE: CPUID leaf 0x1F.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1f
+vcpu-0 TRACE: CPUID leaf 0x1F.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1f
+vcpu-0 TRACE: CPUID leaf 0x1F.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x80000008
+vcpu-0 TRACE: CPUID leaf 0x80000008.
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x1
+vcpu-0 TRACE: CPUID leaf 1 detected (Standard Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x0
+vcpu-0 TRACE: CPUID leaf 0x0 detected (Vendor Identification).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Cpuid
+vcpu-0 TRACE: Handling CPUID VM exit...
+vcpu-0 TRACE: CpuidLeaf: 0x7
+vcpu-0 TRACE: CPUID leaf 0x7 detected (Extended Feature Information).
+vcpu-0 TRACE: CPUID VMEXIT handled successfully!
+vcpu-0 TRACE: VM exit reason: Wrmsr
+vcpu-0 DEBUG: Handling MSR VM exit...
+vcpu-0 TRACE: Valid MSR access attempted: 0xc0000082
+vcpu-0 TRACE: IA32_LSTAR write attempted with MSR value: 0xfffff8001f00a4c0
+vcpu-0 TRACE: Unhooked MSR_IA32_LSTAR
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f00a000 -> Guest PA: 0x2c0a000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f009000 -> Guest PA: 0x2c09000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f008000 -> Guest PA: 0x2c08000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f007000 -> Guest PA: 0x2c07000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f006000 -> Guest PA: 0x2c06000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f005000 -> Guest PA: 0x2c05000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f004000 -> Guest PA: 0x2c04000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f003000 -> Guest PA: 0x2c03000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f002000 -> Guest PA: 0x2c02000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f001000 -> Guest PA: 0x2c01000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001f000000 -> Guest PA: 0x2c00000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001efff000 -> Guest PA: 0x2bff000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcpu-0 TRACE: Guest CR3: 0x1ad000
+vcpu-0 TRACE: Guest VA: 0xfffff8001effe000 -> Guest PA: 0x2bfe000
+vcpu-0 TRACE: VMCS EPTP: 0x966c01e
+vcpu-0 TRACE: EPT PML4 Address: 0x966c000
+vcp

@@ -64,9 +64,14 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - Debug: `cargo make build-debug`.
 - Release: `cargo make build-release`.
 
+## Running the Project
+
+- Debug: `cargo make run-debug`.
+- Release: `cargo make run-release`.
+
 ## Debugging
 
-- **Serial Port Logging**: Use a serial port logger to capture logs from the hypervisor.
+- Serial Port Logging: Use a serial port logger to capture logs from the hypervisor.
 
 #### Enabling Debug Modes
 

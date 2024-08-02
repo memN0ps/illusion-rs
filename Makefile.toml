@@ -10,12 +10,20 @@ args = ["fmt"]
 [tasks.build-debug]
 dependencies = ["format"]
 command = "cargo"
-args = ["build"]
+args = ["build", "--profile", "dev"]
 
 [tasks.build-release]
 dependencies = ["format"]
 command = "cargo"
-args = ["build", "--release"]
+args = ["build", "--profile", "release"]
+
+[tasks.run-debug]
+command = "cargo"
+args = ["run", "--profile", "dev", "--package", "xtask"]
+
+[tasks.run-release]
+command = "cargo"
+args = ["run", "--profile", "release", "--package", "xtask"]
 
 [tasks.default]
 dependencies = ["build-debug", "build-release"]

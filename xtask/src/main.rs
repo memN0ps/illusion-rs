@@ -16,23 +16,32 @@ pub mod vmware;
 const ROOT: &'static str = "E:";
 const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\Hv\Hv.vmx";
 const LOG_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\logs.txt";
+const BOOT_PATH: &'static str = r"\EFI\Boot";
+const LOADER_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\target\x86_64-unknown-uefi\debug\loader.efi";
+const HYPERVISOR_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\target\x86_64-unknown-uefi\debug\illusion.efi";
+const BOOTX64_NAME: &'static str = "bootx64.efi";
+const HYPERVISOR_NAME: &'static str = "illusion.efi";
 
-fn install_bootx64(root: &PathBuf, source: &PathBuf) -> anything::Result<()> {
+fn install_bootx64(root: &PathBuf, bootx64_path: &PathBuf, hypervisor_path: &PathBuf) -> anything::Result<()> {
     // check if the path exists
-    if !source.exists() {
-        return Err(format!("Source {} does not exist", source.to_string_lossy()).into());
+    if !bootx64_path.exists() {
+        return Err(format!("Source {} does not exist", bootx64_path.to_string_lossy()).into());
     }
 
     // create /efi/boot if it doesn't exist
-    let dest = root.join("/efi/boot");
+    let dest = root.join(BOOT_PATH);
     if !dest.exists() {
         std::fs::create_dir_all(&dest)?;
         debug!("Created directory {}", dest.to_string_lossy());
     }
 
     // copy to dest
-    std::fs::copy(source, dest.join("bootx64.efi"))?;
-    debug!("Copied bootx64.efi from {} to {}", source.to_string_lossy(), dest.to_string_lossy());
+    std::fs::copy(bootx64_path, dest.join(BOOTX64_NAME))?;
+    debug!("Copied bootx64.efi from {} to {}", bootx64_path.to_string_lossy(), dest.to_string_lossy());
+
+    // copy to dest
+    std::fs::copy(hypervisor_path, dest.join(HYPERVISOR_NAME))?;
+    debug!("Copied bootx64.efi from {} to {}", hypervisor_path.to_string_lossy(), dest.to_string_lossy());
 
     Ok(())
 }
@@ -96,15 +105,14 @@ fn wait_vm_termination(vm: &VMWare) {
 }
 
 fn main() -> anything::Result<()> {
-    env_logger::builder().filter_level(log::LevelFilter::Info).init();
+    env_logger::builder().filter_level(log::LevelFilter::Trace).init();
 
-    let args = std::env::args();
-    let bootx64 = args.into_iter().skip(1).next().ok_or("No EFI file provided")?;
-    let bootx64 = dunce::canonicalize(bootx64)?;
+    let bootx64 = dunce::canonicalize(LOADER_PATH)?;
 
     let log = PathBuf::from(LOG_PATH);
     let vmx = PathBuf::from(VMX_PATH);
     let root = PathBuf::from(ROOT);
+    let hypervisor_path = PathBuf::from(HYPERVISOR_PATH);
 
     let vm = VMWare::new(&vmx)?;
 
@@ -115,7 +123,7 @@ fn main() -> anything::Result<()> {
     }
 
     debug!("Installing UEFI...");
-    install_bootx64(&root, &bootx64)?;
+    install_bootx64(&root, &bootx64, &hypervisor_path)?;
     info!("Installed UEFI to {}", root.to_string_lossy());
 
     clear_logs(&log)?;

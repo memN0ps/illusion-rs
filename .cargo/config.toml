@@ -1,5 +1,0 @@
-[alias]
-xtask = "run --package xtask --release --"
-
-[target.x86_64-unknown-uefi]
-runner = "cargo xtask"
