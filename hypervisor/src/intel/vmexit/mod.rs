@@ -14,6 +14,7 @@ pub mod mtf;
 pub mod rdtsc;
 pub mod sipi;
 pub mod vmcall;
+pub mod vmxon;
 pub mod xsetbv;
 
 /// Represents the type of VM exit.

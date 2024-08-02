@@ -29,6 +29,7 @@ use {
                 rdtsc::handle_rdtsc,
                 sipi::handle_sipi_signal,
                 vmcall::handle_vmcall,
+                vmxon::handle_vmxon,
                 xsetbv::handle_xsetbv,
                 ExitType,
             },
@@ -131,7 +132,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
                 // 26
                 VmxBasicExitReason::Vmxoff => handle_undefined_opcode_exception(),
                 // 27
-                VmxBasicExitReason::Vmxon => handle_undefined_opcode_exception(),
+                VmxBasicExitReason::Vmxon => handle_vmxon(),
                 // 28
                 VmxBasicExitReason::ControlRegisterAccesses => handle_cr_reg_access(&mut vm).expect("Failed to handle CR access"),
                 // 31

@@ -121,7 +121,7 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
                 cpuid_result.ecx.set_bit(FeatureBits::HypervisorPresentBit as usize, false);
 
                 // Hide VMX support by setting the appropriate bit in ECX.
-                cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
+                // cpuid_result.ecx.set_bit(FeatureBits::HypervisorVmxSupportBit as usize, false);
             }
             leaf if leaf == CpuidLeaf::CacheInformation as u32 => {
                 trace!("CPUID leaf 0x2 detected (Cache Information).");
