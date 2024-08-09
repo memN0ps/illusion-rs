@@ -18,6 +18,7 @@ use {
     uefi::prelude::*,
 };
 
+pub mod hide;
 pub mod processor;
 pub mod setup;
 pub mod stack;
