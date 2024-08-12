@@ -81,16 +81,15 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 
     trace!("VMCS Dump: {:#x?}", vm.vmcs_region);
 
-    /*
     {
-        let mut hook_manager =  crate::intel::hooks::hook_manager::SHARED_HOOK_MANAGER.lock();
+        debug!("Hiding hypervisor memory... (NOTE: EPT HOOKS WON'T WORK IF THIS IS ENABLED UNLESS SHADOW PAGES ARE EXCLUDED)");
+        let mut hook_manager = crate::intel::hooks::hook_manager::SHARED_HOOK_MANAGER.lock();
         hook_manager.print_allocated_memory();
         match hook_manager.hide_hypervisor_memory(&mut vm, crate::intel::ept::AccessType::READ_WRITE_EXECUTE) {
             Ok(_) => debug!("Hypervisor memory hidden"),
             Err(e) => panic!("Failed to hide hypervisor memory: {:?}", e),
         };
     }
-     */
 
     info!("Launching the VM until a vmexit occurs...");
 
