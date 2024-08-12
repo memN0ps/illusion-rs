@@ -89,7 +89,9 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
         Ok(ExitType::Continue)
     } else {
-        EventInjection::vmentry_inject_gp(0);
+        // https://www.felixcloutier.com/x86/vmcall
+        // #UD: If executed outside VMX operation.
+        EventInjection::vmentry_inject_ud();
         Ok(ExitType::Continue)
     };
 
