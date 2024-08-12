@@ -112,6 +112,10 @@ impl HookManager {
         hook_manager
             .msr_bitmap
             .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Hook);
+
+        hook_manager
+            .msr_bitmap
+            .modify_msr_interception(msr::IA32_FEATURE_CONTROL, MsrAccessType::Read, MsrOperation::Hook);
     }
 
     /// Records a memory allocation for tracking purposes.
