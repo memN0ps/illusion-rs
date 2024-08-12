@@ -65,10 +65,10 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
     const MSR_VALID_RANGE_HIGH: RangeInclusive<u32> = 0xC0000000..=0xC0001FFF;
     const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000FF;
 
+    #[cfg(feature = "vmware")]
     trace!("MSR access attempted: {:#x}", msr_id);
 
-    #[cfg(feature = "vmware")]
-    if !(MSR_VALID_RANGE_LOW.contains(&msr_id) || MSR_VALID_RANGE_HIGH.contains(&msr_id)) {
+    if !MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id) && MSR_HYPERV_RANGE.contains(&msr_id) {
         // In VMware, do not inject #GP for MSRs within the Hyper-V range
         trace!("Invalid MSR access attempted: {:#x}", msr_id);
         EventInjection::vmentry_inject_gp(0);
