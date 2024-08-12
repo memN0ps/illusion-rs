@@ -3,7 +3,6 @@
 //! physical to virtual addressing. This is useful for ensuring a stable memory layout in hypervisor development.
 
 use {
-    crate::hide::hide_uefi_memory,
     alloc::boxed::Box,
     hypervisor::{
         allocator::box_zeroed,
@@ -16,7 +15,7 @@ use {
     uefi::{prelude::BootServices, proto::loaded_image::LoadedImage},
 };
 
-/// Sets up the hypervisor by recording the image base, creating a dummy page, initializing the shared hook manager, nullifying relocations, and hide UEFI memory.
+/// Sets up the hypervisor by recording the image base, creating a dummy page, initializing the shared hook manager, and nullifying relocations.
 ///
 /// # Arguments
 ///
@@ -34,8 +33,6 @@ pub fn setup(boot_services: &BootServices) -> uefi::Result<()> {
 
     let image_base = loaded_image.info().0 as u64;
     zap_relocations(image_base);
-
-    hide_uefi_memory(boot_services)?;
 
     Ok(())
 }

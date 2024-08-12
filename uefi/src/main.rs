@@ -9,7 +9,7 @@
 extern crate alloc;
 
 use {
-    crate::{processor::start_hypervisor_on_all_processors, setup::setup, stack::init},
+    crate::{hide::hide_uefi_memory, processor::start_hypervisor_on_all_processors, setup::setup, stack::init},
     hypervisor::{
         allocator::heap_init,
         logger::{self, SerialPort},
@@ -71,6 +71,12 @@ fn main(_image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     info!("The Matrix is an illusion");
 
     let boot_services = system_table.boot_services();
+
+    debug!("Hiding hypervisor memory from UEFI");
+    if let Err(e) = hide_uefi_memory(boot_services) {
+        error!("Failed to hide hypervisor memory from UEFI: {:?}", e);
+        return Status::ABORTED;
+    }
 
     // Set up the hypervisor
     debug!("Setting up the hypervisor");
