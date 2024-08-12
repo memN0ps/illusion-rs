@@ -21,6 +21,7 @@ use {
     },
     bit_field::BitField,
     core::ops::RangeInclusive,
+    log::*,
     x86::msr,
 };
 
@@ -44,15 +45,10 @@ use {
 /// Reference: Intel® 64 and IA-32 Architectures Software Developer's Manual: RDMSR—Read From Model Specific Register or WRMSR—Write to Model Specific Register
 /// and Table C-1. Basic Exit Reasons 31 and 32.
 pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<ExitType, HypervisorError> {
-    log::debug!("Handling MSR VM exit...");
+    debug!("Handling MSR VM exit...");
 
     // Define the mask for the low 32-bits of the MSR value
     const MSR_MASK_LOW: u64 = u32::MAX as u64;
-
-    // Define the range for valid MSR access and Hyper-V MSRs
-    const MSR_VALID_RANGE_LOW: RangeInclusive<u32> = 0x00000000..=0x00001FFF;
-    const MSR_VALID_RANGE_HIGH: RangeInclusive<u32> = 0xC0000000..=0xC0001FFF;
-    const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000FF;
 
     // Define the VMX lock bit for IA32_FEATURE_CONTROL MSR
     const VMX_LOCK_BIT: u64 = 0;
@@ -63,13 +59,31 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
 
     // Determine if the MSR address is valid, reserved, or synthetic (EasyAntiCheat and Battleye invalid MSR checks)
     // by checking if the MSR address is in the Hyper-V range or outside other valid ranges
-    if (!MSR_VALID_RANGE_LOW.contains(&msr_id) && !MSR_VALID_RANGE_HIGH.contains(&msr_id)) || MSR_HYPERV_RANGE.contains(&msr_id) {
-        log::trace!("Invalid MSR access attempted: {:#x}", msr_id);
+
+    // Define the range for valid MSR access and Hyper-V MSRs
+    const MSR_VALID_RANGE_LOW: RangeInclusive<u32> = 0x00000000..=0x00001FFF;
+    const MSR_VALID_RANGE_HIGH: RangeInclusive<u32> = 0xC0000000..=0xC0001FFF;
+    const MSR_HYPERV_RANGE: RangeInclusive<u32> = 0x40000000..=0x400000FF;
+
+    trace!("MSR access attempted: {:#x}", msr_id);
+
+    #[cfg(feature = "vmware")]
+    if !(MSR_VALID_RANGE_LOW.contains(&msr_id) || MSR_VALID_RANGE_HIGH.contains(&msr_id)) {
+        // In VMware, do not inject #GP for MSRs within the Hyper-V range
+        trace!("Invalid MSR access attempted: {:#x}", msr_id);
         EventInjection::vmentry_inject_gp(0);
         return Ok(ExitType::Continue);
     }
 
-    log::trace!("Valid MSR access attempted: {:#x}", msr_id);
+    #[cfg(not(feature = "vmware"))]
+    if !(MSR_VALID_RANGE_LOW.contains(&msr_id) || MSR_VALID_RANGE_HIGH.contains(&msr_id)) || MSR_HYPERV_RANGE.contains(&msr_id) {
+        // On real hardware, inject #GP if MSR is in the Hyper-V range or outside the valid ranges
+        trace!("Invalid MSR access attempted: {:#x}", msr_id);
+        EventInjection::vmentry_inject_gp(0);
+        return Ok(ExitType::Continue);
+    }
+
+    trace!("Valid MSR access attempted: {:#x}", msr_id);
 
     match access_type {
         // Credits: jessiep_ and https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
@@ -78,7 +92,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 // When the guest reads the LSTAR MSR, the hypervisor returns the shadowed original value instead of the actual (modified) value.
                 // This way, the guest OS sees what it expects, assuming no tampering has occurred.
                 msr::IA32_LSTAR => {
-                    log::trace!("IA32_LSTAR read attempted with MSR value: {:#x}", msr_value);
+                    trace!("IA32_LSTAR read attempted with MSR value: {:#x}", msr_value);
                     // This won't be 0 here because we intercept and populate it during MsrAccessType::Write on IA32_LSTAR which is set during the initial phase when ntoskrnl.exe
                     vm.guest_registers.original_lstar
                 }
@@ -86,7 +100,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
                 // Set lock bit, indicating that feature control is locked.
                 msr::IA32_FEATURE_CONTROL => {
-                    log::trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
+                    trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
                     let mut result_value = rdmsr(msr_id as _);
                     result_value.set_bit(VMX_LOCK_BIT as usize, true);
                     result_value.set_bit(VMXON_OUTSIDE_SMX as usize, false);
@@ -101,9 +115,9 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
         // Credits: jessiep_ and https://revers.engineering/patchguard-detection-of-hypervisor-based-instrospection-p2/
         MsrAccessType::Write => {
             if msr_id == msr::IA32_LSTAR {
-                log::trace!("IA32_LSTAR write attempted with MSR value: {:#x}", msr_value);
-                // log::trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
-                // log::trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
+                trace!("IA32_LSTAR write attempted with MSR value: {:#x}", msr_value);
+                // trace!("GuestRegisters Original LSTAR value: {:#x}", vm.guest_registers.original_lstar);
+                // trace!("GuestRegisters Hook LSTAR value: {:#x}", vm.guest_registers.hook_lstar);
 
                 // Lock the shared hook manager
                 let mut hook_manager = SHARED_HOOK_MANAGER.lock();
@@ -111,7 +125,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 hook_manager
                     .msr_bitmap
                     .modify_msr_interception(msr::IA32_LSTAR, MsrAccessType::Write, MsrOperation::Unhook);
-                log::trace!("Unhooked MSR_IA32_LSTAR");
+                trace!("Unhooked MSR_IA32_LSTAR");
 
                 // Get and set the ntoskrnl.exe base address and size, to be used for hooking later in `CpuidLeaf::CacheInformation` or by the guest client.
                 hook_manager.set_kernel_base_and_size(msr_value)?;
@@ -153,9 +167,9 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
                 // later such as KeInitAmd64SpecificState for this. This place was
                 // chosen so that none of PatchGuard context is initialized.
                 //
-                // log::trace!("Unhooking MSR_IA32_GS_BASE.");
+                // trace!("Unhooking MSR_IA32_GS_BASE.");
                 // vm.msr_bitmap.modify_msr_interception(msr::IA32_GS_BASE, MsrAccessType::Write, MsrOperation::Unhook);
-                // log::trace!("KiSystemStartup being executed...");
+                // trace!("KiSystemStartup being executed...");
                 wrmsr(msr_id, msr_value);
             } else {
                 // For MSRs other than msr::IA32_LSTAR or non-original LSTAR value writes, proceed with the write operation.
@@ -166,6 +180,6 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
         }
     }
 
-    log::debug!("MSR VMEXIT handled successfully.");
+    debug!("MSR VMEXIT handled successfully.");
     Ok(ExitType::IncrementRIP)
 }
