@@ -206,11 +206,15 @@ impl Ept {
         let pt_index = pt_index(guest_pa);
         let pt_entry = &(*pt_table).0.entries[pt_index];
 
+        // Ept hooks would make the guest_pa X-only at some point, so this would fail and is commented out.
+
+        /*
         // Check if the PT entry is present (readable).
         if !pt_entry.readable() {
             error!("PT entry is not present: {:#x}", guest_pa);
             return Err(HypervisorError::InvalidPtEntry);
         }
+         */
 
         // The PT entry is a 4 KB page, calculate the host physical address.
         let host_pa = (pt_entry.pfn() << BASE_PAGE_SHIFT) + (guest_pa.as_u64() % BASE_PAGE_SIZE as u64);

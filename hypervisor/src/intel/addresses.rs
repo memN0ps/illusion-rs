@@ -89,8 +89,8 @@ impl PhysicalAddress {
         // The hypervisor maps everything as 2MB pages. The hooked pages are split and stored in the pre-allocated Pt,
         // which are usually passed as a parameter, those are not stored in the EPT structure.
         // This translation is not required in a 1:1 mapping but is done for demonstration purposes and in case changes are made to the Paging/EPT.
-        // let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
-        // trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
+        let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
+        trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
 
         Ok(guest_pa)
     }
