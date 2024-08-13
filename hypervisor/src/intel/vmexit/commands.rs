@@ -39,7 +39,7 @@ pub fn handle_guest_commands(vm: &mut Vm) -> bool {
 
     // Convert the pointer to ClientData
     let client_data = ClientData::from_ptr(client_data_ptr);
-    debug!("Client data: {:?}", client_data);
+    debug!("Client data: {:#x?}", client_data);
 
     // Handle the command
     let result = match client_data.command {

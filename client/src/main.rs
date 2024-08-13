@@ -85,7 +85,7 @@ fn handle_kernel_command(communicator: &HypervisorCommunicator, function_name: &
         function_hash,
         syscall_number,
     };
-    println!("Client data: {:?}", client_data);
+    println!("Client data: {:#x?}", client_data);
 
     let client_data_ptr = client_data.as_ptr();
     let result = communicator.call_hypervisor(client_data_ptr);
