@@ -23,6 +23,10 @@ use {
 /// # Returns
 ///
 /// * `ExitType::IncrementRIP` - To move past the `XSETBV` instruction in the VM.
+/// 
+/// # Credits
+/// 
+/// Credits to @vmctx
 pub fn handle_xsetbv(vm: &mut Vm) -> ExitType {
     log::debug!("Handling XSETBV VM VM exit...");
 
