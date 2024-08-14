@@ -190,6 +190,7 @@ impl Vmcs {
         let vmx_cr4_fixed0 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED0) };
         let vmx_cr4_fixed1 = unsafe { msr::rdmsr(msr::IA32_VMX_CR4_FIXED1) };
 
+        // Credits to @vmctx
         vmwrite(
             vmcs::control::CR0_GUEST_HOST_MASK,
             vmx_cr0_fixed0 | !vmx_cr0_fixed1 | Cr0Flags::CACHE_DISABLE.bits() | Cr0Flags::WRITE_PROTECT.bits(),

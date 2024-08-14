@@ -1,3 +1,4 @@
+//! Credits to @vmctx
 use {
     crate::{
         error::HypervisorError,

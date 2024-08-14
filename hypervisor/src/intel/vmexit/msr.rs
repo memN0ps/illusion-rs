@@ -99,6 +99,7 @@ pub fn handle_msr_access(vm: &mut Vm, access_type: MsrAccessType) -> Result<Exit
 
                 // Simulate IA32_FEATURE_CONTROL as locked: VMX locked bit set, VMX outside SMX clear.
                 // Set lock bit, indicating that feature control is locked.
+                // Credits to @vmctx
                 msr::IA32_FEATURE_CONTROL => {
                     trace!("IA32_FEATURE_CONTROL read attempted with MSR value: {:#x}", msr_value);
                     let mut result_value = rdmsr(msr_id as _);
