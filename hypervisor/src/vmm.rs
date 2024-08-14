@@ -96,16 +96,14 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
-            match ProcessInformation::get_current_process_info() {
-                Some(p) => {
-                    debug!(
-                        "VM exit reason: {:?}, ImageFileName: {}, UniqueProcessId: {}, DirectoryTableBase: {:#x}",
-                        basic_exit_reason, p.image_file_name, p.unique_process_id, p.directory_table_base
-                    );
-                }
-                None => {
-                    debug!("VM exit reason: {:?}", basic_exit_reason);
-                }
+            // Log the VM exit reason along with the current process information, only if available
+            if let Some(p) = ProcessInformation::get_current_process_info() {
+                debug!(
+                    "VM exit reason: {:?}, ImageFileName: {}, UniqueProcessId: {}, DirectoryTableBase: {:#x}",
+                    basic_exit_reason, p.image_file_name, p.unique_process_id, p.directory_table_base
+                );
+            } else {
+                debug!("VM exit reason: {:?}", basic_exit_reason);
             }
 
             let exit_type = match basic_exit_reason {
