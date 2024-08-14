@@ -13,7 +13,7 @@ const IMAGE_FILE_NAME_OFFSET: u64 = 0x5a8;
 const IMAGE_FILE_NAME_LENGTH: usize = 15;
 const DIRECTORY_TABLE_BASE_OFFSET: u64 = 0x28;
 
-`/// Struct representing process information
+/// Struct representing process information
 #[derive(Debug)]
 pub struct ProcessInformation {
     /// The image file name of the process.
@@ -24,7 +24,7 @@ pub struct ProcessInformation {
 
     /// The directory table base of the process (CR3).
     pub directory_table_base: u64,
-}`
+}
 
 impl ProcessInformation {
     /// Retrieves information about the current process.
