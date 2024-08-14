@@ -34,6 +34,7 @@ use {
                 ExitType,
             },
         },
+        windows::process_info::ProcessInformation,
     },
     log::*,
     x86::{
@@ -95,7 +96,17 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 
     loop {
         if let Ok(basic_exit_reason) = vm.run() {
-            trace!("VM exit reason: {:?}", basic_exit_reason);
+            match ProcessInformation::get_current_process_info() {
+                Some(p) => {
+                    debug!(
+                        "VM exit reason: {:?}, ImageFileName: {}, UniqueProcessId: {}, DirectoryTableBase: {:#x}",
+                        basic_exit_reason, p.image_file_name, p.unique_process_id, p.directory_table_base
+                    );
+                }
+                None => {
+                    debug!("VM exit reason: {:?}", basic_exit_reason);
+                }
+            }
 
             let exit_type = match basic_exit_reason {
                 // 0
