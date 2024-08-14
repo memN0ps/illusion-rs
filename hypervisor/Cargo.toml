@@ -30,4 +30,5 @@ spin = "0.9" # https://crates.io/crates/spin
 lde = "0.3.0" # https://crates.io/crates/lde
 num-traits = { version = "0.2.19", default-features = false } # https://crates.io/crates/num-traits
 num-derive = { version = "0.4.2", default-features = false } # https://crates.io/crates/num-derive
+widestring = { version = "1.1.0", default-features = false, features = ["alloc"] } # https://crates.io/crates/widestring
 shared = { path = "../shared" }

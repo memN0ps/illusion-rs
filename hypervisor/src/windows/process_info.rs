@@ -1,23 +1,23 @@
 use {
-    crate::intel::addresses::PhysicalAddress,
-    alloc::string::{String, ToString},
-    core::ffi::CStr,
+    crate::{intel::addresses::PhysicalAddress, windows::nt::types::UNICODE_STRING},
+    alloc::string::String,
+    widestring::U16CStr,
     x86::{bits64::vmx::vmread, vmx::vmcs},
 };
 
 /// Constants for offsets in the process structures
-const GS_BASE_OFFSET: u64 = 0x188;
+const THREAD_OFFSET: u64 = 0x188;
 const THREAD_PROCESS_OFFSET: u64 = 0xB8;
 const UNIQUE_PROCESS_ID_OFFSET: u64 = 0x440;
-const IMAGE_FILE_NAME_OFFSET: u64 = 0x5a8;
-const IMAGE_FILE_NAME_LENGTH: usize = 15;
+const IMAGE_FILE_POINTER_OFFSET: u64 = 0x5a0;
+const IMAGE_FILE_NAME_OFFSET: u64 = 0x58;
 const DIRECTORY_TABLE_BASE_OFFSET: u64 = 0x28;
 
 /// Struct representing process information
 #[derive(Debug)]
 pub struct ProcessInformation {
     /// The image file name of the process.
-    pub image_file_name: String,
+    pub file_name: String,
 
     /// The unique process ID of the process.
     pub unique_process_id: u64,
@@ -42,10 +42,13 @@ impl ProcessInformation {
     /// struct _EPROCESS
     ///     struct _KPROCESS Pcb;                                                   //0x0
     ///     VOID* UniqueProcessId;                                                  //0x440
-    ///     UCHAR ImageFileName[15];                                                //0x5a8
+    ///     struct _FILE_OBJECT* ImageFilePointer;                                  //0x5a0
     ///
     /// struct _KPROCESS
     ///     ULONGLONG DirectoryTableBase;                                           //0x28
+    ///
+    /// struct _FILE_OBJECT
+    ///     struct _UNICODE_STRING FileName;                                        //0x58
     ///
     /// # Credits
     ///
@@ -57,36 +60,36 @@ impl ProcessInformation {
     pub fn get_current_process_info() -> Option<Self> {
         // Retrieve the physical address of the current process (_EPROCESS structure).
         let process = Self::ps_get_current_process()?;
-        let process = PhysicalAddress::pa_from_va(process).ok()?;
 
-        // Read the unique process ID from the _EPROCESS structure.
-        let unique_process_id = unsafe { core::ptr::read((process + UNIQUE_PROCESS_ID_OFFSET) as *const u64) };
+        // Read the image file pointer from the _EPROCESS structure.
+        let image_file_pointer = PhysicalAddress::read_guest_virt((process + IMAGE_FILE_POINTER_OFFSET) as *const u64)?;
 
-        // Read the image file name from the _EPROCESS structure.
-        let image_file_name_bytes = unsafe { core::slice::from_raw_parts((process + IMAGE_FILE_NAME_OFFSET) as *const u8, IMAGE_FILE_NAME_LENGTH) };
-        let image_name = unsafe { CStr::from_bytes_with_nul_unchecked(image_file_name_bytes) }
-            .to_str()
-            .ok()?
-            .to_string();
-
-        // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
-        let directory_table_base = unsafe { core::ptr::read((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64) };
-
-        // Check if the image name, unique process ID, and directory table base are valid.
-        if image_name.is_empty() || unique_process_id == 0 || directory_table_base == 0 {
+        if image_file_pointer == 0 {
             return None;
         }
 
-        log::trace!(
-            "Retrieved process information: image_file_name={}, unique_process_id={:#x}, directory_table_base={:#x}",
-            image_name,
-            unique_process_id,
-            directory_table_base
-        );
+        // Read the image file name from the _FILE_OBJECT structure.
+        let image_file_name = unsafe { &*(PhysicalAddress::pa_from_va(image_file_pointer + IMAGE_FILE_NAME_OFFSET).ok()? as *const UNICODE_STRING) };
+
+        // Read the image file name bytes from the UNICODE_STRING structure.
+        let image_file_name_buffer = PhysicalAddress::read_guest_slice(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;
+
+        // Convert the image file name bytes to a string.
+        let file_name = U16CStr::from_slice_truncate(image_file_name_buffer).ok()?.to_string().ok()?;
+
+        // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
+        let directory_table_base = PhysicalAddress::read_guest_virt((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)?;
+
+        if directory_table_base == 0 {
+            return None;
+        }
+
+        // Read the unique process ID from the _EPROCESS structure.
+        let unique_process_id = PhysicalAddress::read_guest_virt((process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
 
         // Return the populated ProcessInformation struct.
         Some(Self {
-            image_file_name: image_name,
+            file_name,
             unique_process_id,
             directory_table_base,
         })
@@ -127,21 +130,19 @@ impl ProcessInformation {
         }
 
         // Compute the address of the current thread.
-        let gs_value = PhysicalAddress::pa_from_va(gs + GS_BASE_OFFSET).ok()?;
-        let current_thread = unsafe { core::ptr::read(gs_value as *const u64) };
+        let current_thread = PhysicalAddress::read_guest_virt((gs + THREAD_OFFSET) as *const u64)?;
 
         if current_thread == 0 {
             return None;
         }
 
         // Compute the address of the _EPROCESS structure.
-        let current_thread = PhysicalAddress::pa_from_va(current_thread).ok()?;
-        let process = unsafe { core::ptr::read((current_thread + THREAD_PROCESS_OFFSET) as *const u64) };
+        let current_process = PhysicalAddress::read_guest_virt((current_thread + THREAD_PROCESS_OFFSET) as *const u64)?;
 
-        if process == 0 {
+        if current_process == 0 {
             return None;
         }
 
-        Some(process)
+        Some(current_process)
     }
 }

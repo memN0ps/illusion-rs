@@ -94,4 +94,48 @@ impl PhysicalAddress {
 
         Ok(guest_pa)
     }
+
+    /// Converts a guest virtual address to its corresponding host physical address.
+    ///
+    /// This function first translates the guest virtual address to a guest physical address
+    /// using the guest's CR3. It then translates the guest physical address to a host physical address using the EPT (Extended Page Table).
+    ///
+    /// # Arguments
+    ///
+    /// * `va` - The guest virtual address to translate.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
+    ///
+    /// # Returns
+    ///
+    /// A `Result<u64, HypervisorError>` containing the host physical address on success, or an error if the translation fails.
+    pub fn read_guest_virt<T: Sized>(ptr: *const T) -> Option<T> {
+        let phys_addr = PhysicalAddress::pa_from_va(ptr as u64).ok()? as *const T;
+        Some(unsafe { phys_addr.read() })
+    }
+
+    /// Reads a slice of guest memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The guest virtual address to start reading from.
+    /// * `len` - The number of elements to read.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
+    ///
+    /// # Returns
+    ///
+    /// A `Result<&[T], HypervisorError>` containing the borrowed slice on success, or an error if the read fails.
+    pub fn read_guest_slice<'a, T: Sized>(ptr: *const T, len: usize) -> Option<&'a [T]> {
+        // Translate the guest virtual address to a host physical address
+        let phys_addr = PhysicalAddress::pa_from_va(ptr as u64).ok()? as *const T;
+
+        // Safety: Create a slice from the translated physical address and length.
+        // The caller must ensure that the address and length are valid.
+        Some(unsafe { core::slice::from_raw_parts(phys_addr, len) })
+    }
 }

@@ -100,10 +100,12 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
             if let Some(p) = ProcessInformation::get_current_process_info() {
                 debug!(
                     "VM exit reason: {:?}, ImageFileName: {}, UniqueProcessId: {}, DirectoryTableBase: {:#x}",
-                    basic_exit_reason, p.image_file_name, p.unique_process_id, p.directory_table_base
+                    basic_exit_reason, p.file_name, p.unique_process_id, p.directory_table_base
                 );
             } else {
-                debug!("VM exit reason: {:?}", basic_exit_reason);
+                if basic_exit_reason != VmxBasicExitReason::Cpuid {
+                    debug!("VM exit reason: {:?}", basic_exit_reason);
+                }
             }
 
             let exit_type = match basic_exit_reason {
