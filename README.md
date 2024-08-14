@@ -39,7 +39,7 @@ A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hyperv
 - :white_check_mark: Unconditional vmexits (inject #UD for unconditional vmexits, but for Vmxon, inject #UD if it does not contain VMXE; otherwise, inject #GP if it contains VMXE).
 - :x: EPT-based hypervisor detection bypass (write check, timing check, and thread check).
 - :x: RDTSC-based hypervisor detection bypass.
-- :x: Remove hypervisor memory from the UEFI memory map/table.
+- :white_check_mark: Remove hypervisor memory from the UEFI memory map/table (identify the memory regions occupied by the hypervisor and modifies the UEFI memory map to mark those regions as `UNUSABLE`).
 
 ### Isolation and Security
 
