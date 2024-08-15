@@ -1,129 +1,59 @@
-//! # Hypervisor Communicator
-//!
-//! This demonstrates how to use the `HypervisorCommunicator` library to send
-//! password-protected CPUID commands to a UEFI hypervisor.
-
 use {
-    crate::{hypervisor_communicator::HypervisorCommunicator, ssn::syscall::Syscall},
-    clap::{Parser, Subcommand},
-    core_affinity,
-    shared::{djb2_hash, ClientData, Commands},
+    crate::hypervisor_communicator::HypervisorCommunicator,
+    shared::{ClientData, ClientDataPayload, CommandStatus, Commands, MemoryData},
+    std::mem::size_of,
 };
 
-mod hypervisor_communicator;
-mod ssn;
-
-/// Command line arguments for the Hypervisor Communicator.
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: CommandsArg,
-}
-
-#[derive(Subcommand)]
-enum CommandsArg {
-    /// Sets up a kernel EPT hook
-    EnableKernelEptHook {
-        /// The name of the function to hook
-        #[arg(short, long)]
-        function: String,
-    },
-    /// Unsets a kernel EPT hook
-    DisableKernelEptHook {
-        /// The name of the function to unhook
-        #[arg(short, long)]
-        function: String,
-    },
-    /// Get CPUID vendor information for all logical processors
-    GetCpuidVendor,
-}
+pub mod hypervisor_communicator;
 
 fn main() {
-    let cli = Cli::parse();
+    // Initialize the HypervisorCommunicator
     let communicator = HypervisorCommunicator::new();
 
-    match &cli.command {
-        CommandsArg::EnableKernelEptHook { function } => {
-            handle_kernel_command(&communicator, function, Commands::EnableKernelEptHook);
-        }
-        CommandsArg::DisableKernelEptHook { function } => {
-            handle_kernel_command(&communicator, function, Commands::DisableKernelEptHook);
-        }
-        CommandsArg::GetCpuidVendor => {
-            execute_cpuid_on_all_logical_processors();
-        }
-    }
-}
+    // The current process ID (this is just a placeholder, in a real scenario you'd fetch the actual PID)
+    let current_pid = std::process::id() as u64;
 
-/// Handles the command to enable or disable kernel hooks.
-///
-/// This function processes the command and sends the appropriate request to the hypervisor.
-///
-/// # Arguments
-///
-/// * `communicator` - The hypervisor communicator instance.
-/// * `function_name` - The name of the function to hook or unhook.
-/// * `command` - The command to execute.
-fn handle_kernel_command(communicator: &HypervisorCommunicator, function_name: &str, command: Commands) {
-    let function_hash = djb2_hash(function_name.as_bytes());
-    println!("Function: {} Hash: {:#x}", function_name, function_hash);
+    // The address you want to read (this is a test address, you'd replace it with the actual address you're interested in)
+    let test_address: u64 = 0x1000;
 
-    // Lookup the syscall number using the function hash
-    let mut syscall = Syscall::new();
-    let syscall_number = match syscall.get_ssn_by_hash(function_hash) {
-        Some(number) => number,
-        None => {
-            println!("Failed to find syscall number for function: {}", function_name);
-            return;
-        }
+    // Buffer to store the result of the memory read (this would normally point to a location in guest memory)
+    let buffer_address: u64 = 0x2000;
+
+    // Construct the MemoryData payload
+    let memory_data = MemoryData {
+        process_id: current_pid,
+        address: test_address,
+        buffer: buffer_address,
+        size: size_of::<u64>() as u64,
     };
-    println!("Function: {} Syscall number: {}", function_name, syscall_number);
 
+    // Construct the ClientData for ReadProcessMemory command
     let client_data = ClientData {
-        command,
-        function_hash,
-        syscall_number,
+        command: Commands::ReadProcessMemory,
+        payload: ClientDataPayload::Memory(memory_data),
     };
-    println!("Client data: {:#x?}", client_data);
 
-    let client_data_ptr = client_data.as_ptr();
-    let result = communicator.call_hypervisor(client_data_ptr);
+    // Send the command to the hypervisor and get the result
+    let result = communicator.call_hypervisor(client_data.as_ptr());
 
-    println!("Result: {:#x} {:#x} {:#x} {:#x}", result.eax, result.ebx, result.ecx, result.edx);
-
-    if result.eax == 0 {
-        match command {
-            Commands::EnableKernelEptHook => {
-                println!("Failed to enable kernel hook");
-            }
-            Commands::DisableKernelEptHook => {
-                println!("Failed to disable kernel hook");
-            }
-            _ => {}
+    // Check if the command was successful by examining the EAX register
+    if result.eax == CommandStatus::Success.to_u64() {
+        // If successful, read the value from the buffer address
+        let value: u64;
+        unsafe {
+            value = *(buffer_address as *const u64);
         }
+
+        println!("Memory read successful!");
+        println!("Value at address {:#x}: {:#x}", test_address, value);
     } else {
-        match command {
-            Commands::EnableKernelEptHook => {
-                println!("Successfully enabled kernel hook");
-            }
-            Commands::DisableKernelEptHook => {
-                println!("Successfully disabled kernel hook");
-            }
-            _ => {}
-        }
+        println!("Memory read failed. Hypervisor returned failure status.");
     }
-}
 
-/// Executes CPUID(0x40000000) on all logical processors and prints the vendor information.
-fn execute_cpuid_on_all_logical_processors() {
-    println!("Executing CPUID(0x40000000) on all logical processors");
-    for core_id in core_affinity::get_core_ids().unwrap() {
-        assert!(core_affinity::set_for_current(core_id));
-        let regs = raw_cpuid::cpuid!(0x4000_0000);
-        let mut vec = regs.ebx.to_le_bytes().to_vec();
-        vec.extend(regs.ecx.to_le_bytes());
-        vec.extend(regs.edx.to_le_bytes());
-        println!("CPU{:2}: {}", core_id.id, String::from_utf8_lossy(vec.as_slice()));
-    }
+    // Print the full CPUID result for debugging purposes
+    println!("CPUID Result:");
+    println!("EAX: {:#x}", result.eax);
+    println!("EBX: {:#x}", result.ebx);
+    println!("ECX: {:#x}", result.ecx);
+    println!("EDX: {:#x}", result.edx);
 }

@@ -44,7 +44,45 @@ impl PhysicalAddress {
         self.0.as_u64()
     }
 
+    /// Converts a guest virtual address to a host physical address using a provided CR3.
+    ///
+    /// This function encapsulates the logic for converting a virtual address to a physical address based on a
+    /// specific CR3 value. It is used internally by other functions to avoid code duplication.
+    ///
+    /// # Arguments
+    ///
+    /// * `va` - The guest virtual address to translate.
+    /// * `guest_cr3` - The CR3 value to use for translation.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<u64, HypervisorError>` containing the physical address on success, or an error if the translation fails.
+    fn pa_from_va(va: u64, guest_cr3: u64) -> Result<u64, HypervisorError> {
+        trace!("Guest CR3: {:#x}", guest_cr3);
+
+        // Translate the guest virtual address (VA) to a guest physical address (PA).
+        let guest_pa = unsafe { PageTables::translate_guest_virtual_to_guest_physical(guest_cr3, va)? };
+        trace!("Guest VA: {:#x} -> Guest PA: {:#x}", va, guest_pa);
+
+        // Translate the guest physical address (GPA) to a host physical address (HPA) using the Extended Page Table (EPT).
+        // In a 1:1 mapping, the guest physical address is the same as the host physical address.
+        // This translation is performed to handle cases where paging/EPT changes occur.
+        let vmcs_eptp = vmread(vmcs::control::EPTP_FULL);
+        trace!("VMCS EPTP: {:#x}", vmcs_eptp);
+
+        let (pml4_address, _, _) = Ept::decode_eptp(vmcs_eptp)?;
+        trace!("EPT PML4 Address: {:#x}", pml4_address);
+
+        // Convert the guest physical address to the host physical address.
+        let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
+        trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
+
+        Ok(host_pa)
+    }
+
     /// Converts a guest virtual address to a host physical address using the current guest CR3.
+    ///
+    /// This function reads the current CR3 value from the VMCS and uses it to translate the guest virtual address to a physical address.
     ///
     /// # Arguments
     ///
@@ -55,10 +93,13 @@ impl PhysicalAddress {
     /// A `Result<u64, HypervisorError>` containing the physical address on success, or an error if the translation fails.
     pub fn pa_from_va_with_current_cr3(va: u64) -> Result<u64, HypervisorError> {
         let guest_cr3 = vmread(vmcs::guest::CR3);
-        Ok(Self::pa_from_va(va, guest_cr3)?)
+        Self::pa_from_va(va, guest_cr3)
     }
 
     /// Converts a guest virtual address to a host physical address using a specified guest CR3.
+    ///
+    /// This function accepts a CR3 value explicitly provided by the caller and uses it to translate
+    /// the guest virtual address to a physical address.
     ///
     /// # Arguments
     ///
@@ -69,74 +110,53 @@ impl PhysicalAddress {
     ///
     /// A `Result<u64, HypervisorError>` containing the physical address on success, or an error if the translation fails.
     pub fn pa_from_va_with_explicit_cr3(va: u64, guest_cr3: u64) -> Result<u64, HypervisorError> {
-        Ok(Self::pa_from_va(va, guest_cr3)?)
+        Self::pa_from_va(va, guest_cr3)
     }
 
-    /// Converts a guest virtual address to its corresponding host physical address.
+    /// Reads a value from a guest virtual address using the current guest CR3.
     ///
-    /// This function first translates the guest virtual address to a guest physical address
-    /// using the guest's CR3. It then translates the guest physical address to a host physical
-    /// address using the EPT (Extended Page Table).
+    /// This function reads from the guest virtual address using the current CR3 value from the VMCS.
     ///
     /// # Arguments
     ///
-    /// * `va` - The guest virtual address to translate.
-    /// * `guest_cr3` - The guest's CR3 register value (directory table base), used to translate the guest virtual address.
+    /// * `ptr` - The guest virtual address to read from.
     ///
     /// # Safety
     ///
-    /// This function is unsafe because it involves raw memory access and relies on the integrity
-    /// of the VMCS (Virtual Machine Control Structure).
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
     ///
     /// # Returns
     ///
-    /// A `Result<u64, HypervisorError>` containing the host physical address on success, or an error if the translation fails.
-    pub fn pa_from_va(va: u64, guest_cr3: u64) -> Result<u64, HypervisorError> {
-        trace!("Guest CR3: {:#x}", guest_cr3);
-
-        let guest_pa = unsafe { PageTables::translate_guest_virtual_to_guest_physical(guest_cr3, va)? };
-        trace!("Guest VA: {:#x} -> Guest PA: {:#x}", va, guest_pa);
-
-        // Translate guest physical address (GPA) to host physical address (HPA) using Extended Page Tables (EPT)
-        // In a 1:1 mapping, the guest physical address is the same as the host physical address.
-        // This translation is not required in a 1:1 mapping but is done safety purposes
-        // and in case changes are made to the Paging/EPT.
-        let vmcs_eptp = vmread(vmcs::control::EPTP_FULL);
-        trace!("VMCS EPTP: {:#x}", vmcs_eptp);
-
-        let (pml4_address, _, _) = Ept::decode_eptp(vmcs_eptp)?;
-        trace!("EPT PML4 Address: {:#x}", pml4_address);
-
-        // Note: This may cause a crash at `!pt_entry.readable()` because the hypervisor during an EPT hook we mark the guest page as read-only at some point.
-        // The `!pt_entry.readable()` is commented out to support EPT hooks for 4KB pages and prevent an error.
-        let host_pa = unsafe { Ept::translate_guest_pa_to_host_pa(pml4_address, guest_pa)? };
-        trace!("Guest PA: {:#x} -> Host PA: {:#x}", guest_pa, host_pa);
-
-        Ok(guest_pa)
-    }
-
-    /// Converts a guest virtual address to its corresponding host physical address.
-    ///
-    /// This function first translates the guest virtual address to a guest physical address
-    /// using the guest's CR3. It then translates the guest physical address to a host physical address using the EPT (Extended Page Table).
-    ///
-    /// # Arguments
-    ///
-    /// * `va` - The guest virtual address to translate.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
-    ///
-    /// # Returns
-    ///
-    /// A `Result<u64, HypervisorError>` containing the host physical address on success, or an error if the translation fails.
-    pub fn read_guest_virt<T: Sized>(ptr: *const T) -> Option<T> {
+    /// A `Result<T, HypervisorError>` containing the read value on success, or an error if the read fails.
+    pub fn read_guest_virt_with_current_cr3<T: Sized>(ptr: *const T) -> Option<T> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *const T;
         Some(unsafe { phys_addr.read() })
     }
 
-    /// Reads a slice of guest memory.
+    /// Reads a value from a guest virtual address using a specified guest CR3.
+    ///
+    /// This function reads from the guest virtual address using a CR3 value provided by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The guest virtual address to read from.
+    /// * `guest_cr3` - The CR3 value to use for translation.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<T, HypervisorError>` containing the read value on success, or an error if the read fails.
+    pub fn read_guest_virt_with_explicit_cr3<T: Sized>(ptr: *const T, guest_cr3: u64) -> Option<T> {
+        let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *const T;
+        Some(unsafe { phys_addr.read() })
+    }
+
+    /// Reads a slice of guest memory using the current guest CR3.
+    ///
+    /// This function reads from the guest virtual address using the current CR3 value from the VMCS.
     ///
     /// # Arguments
     ///
@@ -145,23 +165,41 @@ impl PhysicalAddress {
     ///
     /// # Safety
     ///
-    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
     ///
     /// # Returns
     ///
     /// A `Result<&[T], HypervisorError>` containing the borrowed slice on success, or an error if the read fails.
-    pub fn read_guest_slice<'a, T: Sized>(ptr: *const T, len: usize) -> Option<&'a [T]> {
-        // Translate the guest virtual address to a host physical address
+    pub fn read_guest_slice_with_current_cr3<'a, T: Sized>(ptr: *const T, len: usize) -> Option<&'a [T]> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *const T;
-
-        // Safety: Create a slice from the translated physical address and length.
-        // The caller must ensure that the address and length are valid.
         Some(unsafe { core::slice::from_raw_parts(phys_addr, len) })
     }
 
-    /// Writes a value to a guest virtual address.
+    /// Reads a slice of guest memory using a specified guest CR3.
     ///
-    /// This function translates the guest virtual address to a host physical address and writes the value to that address.
+    /// This function reads from the guest virtual address using a CR3 value provided by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The guest virtual address to start reading from.
+    /// * `len` - The number of elements to read.
+    /// * `guest_cr3` - The CR3 value to use for translation.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<&[T], HypervisorError>` containing the borrowed slice on success, or an error if the read fails.
+    pub fn read_guest_slice_with_explicit_cr3<'a, T: Sized>(ptr: *const T, len: usize, guest_cr3: u64) -> Option<&'a [T]> {
+        let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *const T;
+        Some(unsafe { core::slice::from_raw_parts(phys_addr, len) })
+    }
+
+    /// Writes a value to a guest virtual address using the current guest CR3.
+    ///
+    /// This function writes to the guest virtual address using the current CR3 value from the VMCS.
     ///
     /// # Arguments
     ///
@@ -170,24 +208,47 @@ impl PhysicalAddress {
     ///
     /// # Safety
     ///
-    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating success or failure.
-    pub fn write_guest_virt<T: Sized>(ptr: *mut T, value: T) -> Option<()> {
+    pub fn write_guest_virt_with_current_cr3<T: Sized>(ptr: *mut T, value: T) -> Option<()> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *mut T;
-
-        // Safety: Writing to the translated physical address. The caller must ensure that the address is valid.
         unsafe {
             phys_addr.write(value);
         }
         Some(())
     }
 
-    /// Writes a slice of data to guest memory.
+    /// Writes a value to a guest virtual address using a specified guest CR3.
     ///
-    /// This function translates the guest virtual address to a host physical address and writes the slice to that address.
+    /// This function writes to the guest virtual address using a CR3 value provided by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The guest virtual address to write to.
+    /// * `value` - The value to write.
+    /// * `guest_cr3` - The CR3 value to use for translation.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<(), HypervisorError>` indicating success or failure.
+    pub fn write_guest_virt_with_explicit_cr3<T: Sized>(ptr: *mut T, value: T, guest_cr3: u64) -> Option<()> {
+        let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *mut T;
+        unsafe {
+            phys_addr.write(value);
+        }
+        Some(())
+    }
+
+    /// Writes a slice of data to guest memory using the current guest CR3.
+    ///
+    /// This function writes to the guest virtual address using the current CR3 value from the VMCS.
     ///
     /// # Arguments
     ///
@@ -196,15 +257,38 @@ impl PhysicalAddress {
     ///
     /// # Safety
     ///
-    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS (Virtual Machine Control Structure).
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
     ///
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating success or failure.
-    pub fn write_guest_slice<T: Sized>(ptr: *mut T, data: &[T]) -> Option<()> {
+    pub fn write_guest_slice_with_current_cr3<T: Sized>(ptr: *mut T, data: &[T]) -> Option<()> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *mut T;
+        unsafe {
+            core::ptr::copy_nonoverlapping(data.as_ptr(), phys_addr, data.len());
+        }
+        Some(())
+    }
 
-        // Safety: Writing the slice to the translated physical address. The caller must ensure that the address and length are valid.
+    /// Writes a slice of data to guest memory using a specified guest CR3.
+    ///
+    /// This function writes to the guest virtual address using a CR3 value provided by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The guest virtual address to start writing to.
+    /// * `data` - The slice of data to write.
+    /// * `guest_cr3` - The CR3 value to use for translation.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it involves raw memory access and relies on the integrity of the VMCS.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<(), HypervisorError>` indicating success or failure.
+    pub fn write_guest_slice_with_explicit_cr3<T: Sized>(ptr: *mut T, data: &[T], guest_cr3: u64) -> Option<()> {
+        let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *mut T;
         unsafe {
             core::ptr::copy_nonoverlapping(data.as_ptr(), phys_addr, data.len());
         }

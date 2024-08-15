@@ -66,7 +66,7 @@ impl ProcessInformation {
         let process = Self::ps_get_current_process()?;
 
         // Read the image file pointer from the _EPROCESS structure.
-        let image_file_pointer = PhysicalAddress::read_guest_virt((process + IMAGE_FILE_POINTER_OFFSET) as *const u64)?;
+        let image_file_pointer = PhysicalAddress::read_guest_virt_with_current_cr3((process + IMAGE_FILE_POINTER_OFFSET) as *const u64)?;
 
         if image_file_pointer == 0 {
             return None;
@@ -77,20 +77,21 @@ impl ProcessInformation {
             unsafe { &*(PhysicalAddress::pa_from_va_with_current_cr3(image_file_pointer + IMAGE_FILE_NAME_OFFSET).ok()? as *const UNICODE_STRING) };
 
         // Read the image file name bytes from the UNICODE_STRING structure.
-        let image_file_name_buffer = PhysicalAddress::read_guest_slice(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;
+        let image_file_name_buffer =
+            PhysicalAddress::read_guest_slice_with_current_cr3(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;
 
         // Convert the image file name bytes to a string.
         let file_name = U16CStr::from_slice_truncate(image_file_name_buffer).ok()?.to_string().ok()?;
 
         // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
-        let directory_table_base = PhysicalAddress::read_guest_virt((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)?;
+        let directory_table_base = PhysicalAddress::read_guest_virt_with_current_cr3((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)?;
 
         if directory_table_base == 0 {
             return None;
         }
 
         // Read the unique process ID from the _EPROCESS structure.
-        let unique_process_id = PhysicalAddress::read_guest_virt((process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
+        let unique_process_id = PhysicalAddress::read_guest_virt_with_current_cr3((process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
 
         // Return the populated ProcessInformation struct.
         Some(Self {
@@ -135,14 +136,14 @@ impl ProcessInformation {
         }
 
         // Compute the address of the current thread.
-        let current_thread = PhysicalAddress::read_guest_virt((gs + THREAD_OFFSET) as *const u64)?;
+        let current_thread = PhysicalAddress::read_guest_virt_with_current_cr3((gs + THREAD_OFFSET) as *const u64)?;
 
         if current_thread == 0 {
             return None;
         }
 
         // Compute the address of the _EPROCESS structure.
-        let current_process = PhysicalAddress::read_guest_virt((current_thread + THREAD_PROCESS_OFFSET) as *const u64)?;
+        let current_process = PhysicalAddress::read_guest_virt_with_current_cr3((current_thread + THREAD_PROCESS_OFFSET) as *const u64)?;
 
         if current_process == 0 {
             return None;
@@ -172,7 +173,7 @@ impl ProcessInformation {
 
         loop {
             // Read the unique process ID from the _EPROCESS structure.
-            let unique_process_id = PhysicalAddress::read_guest_virt((current_process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
+            let unique_process_id = PhysicalAddress::read_guest_virt_with_current_cr3((current_process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
 
             // Check if the current process ID matches the specified process ID
             if unique_process_id == process_id {
@@ -180,7 +181,8 @@ impl ProcessInformation {
             }
 
             // Move to the next process in the list by following the Flink pointer.
-            let next_process_links = PhysicalAddress::read_guest_virt((current_process + ACTIVE_PROCESS_LINKS_OFFSET) as *const _LIST_ENTRY)?;
+            let next_process_links =
+                PhysicalAddress::read_guest_virt_with_current_cr3((current_process + ACTIVE_PROCESS_LINKS_OFFSET) as *const _LIST_ENTRY)?;
             current_process = next_process_links.Flink as u64 - ACTIVE_PROCESS_LINKS_OFFSET;
 
             // If we've looped back to the starting process, exit the loop.
@@ -206,6 +208,6 @@ impl ProcessInformation {
         let process = Self::get_process_by_process_id(process_id)?;
 
         // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
-        PhysicalAddress::read_guest_virt((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)
+        PhysicalAddress::read_guest_virt_with_current_cr3((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)
     }
 }
