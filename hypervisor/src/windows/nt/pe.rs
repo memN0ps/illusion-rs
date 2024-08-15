@@ -180,7 +180,7 @@ pub unsafe fn get_image_base_address(start_va: u64) -> Result<u64, HypervisorErr
 
     loop {
         // Attempt to read the potential DOS signature at the current address.
-        match *(PhysicalAddress::pa_from_va(guest_va)? as *const u16) {
+        match *(PhysicalAddress::pa_from_va_with_current_cr3(guest_va)? as *const u16) {
             IMAGE_DOS_SIGNATURE => return Ok(guest_va), // Found the 'MZ' signature.
             _ => {
                 if guest_va == 0 {

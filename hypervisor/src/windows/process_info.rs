@@ -73,7 +73,8 @@ impl ProcessInformation {
         }
 
         // Read the image file name from the _FILE_OBJECT structure.
-        let image_file_name = unsafe { &*(PhysicalAddress::pa_from_va(image_file_pointer + IMAGE_FILE_NAME_OFFSET).ok()? as *const UNICODE_STRING) };
+        let image_file_name =
+            unsafe { &*(PhysicalAddress::pa_from_va_with_current_cr3(image_file_pointer + IMAGE_FILE_NAME_OFFSET).ok()? as *const UNICODE_STRING) };
 
         // Read the image file name bytes from the UNICODE_STRING structure.
         let image_file_name_buffer = PhysicalAddress::read_guest_slice(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;

@@ -42,7 +42,7 @@ pub fn handle_vmcall(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
     trace!("Guest RAX - VMCALL command number: {:#x}", vmcall_number);
     trace!("Guest RIP: {:#x}", vm.guest_registers.rip);
 
-    let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(vm.guest_registers.rip)?);
+    let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va_with_current_cr3(vm.guest_registers.rip)?);
     trace!("Guest PA: {:#x}", guest_function_pa.as_u64());
 
     let guest_page_pa = guest_function_pa.align_down_to_base_page();

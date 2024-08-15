@@ -149,7 +149,7 @@ impl HookManager {
         self.ntoskrnl_base_va = unsafe { get_image_base_address(guest_va)? };
 
         // Get the physical address of ntoskrnl.exe using GUEST_CR3 and the virtual address.
-        self.ntoskrnl_base_pa = PhysicalAddress::pa_from_va(self.ntoskrnl_base_va)?;
+        self.ntoskrnl_base_pa = PhysicalAddress::pa_from_va_with_current_cr3(self.ntoskrnl_base_va)?;
 
         // Get the size of ntoskrnl.exe.
         self.ntoskrnl_size = unsafe { get_size_of_image(self.ntoskrnl_base_pa as _).ok_or(HypervisorError::FailedToGetKernelSize)? } as u64;
@@ -327,7 +327,7 @@ impl HookManager {
     ) -> Result<(), HypervisorError> {
         debug!("Creating EPT hook for function at VA: {:#x}", guest_function_va);
 
-        let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va)?);
+        let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va_with_current_cr3(guest_function_va)?);
         debug!("Guest function PA: {:#x}", guest_function_pa.as_u64());
 
         let guest_page_pa = guest_function_pa.align_down_to_base_page();
@@ -428,7 +428,7 @@ impl HookManager {
     pub fn ept_unhook_function(&mut self, vm: &mut Vm, guest_function_va: u64, _ept_hook_type: EptHookType) -> Result<(), HypervisorError> {
         debug!("Removing EPT hook for function at VA: {:#x}", guest_function_va);
 
-        let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va(guest_function_va)?);
+        let guest_function_pa = PAddr::from(PhysicalAddress::pa_from_va_with_current_cr3(guest_function_va)?);
         debug!("Guest function PA: {:#x}", guest_function_pa.as_u64());
 
         let guest_page_pa = guest_function_pa.align_down_to_base_page();
