@@ -12,3 +12,29 @@ obfstr = "0.4.3" # https://crates.io/crates/obfstr
 core_affinity = "0.8.1"
 raw-cpuid = "11.0"
 shared = { path = "../shared" }
+thiserror = "1.0.63"
+
+[dependencies.windows-sys]
+version = "0.59.0"
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Memory",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_SystemServices",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_LibraryLoader",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+    "Win32_System_SystemInformation",
+    "Win32_System_Environment",
+    "Win32_System_ProcessStatus",
+    "Win32_Globalization",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Kernel",
+    "Win32_System_Pipes",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+]

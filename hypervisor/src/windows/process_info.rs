@@ -1,9 +1,13 @@
 use {
     crate::{
-        intel::addresses::PhysicalAddress,
-        windows::nt::types::{UNICODE_STRING, _LIST_ENTRY},
+        intel::{addresses::PhysicalAddress, hooks::hook_manager::SHARED_HOOK_MANAGER},
+        windows::nt::{
+            pe::{djb2_hash, get_export_by_hash},
+            types::{UNICODE_STRING, _LIST_ENTRY},
+        },
     },
     alloc::string::String,
+    log::*,
     widestring::U16CStr,
     x86::{bits64::vmx::vmread, vmx::vmcs},
 };
@@ -130,6 +134,7 @@ impl ProcessInformation {
     fn ps_get_current_process() -> Option<u64> {
         // Read the GS base address.
         let gs = unsafe { vmread(vmcs::guest::GS_BASE).ok()? };
+        trace!("GS base address: {:#x}", gs);
 
         if gs == 0 {
             return None;
@@ -137,6 +142,7 @@ impl ProcessInformation {
 
         // Compute the address of the current thread.
         let current_thread = PhysicalAddress::read_guest_virt_with_current_cr3((gs + THREAD_OFFSET) as *const u64)?;
+        trace!("Current thread address: {:#x}", current_thread);
 
         if current_thread == 0 {
             return None;
@@ -144,6 +150,7 @@ impl ProcessInformation {
 
         // Compute the address of the _EPROCESS structure.
         let current_process = PhysicalAddress::read_guest_virt_with_current_cr3((current_thread + THREAD_PROCESS_OFFSET) as *const u64)?;
+        trace!("Current process address: {:#x}", current_process);
 
         if current_process == 0 {
             return None;
@@ -163,30 +170,54 @@ impl ProcessInformation {
     /// struct _EPROCESS
     ///     struct _LIST_ENTRY ActiveProcessLinks;                                  //0x448
     ///
+    /// ntoskrnl export:
+    ///     PEPROCESS PsInitialSystemProcess
+    ///
     /// # Returns
     ///
     /// * `Option<u64>` - The physical address of the `_EPROCESS` structure of the specified process, or `None` if not found.
     fn get_process_by_process_id(process_id: u64) -> Option<u64> {
-        // Retrieve the physical address of the current process (_EPROCESS structure).
-        let start_process = Self::ps_get_current_process()?;
+        trace!("Searching for process with ID: {:#x}", process_id);
+
+        // Lock the shared hook manager
+        let hook_manager = SHARED_HOOK_MANAGER.lock();
+        trace!("Hook manager locked");
+
+        // Get the base address of the NT kernel module.
+        let ps_initial_system_process = unsafe {
+            get_export_by_hash(hook_manager.ntoskrnl_base_pa as _, hook_manager.ntoskrnl_base_va as _, djb2_hash("PsInitialSystemProcess".as_bytes()))
+        }?;
+
+        trace!("PsInitialSystemProcess address: {:#p}", ps_initial_system_process);
+
+        // Retrieve the physical address of the SYSTEM process (_EPROCESS structure).
+        let start_process = PhysicalAddress::read_guest_virt_with_current_cr3(ps_initial_system_process as *const u64)?;
+        trace!("Current process address: {:#x}", start_process);
+
         let mut current_process = start_process;
 
         loop {
             // Read the unique process ID from the _EPROCESS structure.
             let unique_process_id = PhysicalAddress::read_guest_virt_with_current_cr3((current_process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
+            trace!("Checking process with ID: {:#x}", unique_process_id);
 
             // Check if the current process ID matches the specified process ID
             if unique_process_id == process_id {
+                trace!("Found process with ID: {:#x}", process_id);
                 return Some(current_process);
             }
 
+            trace!("Moving to the next process");
             // Move to the next process in the list by following the Flink pointer.
             let next_process_links =
                 PhysicalAddress::read_guest_virt_with_current_cr3((current_process + ACTIVE_PROCESS_LINKS_OFFSET) as *const _LIST_ENTRY)?;
             current_process = next_process_links.Flink as u64 - ACTIVE_PROCESS_LINKS_OFFSET;
 
+            trace!("Next process address: {:#x}", current_process);
+
             // If we've looped back to the starting process, exit the loop.
             if current_process == start_process {
+                trace!("Reached the end of the process list");
                 break;
             }
         }
@@ -206,6 +237,8 @@ impl ProcessInformation {
     pub fn get_directory_table_base_by_process_id(process_id: u64) -> Option<u64> {
         // Retrieve the physical address of the process by its process ID.
         let process = Self::get_process_by_process_id(process_id)?;
+
+        trace!("Reading Guest Virtual Address");
 
         // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
         PhysicalAddress::read_guest_virt_with_current_cr3((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)

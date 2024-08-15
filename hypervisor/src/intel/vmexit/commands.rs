@@ -116,11 +116,15 @@ fn handle_hook_command(vm: &mut Vm, command: Commands, hook: HookData) -> Option
 ///
 /// * `Option<()>` - Returns `Some(())` if the memory was read successfully, or `None` if an error occurred.
 fn handle_read_memory(_vm: &mut Vm, memory: MemoryData) -> Option<()> {
+    debug!("Reading memory from process ID: {:#x}, address: {:#x}, buffer: {:#x}", memory.process_id, memory.address, memory.buffer);
+
     // Step 1: Find the process CR3 by the process ID.
     let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id)?;
+    debug!("Guest process CR3: {:#x}", guest_process_cr3);
 
     // Step 2: Read the memory from the process using the CR3 of the target process.
     let value = PhysicalAddress::read_guest_virt_with_explicit_cr3(memory.address as *const u64, guest_process_cr3)?;
+    debug!("Read value: {:#x}", value);
 
     // Step 3: Write the memory to the buffer to be returned to the guest client (user-mode application).
     PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, value)?;
@@ -142,11 +146,14 @@ fn handle_read_memory(_vm: &mut Vm, memory: MemoryData) -> Option<()> {
 ///
 /// * `Option<()>` - Returns `Some(())` if the memory was written successfully, or `None` if an error occurred.
 fn handle_write_memory(_vm: &mut Vm, memory: MemoryData) -> Option<()> {
+    debug!("Writing memory to process ID: {:#x}, address: {:#x}, buffer: {:#x}", memory.process_id, memory.address, memory.buffer);
+
     // Step 1: Find the process CR3 by the process ID.
     let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id)?;
 
     // Step 2: Read the value to be written from the guest buffer.
     let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.buffer as *const u64)?;
+    debug!("Write value: {:#x}", value);
 
     // Step 3: Write the value to the specified memory address in the target process.
     PhysicalAddress::write_guest_virt_with_explicit_cr3(memory.address as *mut u64, value, guest_process_cr3)?;
