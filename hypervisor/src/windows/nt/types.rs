@@ -204,3 +204,11 @@ pub struct IMAGE_EXPORT_DIRECTORY {
     pub AddressOfNames: u32,
     pub AddressOfNameOrdinals: u32,
 }
+
+//0x10 bytes (sizeof)
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct _LIST_ENTRY {
+    pub Flink: *mut _LIST_ENTRY, //0x0
+    pub Blink: *mut _LIST_ENTRY, //0x8
+}

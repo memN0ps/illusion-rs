@@ -1,5 +1,8 @@
 use {
-    crate::{intel::addresses::PhysicalAddress, windows::nt::types::UNICODE_STRING},
+    crate::{
+        intel::addresses::PhysicalAddress,
+        windows::nt::types::{UNICODE_STRING, _LIST_ENTRY},
+    },
     alloc::string::String,
     widestring::U16CStr,
     x86::{bits64::vmx::vmread, vmx::vmcs},
@@ -12,6 +15,7 @@ const UNIQUE_PROCESS_ID_OFFSET: u64 = 0x440;
 const IMAGE_FILE_POINTER_OFFSET: u64 = 0x5a0;
 const IMAGE_FILE_NAME_OFFSET: u64 = 0x58;
 const DIRECTORY_TABLE_BASE_OFFSET: u64 = 0x28;
+const ACTIVE_PROCESS_LINKS_OFFSET: u64 = 0x448;
 
 /// Struct representing process information
 #[derive(Debug)]
@@ -144,5 +148,63 @@ impl ProcessInformation {
         }
 
         Some(current_process)
+    }
+
+    /// Retrieves the process ID of a process by its process ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `process_id` - The process ID of the process to retrieve.
+    ///
+    /// # Example
+    ///
+    /// struct _EPROCESS
+    ///     struct _LIST_ENTRY ActiveProcessLinks;                                  //0x448
+    ///
+    /// # Returns
+    ///
+    /// * `Option<u64>` - The physical address of the `_EPROCESS` structure of the specified process, or `None` if not found.
+    fn get_process_by_process_id(process_id: u64) -> Option<u64> {
+        // Retrieve the physical address of the current process (_EPROCESS structure).
+        let start_process = Self::ps_get_current_process()?;
+        let mut current_process = start_process;
+
+        loop {
+            // Read the unique process ID from the _EPROCESS structure.
+            let unique_process_id = PhysicalAddress::read_guest_virt((current_process + UNIQUE_PROCESS_ID_OFFSET) as *const u64)?;
+
+            // Check if the current process ID matches the specified process ID
+            if unique_process_id == process_id {
+                return Some(current_process);
+            }
+
+            // Move to the next process in the list by following the Flink pointer.
+            let next_process_links = PhysicalAddress::read_guest_virt((current_process + ACTIVE_PROCESS_LINKS_OFFSET) as *const _LIST_ENTRY)?;
+            current_process = next_process_links.Flink as u64 - ACTIVE_PROCESS_LINKS_OFFSET;
+
+            // If we've looped back to the starting process, exit the loop.
+            if current_process == start_process {
+                break;
+            }
+        }
+
+        None
+    }
+
+    /// Retrieves the directory table base (CR3) of a process by its process ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `process_id` - The process ID of the process to retrieve the directory table base from.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<u64>` - The directory table base (CR3) of the process, or `None` if not found.
+    pub fn get_directory_table_base_by_process_id(process_id: u64) -> Option<u64> {
+        // Retrieve the physical address of the process by its process ID.
+        let process = Self::get_process_by_process_id(process_id)?;
+
+        // Read the directory table base (CR3) from the _KPROCESS structure within _EPROCESS.
+        PhysicalAddress::read_guest_virt((process + DIRECTORY_TABLE_BASE_OFFSET) as *const u64)
     }
 }
