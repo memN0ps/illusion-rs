@@ -12,9 +12,9 @@ fn main() {
     let communicator = HypervisorCommunicator::new();
 
     // The current process ID (this is just a placeholder, in a real scenario you'd fetch the actual PID)
-    // let current_pid = std::process::id() as u64;
+    let current_pid = std::process::id() as u64;
 
-    let current_pid = get_process_id_by_name("notepad.exe").unwrap() as u64;
+    // let current_pid = get_process_id_by_name("notepad.exe").unwrap() as u64;
 
     // Example variable to read (we're setting it to 1337 as a test value)
     let test_var: u64 = 0xBADC0DE;
