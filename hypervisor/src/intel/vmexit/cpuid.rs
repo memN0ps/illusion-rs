@@ -11,6 +11,7 @@ use {
     },
     bitfield::BitMut,
     log::*,
+    shared::CommandStatus,
     x86::cpuid::cpuid,
 };
 
@@ -98,10 +99,9 @@ pub fn handle_cpuid(vm: &mut Vm) -> Result<ExitType, HypervisorError> {
 
     if vm.guest_registers.rax == PASSWORD {
         // Handle the guest command and update the CPUID result accordingly
-        vm.guest_registers.rax = if handle_guest_commands(vm) {
-            0x1 // Command handled successfully
-        } else {
-            0x0 // Command handling failed
+        vm.guest_registers.rax = match handle_guest_commands(vm) {
+            Some(_) => CommandStatus::Success.to_u64(), // Command handled successfully
+            None => CommandStatus::Failure.to_u64(),    // Command handling failed
         };
 
         trace!("Command executed successfully with leaf {:#x}", leaf);
