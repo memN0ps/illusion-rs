@@ -79,7 +79,7 @@ impl HypervisorCommunicator {
     }
 
     /// Reads memory from the opened process using the stored CR3.
-    pub fn read_process_memory(&self, address: u64, buffer: &mut [u8]) -> Option<u64> {
+    pub fn read_process_memory(&self, address: u64, buffer: &mut [u8]) -> Option<()> {
         let memory_operation = ProcessMemoryOperation {
             process_id: None,
             guest_cr3: self.process_cr3,
@@ -95,7 +95,7 @@ impl HypervisorCommunicator {
         let result = Self::call_hypervisor(client_command.as_ptr());
 
         if result.eax == 1 {
-            Some(result.edx)
+            Some(())
         } else {
             None
         }

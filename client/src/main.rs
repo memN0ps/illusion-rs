@@ -19,8 +19,8 @@ fn main() {
 
         // Read memory from the base address
         let mut buffer = [0u8; 1024];
-        if let Some(value) = hypervisor.read_process_memory(base_address, &mut buffer) {
-            println!("Memory read successfully: Value: {:#x}, Buffer: {:?}", value, &buffer[..]);
+        if hypervisor.read_process_memory(base_address, &mut buffer).is_some() {
+            println!("Memory read successfully: {:?}", &buffer);
         } else {
             println!("Failed to read memory");
         }
