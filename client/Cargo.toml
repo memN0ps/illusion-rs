@@ -5,14 +5,10 @@ edition = "2021"
 
 [dependencies]
 x86 = "0.52.0" # https://crates.io/crates/x86
-clap = { version = "4.5.4", features = ["derive"] } # https://crates.io/crates/clap
-ntapi = { version = "0.4.0", default-features = false } # https://crates.io/crates/ntapi
-winapi = { version = "0.3.9", default-features = false, features = ["processthreadsapi", "memoryapi", "winbase", "impl-default", "errhandlingapi", "handleapi", "winuser", "heapapi", "libloaderapi", "winnt"] } # https://crates.io/crates/winapi
 obfstr = "0.4.3" # https://crates.io/crates/obfstr
-core_affinity = "0.8.1"
-raw-cpuid = "11.0"
+pelite = "0.10.0" # https://crates.io/crates/pelite
+thiserror = "1.0.63" # https://crates.io/crates/thiserror
 shared = { path = "../shared" }
-thiserror = "1.0.63"
 
 [dependencies.windows-sys]
 version = "0.59.0"

@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum ProcessError {
     #[error("Failed take a snapshot of the specified processes: {0}")]
     FailedToCreateSnapshot(u32),
 

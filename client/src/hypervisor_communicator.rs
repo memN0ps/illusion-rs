@@ -1,10 +1,14 @@
-//! # Hypervisor Communicator
+//! # Hypervisor Library
 //!
-//! This library provides functionality to communicate with a UEFI hypervisor
-//! using the CPUID instruction. The communication is password protected to ensure
-//! that only authorized requests are processed by the hypervisor.
+//! This library provides a user-friendly interface for interacting with the hypervisor.
+//! It allows you to open a process by name and perform memory read/write operations.
 
-use {shared::PASSWORD, std::arch::asm};
+#![allow(dead_code)]
+
+use {
+    shared::{ClientCommand, ClientDataPayload, Command, ProcessMemoryOperation, PASSWORD},
+    std::arch::asm,
+};
 
 /// Struct to encapsulate the result of a CPUID instruction.
 #[derive(Debug)]
@@ -15,27 +19,39 @@ pub struct CpuidResult {
     pub edx: u64,
 }
 
-/// Struct to encapsulate the functionality for communicating with the hypervisor.
-pub struct HypervisorCommunicator;
+/// Struct representing the hypervisor communicator.
+pub struct HypervisorCommunicator {
+    process_cr3: Option<u64>,
+}
 
 impl HypervisorCommunicator {
-    /// Creates a new instance of `HypervisorCommunicator`.
-    pub fn new() -> Self {
-        Self
+    /// Creates a new instance of `HypervisorCommunicator`, retrieves the process CR3, and stores it.
+    pub fn open_process(process_id: u64) -> Option<Self> {
+        let mut communicator = Self { process_cr3: None };
+
+        let command_payload = ClientDataPayload::Memory(ProcessMemoryOperation {
+            process_id: Some(process_id),
+            guest_cr3: None,
+            address: None,
+            buffer: &mut communicator.process_cr3 as *mut _ as u64,
+        });
+
+        let client_command = ClientCommand {
+            command: Command::OpenProcess,
+            payload: command_payload,
+        };
+
+        let result = Self::call_hypervisor(client_command.as_ptr());
+
+        if result.eax == 1 {
+            Some(communicator)
+        } else {
+            None
+        }
     }
 
-    /// Sends a CPUID command with the password directly using inline assembly.
-    ///
-    /// This function includes the password in the `rax` register and executes the CPUID instruction.
-    ///
-    /// # Arguments
-    ///
-    /// * `command_rcx` - The value to be placed in the `rcx` register.
-    ///
-    /// # Returns
-    ///
-    /// * `CpuidResult` - The result of the CPUID instruction.
-    pub fn call_hypervisor(&self, command_rcx: u64) -> CpuidResult {
+    /// Sends a command to the hypervisor using CPUID.
+    fn call_hypervisor(command_rcx: u64) -> CpuidResult {
         let mut rax = PASSWORD;
         let mut rbx;
         let mut rcx = command_rcx;
@@ -59,6 +75,52 @@ impl HypervisorCommunicator {
             ebx: rbx,
             ecx: rcx,
             edx: rdx,
+        }
+    }
+
+    /// Reads memory from the opened process using the stored CR3.
+    pub fn read_process_memory(&self, address: u64, buffer: &mut [u8]) -> Option<u64> {
+        let memory_operation = ProcessMemoryOperation {
+            process_id: None,
+            guest_cr3: self.process_cr3,
+            address: Some(address),
+            buffer: buffer.as_ptr() as u64,
+        };
+
+        let client_command = ClientCommand {
+            command: Command::ReadProcessMemory,
+            payload: ClientDataPayload::Memory(memory_operation),
+        };
+
+        let result = Self::call_hypervisor(client_command.as_ptr());
+
+        if result.eax == 1 {
+            Some(result.edx)
+        } else {
+            None
+        }
+    }
+
+    /// Writes memory to the opened process using the stored CR3.
+    pub fn write_process_memory(&self, address: u64, buffer: &[u8]) -> Option<()> {
+        let memory_operation = ProcessMemoryOperation {
+            process_id: None,
+            guest_cr3: self.process_cr3,
+            address: Some(address),
+            buffer: buffer.as_ptr() as u64,
+        };
+
+        let client_command = ClientCommand {
+            command: Command::WriteProcessMemory,
+            payload: ClientDataPayload::Memory(memory_operation),
+        };
+
+        let result = Self::call_hypervisor(client_command.as_ptr());
+
+        if result.eax == 1 {
+            Some(())
+        } else {
+            None
         }
     }
 }

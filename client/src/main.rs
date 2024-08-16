@@ -1,59 +1,38 @@
-use {
-    crate::{hypervisor_communicator::HypervisorCommunicator, process::get_process_id_by_name},
-    shared::{ClientData, ClientDataPayload, CommandStatus, Commands, MemoryData},
-    std::mem::size_of,
-};
+use crate::{hypervisor_communicator::HypervisorCommunicator, memory::process::process_manager::ProcessManager};
 
-pub mod hypervisor_communicator;
-pub mod process;
+mod hypervisor_communicator;
+mod memory;
 
 fn main() {
-    // Initialize the HypervisorCommunicator
-    let communicator = HypervisorCommunicator::new();
+    let pm = ProcessManager::new();
+    let process = pm.get_process_id_by_name("notepad.exe").unwrap() as u64;
 
-    // The current process ID (this is just a placeholder, in a real scenario you'd fetch the actual PID)
-    let current_pid = std::process::id() as u64;
+    if let Some(hypervisor) = HypervisorCommunicator::open_process(process) {
+        // Find a valid base address for reading/writing
+        let base_address = match pm.get_module_address_by_name("kernel32.dll", process) {
+            Ok(addy) => addy as u64,
+            Err(e) => {
+                println!("Failed to find a valid base address: {:?}", e);
+                return;
+            }
+        };
 
-    // let current_pid = get_process_id_by_name("notepad.exe").unwrap() as u64;
+        // Read memory from the base address
+        let mut buffer = [0u8; 1024];
+        if let Some(value) = hypervisor.read_process_memory(base_address, &mut buffer) {
+            println!("Memory read successfully: Value: {:#x}, Buffer: {:?}", value, &buffer[..]);
+        } else {
+            println!("Failed to read memory");
+        }
 
-    // Example variable to read (we're setting it to 1337 as a test value)
-    let test_var: u64 = 0xBADC0DE;
-    let test_address: u64 = &test_var as *const u64 as u64;
-
-    // Buffer to store the result of the memory read (this would normally point to a location in guest memory)
-    let mut buffer: u64 = 0;
-    let buffer_address: u64 = &mut buffer as *mut u64 as u64;
-
-    // Construct the MemoryData payload
-    let memory_data = MemoryData {
-        process_id: current_pid,
-        address: test_address,
-        buffer: buffer_address,
-        size: size_of::<u64>() as u64,
-    };
-
-    // Construct the ClientData for ReadProcessMemory command
-    let client_data = ClientData {
-        command: Commands::ReadProcessMemory,
-        payload: ClientDataPayload::Memory(memory_data),
-    };
-
-    // Send the command to the hypervisor and get the result
-    let result = communicator.call_hypervisor(client_data.as_ptr());
-
-    // Check if the command was successful by examining the EAX register
-    if result.eax == CommandStatus::Success.to_u64() {
-        // If successful, read the value from the buffer address
-        println!("Memory read successful!");
-        println!("Value at test_var address {:#x}: {:#x}", test_address, buffer);
+        // Write data to the base address
+        let data_to_write = [1u8, 2, 3, 4];
+        if hypervisor.write_process_memory(base_address, &data_to_write).is_some() {
+            println!("Memory written successfully");
+        } else {
+            println!("Failed to write memory");
+        }
     } else {
-        println!("Memory read failed. Hypervisor returned failure status.");
+        println!("Failed to open process");
     }
-
-    // Print the full CPUID result for debugging purposes
-    println!("CPUID Result:");
-    println!("EAX: {:#x}", result.eax);
-    println!("EBX: {:#x}", result.ebx);
-    println!("ECX: {:#x}", result.ecx);
-    println!("EDX: {:#x}", result.edx);
 }

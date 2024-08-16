@@ -11,13 +11,13 @@ use {
         windows::process_info::ProcessInformation,
     },
     log::{debug, error},
-    shared::{ClientData, ClientDataPayload, Commands, HookData, MemoryData},
+    shared::{ClientCommand, ClientDataPayload, Command, HookData, ProcessMemoryOperation},
 };
 
 /// Handles guest commands sent to the hypervisor.
 ///
-/// This function processes the commands sent from the guest and performs the
-/// corresponding actions such as setting up hooks or reading/writing process memory.
+/// This function processes commands issued by the guest, such as opening a process,
+/// reading or writing memory, and enabling or disabling kernel EPT hooks.
 ///
 /// # Arguments
 ///
@@ -29,134 +29,143 @@ use {
 pub fn handle_guest_commands(vm: &mut Vm) -> Option<()> {
     debug!("Handling commands");
 
-    // Convert guest RCX register value to a physical address pointer to `ClientData`.
-    let client_data_ptr = match PhysicalAddress::pa_from_va_with_current_cr3(vm.guest_registers.rcx) {
-        Ok(pa) => pa,
-        Err(e) => {
-            error!("Failed to convert guest RCX to pointer: {:?}", e);
-            return None;
-        }
-    };
+    // Convert guest RCX register value to a physical address pointer to `ClientCommand`.
+    let client_command_ptr = PhysicalAddress::pa_from_va_with_current_cr3(vm.guest_registers.rcx).ok()?;
+    let client_command = ClientCommand::from_ptr(client_command_ptr);
 
-    debug!("Client data pointer: {:#x}", client_data_ptr);
-
-    // Convert the pointer to `ClientData`.
-    let client_data = ClientData::from_ptr(client_data_ptr);
-    debug!("Client data: {:#x?}", client_data);
-
-    // Handle the command based on the command type and payload
-    match client_data.command {
-        Commands::EnableKernelEptHook | Commands::DisableKernelEptHook => {
-            if let ClientDataPayload::Hook(hook) = client_data.payload {
-                handle_hook_command(vm, client_data.command, hook)
+    // Match the command and handle accordingly
+    match client_command.command {
+        Command::OpenProcess => {
+            if let ClientDataPayload::Memory(memory) = client_command.payload {
+                handle_open_process(vm, memory)
             } else {
-                error!("Expected HookData for hook command, but found MemoryData.");
+                error!("Expected ProcessMemoryOperation for OpenProcess command.");
                 None
             }
         }
-        Commands::ReadProcessMemory | Commands::WriteProcessMemory => {
-            if let ClientDataPayload::Memory(memory) = client_data.payload {
-                match client_data.command {
-                    Commands::ReadProcessMemory => handle_read_memory(vm, memory),
-                    Commands::WriteProcessMemory => handle_write_memory(vm, memory),
-                    _ => None,
-                }
+        Command::ReadProcessMemory => {
+            if let ClientDataPayload::Memory(memory) = client_command.payload {
+                handle_read_memory(vm, memory)
             } else {
-                error!("Expected MemoryData for memory command, but found HookData.");
+                error!("Expected Memory for ReadProcessMemory command.");
                 None
             }
         }
-        Commands::Invalid => {
+        Command::WriteProcessMemory => {
+            if let ClientDataPayload::Memory(memory) = client_command.payload {
+                handle_write_memory(vm, memory)
+            } else {
+                error!("Expected Memory for WriteProcessMemory command.");
+                None
+            }
+        }
+        Command::EnableKernelEptHook | Command::DisableKernelEptHook => {
+            if let ClientDataPayload::Hook(hook) = client_command.payload {
+                handle_hook_command(vm, client_command.command, hook)
+            } else {
+                error!("Expected HookData for hook command.");
+                None
+            }
+        }
+        Command::Invalid => {
             error!("Invalid command received");
             None
         }
     }
 }
 
-/// Handles hook commands such as enabling or disabling kernel EPT hooks.
+/// Handles the `OpenProcess` command.
+///
+/// This function retrieves the guest CR3 (directory table base) of the specified process
+/// and stores it in the buffer provided by the user mode.
 ///
 /// # Arguments
 ///
 /// * `vm` - A mutable reference to the virtual machine (VM) instance.
-/// * `command` - The command to handle (either enabling or disabling hooks).
+/// * `memory` - The `ProcessMemoryOperation` containing details about the process to open.
+///
+/// # Returns
+///
+/// * `Option<()>` - Returns `Some(())` if the process was opened successfully, or `None` if an error occurred.
+fn handle_open_process(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
+    debug!("Opening process with ID: {:#x}", memory.process_id?);
+
+    // Retrieve the guest CR3 for the process ID
+    let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id?)?;
+    debug!("Obtained process CR3: {:#x}", guest_process_cr3);
+
+    // Return the CR3 to the guest by writing it to the buffer provided by the user mode
+    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, guest_process_cr3)?;
+
+    Some(())
+}
+
+/// Handles the `ReadProcessMemory` command.
+///
+/// This function reads memory from the guest target process identified by the stored CR3 and returns
+/// the read value to the guest.
+///
+/// # Arguments
+///
+/// * `vm` - A mutable reference to the virtual machine (VM) instance.
+/// * `memory` - The `ProcessMemoryOperation` containing details about the memory read operation.
+///
+/// # Returns
+///
+/// * `Option<()>` - Returns `Some(())` if the memory was read successfully, or `None` if an error occurred.
+fn handle_read_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
+    debug!("Reading memory from process, address: {:#x}", memory.address?);
+
+    // Read the memory from the specified address
+    let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.address? as *const u64)?;
+
+    // Return the read value to the guest
+    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, value)?;
+    Some(())
+}
+
+/// Handles the `WriteProcessMemory` command.
+///
+/// This function writes memory to the guest target process identified by the stored CR3 using the provided buffer.
+///
+/// # Arguments
+///
+/// * `vm` - A mutable reference to the virtual machine (VM) instance.
+/// * `memory` - The `ProcessMemoryOperation` containing details about the memory write operation.
+///
+/// # Returns
+///
+/// * `Option<()>` - Returns `Some(())` if the memory was written successfully, or `None` if an error occurred.
+fn handle_write_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
+    debug!("Writing memory to process, address: {:#x}", memory.address?);
+
+    // Read the value to be written from the guest buffer
+    let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.buffer as *const u64)?;
+
+    // Write the value to the specified address in the target process
+    PhysicalAddress::write_guest_virt_with_current_cr3(memory.address? as *mut u64, value)?;
+    Some(())
+}
+
+/// Handles commands related to enabling or disabling kernel EPT hooks.
+///
+/// This function manages the setup or removal of kernel EPT hooks based on the provided command.
+///
+/// # Arguments
+///
+/// * `vm` - A mutable reference to the virtual machine (VM) instance.
+/// * `command` - The command indicating whether to enable or disable the hook.
 /// * `hook` - The `HookData` containing details about the hook.
 ///
 /// # Returns
 ///
 /// * `Option<()>` - Returns `Some(())` if the hook command was handled successfully, or `None` if an error occurred.
-fn handle_hook_command(vm: &mut Vm, command: Commands, hook: HookData) -> Option<()> {
-    let enable = command == Commands::EnableKernelEptHook;
-
-    // Lock the shared hook manager
+fn handle_hook_command(vm: &mut Vm, command: Command, hook: HookData) -> Option<()> {
+    let enable = command == Command::EnableKernelEptHook;
     let mut hook_manager = SHARED_HOOK_MANAGER.lock();
 
-    // Manage the kernel EPT hook
-    if let Err(e) =
-        hook_manager.manage_kernel_ept_hook(vm, hook.function_hash, hook.syscall_number, EptHookType::Function(InlineHookType::Vmcall), enable)
-    {
-        let action = if enable { "setup" } else { "disable" };
-        error!("Failed to {} kernel EPT hook: {:?}", action, e);
-        return None;
-    }
-
-    Some(())
-}
-
-/// Handles the reading of process memory from a guest.
-///
-/// This function locates the target process, retrieves its directory table base (CR3), and reads the
-/// requested memory region. The result is then written back to a buffer accessible by the guest client.
-///
-/// # Arguments
-///
-/// * `vm` - A mutable reference to the virtual machine (VM) instance.
-/// * `memory` - The `MemoryData` struct containing details about the memory read operation.
-///
-/// # Returns
-///
-/// * `Option<()>` - Returns `Some(())` if the memory was read successfully, or `None` if an error occurred.
-fn handle_read_memory(_vm: &mut Vm, memory: MemoryData) -> Option<()> {
-    debug!("Reading memory from process ID: {:#x}, address: {:#x}, buffer: {:#x}", memory.process_id, memory.address, memory.buffer);
-
-    // Step 1: Find the process CR3 by the process ID.
-    let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id)?;
-    debug!("Guest process CR3: {:#x}", guest_process_cr3);
-
-    // Step 2: Read the memory from the process using the CR3 of the target process.
-    let value = PhysicalAddress::read_guest_virt_with_explicit_cr3(memory.address as *const u64, guest_process_cr3)?;
-    debug!("Read value: {:#x}", value);
-
-    // Step 3: Write the memory to the buffer to be returned to the guest client (user-mode application).
-    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, value)?;
-
-    Some(())
-}
-
-/// Handles the writing of process memory from a guest.
-///
-/// This function locates the target process, retrieves its directory table base (CR3), and writes the
-/// provided memory content to the specified address within the target process.
-///
-/// # Arguments
-///
-/// * `vm` - A mutable reference to the virtual machine (VM) instance.
-/// * `memory` - The `MemoryData` struct containing details about the memory write operation.
-///
-/// # Returns
-///
-/// * `Option<()>` - Returns `Some(())` if the memory was written successfully, or `None` if an error occurred.
-fn handle_write_memory(_vm: &mut Vm, memory: MemoryData) -> Option<()> {
-    debug!("Writing memory to process ID: {:#x}, address: {:#x}, buffer: {:#x}", memory.process_id, memory.address, memory.buffer);
-
-    // Step 1: Find the process CR3 by the process ID.
-    let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id)?;
-
-    // Step 2: Read the value to be written from the guest buffer.
-    let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.buffer as *const u64)?;
-    debug!("Write value: {:#x}", value);
-
-    // Step 3: Write the value to the specified memory address in the target process.
-    PhysicalAddress::write_guest_virt_with_explicit_cr3(memory.address as *mut u64, value, guest_process_cr3)?;
-
+    hook_manager
+        .manage_kernel_ept_hook(vm, hook.function_hash, hook.syscall_number, EptHookType::Function(InlineHookType::Vmcall), enable)
+        .ok()?;
     Some(())
 }
