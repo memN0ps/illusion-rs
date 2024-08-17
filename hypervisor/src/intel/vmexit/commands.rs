@@ -88,14 +88,14 @@ pub fn handle_guest_commands(vm: &mut Vm) -> Option<()> {
 ///
 /// * `Option<()>` - Returns `Some(())` if the process was opened successfully, or `None` if an error occurred.
 fn handle_open_process(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
-    debug!("Opening process with ID: {:#x}", memory.process_id?);
+    debug!("Opening process with ID: {}", memory.process_id?);
 
     // Retrieve the guest CR3 for the process ID
-    let guest_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id?)?;
-    debug!("Obtained process CR3: {:#x}", guest_process_cr3);
+    let target_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id?)?;
+    debug!("Obtained process CR3: {:#x}", target_process_cr3);
 
     // Return the CR3 to the guest by writing it to the buffer provided by the user mode
-    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, guest_process_cr3)?;
+    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, target_process_cr3)?;
 
     Some(())
 }
@@ -114,12 +114,12 @@ fn handle_open_process(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<(
 ///
 /// * `Option<()>` - Returns `Some(())` if the memory was read successfully, or `None` if an error occurred.
 fn handle_read_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
-    debug!("Reading memory from process, address: {:#x}", memory.address?);
+    debug!("Reading memory from process, address: {:#x} with CR3: {:#x}", memory.address?, memory.guest_cr3?);
 
-    // Read the memory from the specified address
-    let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.address? as *const u64)?;
+    // Read the memory from the specified address in the target process
+    let value = PhysicalAddress::read_guest_virt_with_explicit_cr3(memory.address? as *const u64, memory.guest_cr3?)?;
 
-    // Return the read value to the guest
+    // Return the read value to the guest by writing it to the buffer provided by the user mode client
     PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, value)?;
     Some(())
 }
@@ -137,13 +137,13 @@ fn handle_read_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()
 ///
 /// * `Option<()>` - Returns `Some(())` if the memory was written successfully, or `None` if an error occurred.
 fn handle_write_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
-    debug!("Writing memory to process, address: {:#x}", memory.address?);
+    debug!("Writing memory to process, address: {:#x} with CR3: {:#x}", memory.address?, memory.guest_cr3?);
 
-    // Read the value to be written from the guest buffer
+    // Read the value to be written from the guest buffer provided by the user mode client
     let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.buffer as *const u64)?;
 
     // Write the value to the specified address in the target process
-    PhysicalAddress::write_guest_virt_with_current_cr3(memory.address? as *mut u64, value)?;
+    PhysicalAddress::write_guest_virt_with_explicit_cr3(memory.address? as *mut u64, value, memory.guest_cr3?)?;
     Some(())
 }
 

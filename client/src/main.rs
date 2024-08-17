@@ -9,7 +9,7 @@ fn main() {
 
     if let Some(hypervisor) = HypervisorCommunicator::open_process(process) {
         // Find a valid base address for reading/writing
-        let base_address = match pm.get_module_address_by_name("kernel32.dll", process) {
+        let base_address = match pm.get_module_address_by_name("notepad.exe", process) {
             Ok(addy) => addy as u64,
             Err(e) => {
                 println!("Failed to find a valid base address: {:?}", e);

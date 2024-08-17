@@ -21,19 +21,21 @@ pub struct CpuidResult {
 
 /// Struct representing the hypervisor communicator.
 pub struct HypervisorCommunicator {
-    process_cr3: Option<u64>,
+    process_cr3: u64,
 }
 
 impl HypervisorCommunicator {
     /// Creates a new instance of `HypervisorCommunicator`, retrieves the process CR3, and stores it.
     pub fn open_process(process_id: u64) -> Option<Self> {
-        let mut communicator = Self { process_cr3: None };
+        println!("Opening process with ID: {}", process_id);
+
+        let mut communicator = Self { process_cr3: 0 };
 
         let command_payload = ClientDataPayload::Memory(ProcessMemoryOperation {
             process_id: Some(process_id),
             guest_cr3: None,
             address: None,
-            buffer: &mut communicator.process_cr3 as *mut _ as u64,
+            buffer: &mut communicator.process_cr3 as *mut u64 as u64,
         });
 
         let client_command = ClientCommand {
@@ -44,6 +46,7 @@ impl HypervisorCommunicator {
         let result = Self::call_hypervisor(client_command.as_ptr());
 
         if result.eax == 1 {
+            println!("Opened process with CR3: {:#x}", communicator.process_cr3);
             Some(communicator)
         } else {
             None
@@ -82,7 +85,7 @@ impl HypervisorCommunicator {
     pub fn read_process_memory(&self, address: u64, buffer: &mut [u8]) -> Option<()> {
         let memory_operation = ProcessMemoryOperation {
             process_id: None,
-            guest_cr3: self.process_cr3,
+            guest_cr3: Some(self.process_cr3),
             address: Some(address),
             buffer: buffer.as_ptr() as u64,
         };
@@ -105,7 +108,7 @@ impl HypervisorCommunicator {
     pub fn write_process_memory(&self, address: u64, buffer: &[u8]) -> Option<()> {
         let memory_operation = ProcessMemoryOperation {
             process_id: None,
-            guest_cr3: self.process_cr3,
+            guest_cr3: Some(self.process_cr3),
             address: Some(address),
             buffer: buffer.as_ptr() as u64,
         };
