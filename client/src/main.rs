@@ -2,17 +2,20 @@ use crate::{hypervisor_communicator::HypervisorCommunicator, memory::process::pr
 
 mod hypervisor_communicator;
 mod memory;
+mod pemem;
+mod ssn;
 
 fn main() {
     let pm = ProcessManager::new();
     let process = pm.get_process_id_by_name("notepad.exe").unwrap() as u64;
 
+    // Open the process using the hypervisor
     if let Some(hypervisor) = HypervisorCommunicator::open_process(process) {
         // Find a valid base address for reading/writing
         let base_address = match pm.get_module_address_by_name("notepad.exe", process) {
             Ok(addy) => addy as u64,
             Err(e) => {
-                println!("Failed to find a valid base address: {:?}", e);
+                log::debug!("Failed to find a valid base address: {:?}", e);
                 return;
             }
         };
@@ -20,19 +23,33 @@ fn main() {
         // Read memory from the base address
         let mut buffer = [0u8; 1024];
         if hypervisor.read_process_memory(base_address, &mut buffer).is_some() {
-            println!("Memory read successfully: {:?}", &buffer);
+            log::debug!("Memory read successfully: {:?}", &buffer);
         } else {
-            println!("Failed to read memory");
+            log::debug!("Failed to read memory");
         }
 
         // Write data to the base address
         let data_to_write = [1u8, 2, 3, 4];
         if hypervisor.write_process_memory(base_address, &data_to_write).is_some() {
-            println!("Memory written successfully");
+            log::debug!("Memory written successfully");
         } else {
-            println!("Failed to write memory");
+            log::debug!("Failed to write memory");
+        }
+
+        // Enable EPT kernel hook for NtCreateFile
+        if hypervisor.enable_ept_kernel_hook("NtCreateFile").is_some() {
+            log::debug!("Successfully enabled EPT kernel hook for NtCreateFile");
+        } else {
+            log::debug!("Failed to enable EPT kernel hook for NtCreateFile");
+        }
+
+        // Disable EPT kernel hook for NtCreateFile
+        if hypervisor.disable_ept_kernel_hook("NtCreateFile").is_some() {
+            log::debug!("Successfully disabled EPT kernel hook for NtCreateFile");
+        } else {
+            log::debug!("Failed to disable EPT kernel hook for NtCreateFile");
         }
     } else {
-        println!("Failed to open process");
+        log::debug!("Failed to open process");
     }
 }

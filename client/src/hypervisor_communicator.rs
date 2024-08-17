@@ -6,7 +6,8 @@
 #![allow(dead_code)]
 
 use {
-    shared::{ClientCommand, ClientDataPayload, Command, ProcessMemoryOperation, PASSWORD},
+    crate::{pemem::djb2_hash, ssn::Syscall},
+    shared::{ClientCommand, ClientDataPayload, Command, HookData, ProcessMemoryOperation, PASSWORD},
     std::arch::asm,
 };
 
@@ -25,9 +26,49 @@ pub struct HypervisorCommunicator {
 }
 
 impl HypervisorCommunicator {
+    /// Enables a kernel EPT hook by specifying the function name.
+    pub fn enable_ept_kernel_hook(&self, function_name: &str) -> Option<()> {
+        self.manage_ept_kernel_hook(function_name, Command::EnableKernelEptHook)
+    }
+
+    /// Disables a kernel EPT hook by specifying the function name.
+    pub fn disable_ept_kernel_hook(&self, function_name: &str) -> Option<()> {
+        self.manage_ept_kernel_hook(function_name, Command::DisableKernelEptHook)
+    }
+
+    /// Internal function to manage (enable/disable) kernel EPT hooks.
+    fn manage_ept_kernel_hook(&self, function_name: &str, command: Command) -> Option<()> {
+        // Lookup the syscall number using the function hash
+        let mut syscall = Syscall::new();
+        let function_hash = djb2_hash(function_name.as_bytes());
+        let syscall_number = syscall.get_ssn_by_hash(function_hash)?;
+
+        log::debug!("Function: {} Syscall number: {}", function_name, syscall_number);
+
+        let hook_data = HookData {
+            function_hash,
+            syscall_number,
+        };
+
+        let client_command = ClientCommand {
+            command,
+            payload: ClientDataPayload::Hook(hook_data),
+        };
+
+        let result = Self::call_hypervisor(client_command.as_ptr());
+
+        if result.eax == 1 {
+            log::debug!("Successfully managed EPT hook for function: {}", function_name);
+            Some(())
+        } else {
+            log::error!("Failed to manage EPT hook for function: {}", function_name);
+            None
+        }
+    }
+
     /// Creates a new instance of `HypervisorCommunicator`, retrieves the process CR3, and stores it.
     pub fn open_process(process_id: u64) -> Option<Self> {
-        println!("Opening process with ID: {}", process_id);
+        log::debug!("Opening process with ID: {}", process_id);
 
         let mut communicator = Self { process_cr3: 0 };
 
@@ -46,9 +87,10 @@ impl HypervisorCommunicator {
         let result = Self::call_hypervisor(client_command.as_ptr());
 
         if result.eax == 1 {
-            println!("Opened process with CR3: {:#x}", communicator.process_cr3);
+            log::debug!("Opened process with CR3: {:#x}", communicator.process_cr3);
             Some(communicator)
         } else {
+            log::error!("Failed to open process");
             None
         }
     }
@@ -83,6 +125,8 @@ impl HypervisorCommunicator {
 
     /// Reads memory from the opened process using the stored CR3.
     pub fn read_process_memory(&self, address: u64, buffer: &mut [u8]) -> Option<()> {
+        log::debug!("Reading memory from address: {:#x}", address);
+
         let memory_operation = ProcessMemoryOperation {
             process_id: None,
             guest_cr3: Some(self.process_cr3),
@@ -98,14 +142,18 @@ impl HypervisorCommunicator {
         let result = Self::call_hypervisor(client_command.as_ptr());
 
         if result.eax == 1 {
+            log::debug!("Memory read successfully");
             Some(())
         } else {
+            log::error!("Failed to read memory");
             None
         }
     }
 
     /// Writes memory to the opened process using the stored CR3.
     pub fn write_process_memory(&self, address: u64, buffer: &[u8]) -> Option<()> {
+        log::debug!("Writing memory to address: {:#x}", address);
+
         let memory_operation = ProcessMemoryOperation {
             process_id: None,
             guest_cr3: Some(self.process_cr3),
@@ -121,8 +169,10 @@ impl HypervisorCommunicator {
         let result = Self::call_hypervisor(client_command.as_ptr());
 
         if result.eax == 1 {
+            log::debug!("Memory written successfully");
             Some(())
         } else {
+            log::error!("Failed to write memory");
             None
         }
     }
