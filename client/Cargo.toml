@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ntapi = "0.4.1" # https://crates.io/crates/ntapi
 log = { version = "0.4.20", default-features = false }
 thiserror = "1.0.63" # https://crates.io/crates/thiserror
 x86 = "0.52.0" # https://crates.io/crates/x86

@@ -2,6 +2,10 @@
 
 use {
     alloc::vec::Vec,
+    ntapi::{
+        ntldr::LDR_DATA_TABLE_ENTRY,
+        ntpebteb::{PEB, TEB},
+    },
     std::{collections::BTreeMap, ffi::CStr},
     windows_sys::Win32::System::SystemServices::{IMAGE_IMPORT_BY_NAME, IMAGE_ORDINAL_FLAG64},
 };
@@ -19,8 +23,7 @@ use {
             IMAGE_BASE_RELOCATION, IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_EXPORT_DIRECTORY, IMAGE_IMPORT_DESCRIPTOR, IMAGE_NT_SIGNATURE,
             IMAGE_REL_BASED_DIR64, IMAGE_REL_BASED_HIGHLOW,
         },
-        Threading::{PEB, TEB},
-        WindowsProgramming::{IMAGE_THUNK_DATA64, LDR_DATA_TABLE_ENTRY},
+        WindowsProgramming::IMAGE_THUNK_DATA64,
     },
 };
 
@@ -66,18 +69,19 @@ pub unsafe fn get_peb() -> *mut PEB {
 pub unsafe fn get_loaded_module_by_hash(module_hash: u32) -> Option<*mut u8> {
     let peb = get_peb();
     let peb_ldr_data_ptr = (*peb).Ldr;
-    let mut module_list = (*peb_ldr_data_ptr).InMemoryOrderModuleList.Flink as *mut LDR_DATA_TABLE_ENTRY;
+
+    let mut module_list = (*peb_ldr_data_ptr).InLoadOrderModuleList.Flink as *mut LDR_DATA_TABLE_ENTRY;
 
     while !(*module_list).DllBase.is_null() {
-        let dll_buffer_ptr = (*module_list).FullDllName.Buffer;
-        let dll_length = (*module_list).FullDllName.Length as usize;
+        let dll_buffer_ptr = (*module_list).BaseDllName.Buffer;
+        let dll_length = (*module_list).BaseDllName.Length as usize;
         let dll_name_slice = from_raw_parts(dll_buffer_ptr as *const u8, dll_length);
 
         if module_hash == djb2_hash(dll_name_slice) {
             return Some((*module_list).DllBase as _);
         }
 
-        module_list = (*module_list).InMemoryOrderLinks.Flink as *mut LDR_DATA_TABLE_ENTRY;
+        module_list = (*module_list).InLoadOrderLinks.Flink as *mut LDR_DATA_TABLE_ENTRY;
     }
 
     None
@@ -386,7 +390,7 @@ mod tests {
     #[test]
     fn test_get_dos_and_nt_headers() {
         let peb = unsafe { get_peb() };
-        let module_base = unsafe { (*peb).Reserved3[2] }; // ImageBaseAddress
+        let module_base = unsafe { (*peb).ImageBaseAddress };
 
         assert!(unsafe { get_dos_header(module_base as _) }.is_some());
         assert!(unsafe { get_nt_headers(module_base as _) }.is_some());
@@ -395,7 +399,7 @@ mod tests {
     #[test]
     fn test_get_section_header_by_hash() {
         let peb = unsafe { get_peb() };
-        let module_base = unsafe { (*peb).Reserved3[2] }; // ImageBaseAddress
+        let module_base = unsafe { (*peb).ImageBaseAddress };
 
         assert!(unsafe { get_section_header_by_hash(module_base as _, 0xb65d0ad) }.is_some());
     }
