@@ -1,6 +1,6 @@
-use crate::{hypervisor_communicator::HypervisorCommunicator, memory::process::process_manager::ProcessManager};
+use crate::{hvapi::HypervisorCommunicator, memory::process::process_manager::ProcessManager};
 
-mod hypervisor_communicator;
+pub mod hvapi;
 mod memory;
 mod pemem;
 mod ssn;
