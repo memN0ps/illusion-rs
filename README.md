@@ -151,6 +151,7 @@ Special thanks to:
 - [Jess (@jessiep_)](https://github.com/Intege-rs).
 - [Matthias @not-matthias](https://github.com/not-matthias/).
 - [@felix-rs / @joshuа](https://github.com/felix-rs).
+- [Wcscpy (@Azvanzed)](https://github.com/Azvanzed/).
 - [Ryan McCrystal / @rmccrystal](https://github.com/rmccrystal).
 - [Jim Colerick (@vmprotect)](https://github.com/thug-shaker).
 - [Xitan (@xitan)](https://github.com/x1tan).
