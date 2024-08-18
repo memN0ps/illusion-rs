@@ -101,13 +101,17 @@ Big thanks to the amazing people and resources that have shaped this project. A 
     - [Hypervisor 101 in Rust](https://github.com/tandasat/Hypervisor-101-in-Rust).
     - Additional Projects: [Hello-VT-rp](https://github.com/tandasat/Hello-VT-rp), [DdiMon](https://github.com/tandasat/DdiMon), [HyperPlatform](https://github.com/tandasat/HyperPlatform), [MiniVisorPkg](https://github.com/tandasat/MiniVisorPkg).
 
-- **[Jess (@jessiep_)](https://github.com/Intege-rs)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
-
-- **[Drew (@drew)](https://github.com/drew-gpf)**: For his help, guidance, and quick responses to my questions in various aspects of hypervisor development.
-
 - **[Sina Karvandi (@Intel80x86)](https://github.com/SinaKarvandi)**: For his detailed free Hypervisor From Scratch series:
     - [Tutorial Series](https://rayanfam.com/tutorials/).
     - [GitHub Repository](https://github.com/SinaKarvandi/Hypervisor-From-Scratch/).
+
+- **[Jess (@jessiep_)](https://github.com/Intege-rs)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
+
+- **[Feli (@vmctx)](https://github.com/vmctx/)**: For their invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
+
+- **[Wcscpy (@Azvanzed)](https://github.com/Azvanzed/)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
+
+- **[Drew (@drew)](https://github.com/drew-gpf)**: For his invaluable support and collaboration in several areas of this project, providing essential insights and expertise, and for his quick responses to my questions.
 
 - **[Matthias (@not-matthias)](https://github.com/not-matthias)**: For his impactful work on the [amd_hypervisor](https://github.com/not-matthias/amd_hypervisor) project, which greatly inspired and influenced this research.
 
