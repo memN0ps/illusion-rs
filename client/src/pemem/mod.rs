@@ -480,7 +480,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manual_map() {
+    fn test_local_manual_map() {
         let mut module = fs::read(r"C:\Windows\System32\user32.dll").unwrap();
         let module_base = module.as_mut_ptr();
 
