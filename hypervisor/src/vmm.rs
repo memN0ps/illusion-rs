@@ -82,6 +82,7 @@ pub fn start_hypervisor(guest_registers: &GuestRegisters) -> ! {
 
     trace!("VMCS Dump: {:#x?}", vm.vmcs_region);
 
+    #[cfg(feature = "hide_hv_with_ept")]
     {
         debug!("Hiding hypervisor memory... (NOTE: EPT HOOKS WON'T WORK IF THIS IS ENABLED UNLESS SHADOW PAGES ARE EXCLUDED)");
         let mut hook_manager = crate::intel::hooks::hook_manager::SHARED_HOOK_MANAGER.lock();
