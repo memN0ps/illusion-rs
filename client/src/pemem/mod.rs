@@ -51,6 +51,42 @@ pub unsafe fn get_nt_headers(module_base: *mut u8) -> Option<*mut IMAGE_NT_HEADE
     Some(nt_headers)
 }
 
+/// Copy headers into the target memory location (remember to stomp/erase DOS and NT headers later, if required)
+pub unsafe fn copy_headers(module_base: *mut u8, new_module_base: *mut u8) -> Option<()> {
+    let nt_headers = get_nt_headers(module_base)?;
+
+    for i in 0..(*nt_headers).OptionalHeader.SizeOfHeaders {
+        new_module_base.cast::<u8>().add(i as usize).write(module_base.add(i as usize).read());
+    }
+
+    Some(())
+}
+
+/// Copy sections into the newly allocated memory
+pub unsafe fn copy_sections(module_base: *mut u8, new_module_base: *mut u8) -> Option<()> {
+    let nt_headers = get_nt_headers(module_base)?;
+    let section_header =
+        (&(*nt_headers).OptionalHeader as *const _ as usize + (*nt_headers).FileHeader.SizeOfOptionalHeader as usize) as *mut IMAGE_SECTION_HEADER;
+
+    for i in 0..(*nt_headers).FileHeader.NumberOfSections {
+        let section_header_i = &*(section_header.add(i as usize));
+        let destination = new_module_base.cast::<u8>().add(section_header_i.VirtualAddress as usize);
+        let source = (module_base as usize + section_header_i.PointerToRawData as usize) as *const u8;
+        let size = section_header_i.SizeOfRawData as usize;
+
+        //core::ptr::copy_nonoverlapping(source, destination, size);
+        let source_data = from_raw_parts(source, size);
+
+        for x in 0..size {
+            let src_data = source_data[x];
+            let dest_data = destination.add(x);
+            *dest_data = src_data;
+        }
+    }
+
+    Some(())
+}
+
 /// Get a pointer to the Thread Environment Block (TEB)
 pub unsafe fn get_teb() -> *mut TEB {
     let teb: *mut TEB;
@@ -362,7 +398,11 @@ pub fn pattern_scan(data: &[u8], pattern: &str) -> Result<Option<usize>, ()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {
+        super::*,
+        std::{fs, ptr::null_mut},
+        windows_sys::Win32::System::Memory::{VirtualAlloc, MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE},
+    };
 
     #[test]
     fn test_get_cstr_len() {
@@ -437,5 +477,37 @@ mod tests {
         let open_process_address_via_pattern_scan = image_base + open_process_offset;
 
         assert_eq!(open_process_address_via_pattern_scan, open_process_address_via_get_exports_by_hash);
+    }
+
+    #[test]
+    fn test_manual_map() {
+        let mut module = fs::read(r"C:\Windows\System32\user32.dll").unwrap();
+        let module_base = module.as_mut_ptr();
+
+        let new_module_base = unsafe { VirtualAlloc(null_mut(), module.len(), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) as *mut u8 };
+        assert!(!new_module_base.is_null());
+
+        // Copy DOS/NT headers to newly allocated memory
+        let result = unsafe { copy_headers(module_base, new_module_base) };
+        assert!(result.is_some());
+
+        // Copy sections to newly allocated memory
+        let result = unsafe { copy_sections(module_base, new_module_base) };
+        assert!(result.is_some());
+
+        /* Since we have copied the headers and sections, we can rebase image and resolve imports using the new_module_base (newly allocated memory) */
+
+        // Process image relocations (rebase image)
+        let result = unsafe { rebase_image(new_module_base) };
+        assert!(result.is_some());
+
+        // Resolve imports using ntoskrnl
+        let result = unsafe { resolve_imports(new_module_base) };
+        assert!(result.is_some());
+
+        let nt_headers = unsafe { get_nt_headers(new_module_base).unwrap() };
+
+        let module_entrypoint = unsafe { (new_module_base as usize + (*nt_headers).OptionalHeader.AddressOfEntryPoint as usize) as *mut u8 };
+        assert!(!module_entrypoint.is_null());
     }
 }
