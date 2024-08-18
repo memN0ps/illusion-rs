@@ -34,7 +34,7 @@ use {
                 ExitType,
             },
         },
-        windows::process_info::ProcessInformation,
+        windows::eprocess::ProcessInformation,
     },
     log::*,
     x86::{

@@ -8,7 +8,7 @@ use {
             },
             vm::Vm,
         },
-        windows::process_info::ProcessInformation,
+        windows::eprocess::ProcessInformation,
     },
     log::{debug, error},
     shared::{ClientCommand, ClientDataPayload, Command, HookData, ProcessMemoryOperation},
