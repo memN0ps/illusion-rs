@@ -36,6 +36,8 @@ fn main() {
             log::debug!("Failed to write memory");
         }
 
+        // This will cause a crash if we're hiding UEFI memory in uefi\hide.rs (hide_uefi_memory) and if we're hiding hypervisor memory in hypervisor\vmm.rs (hide_hv_with_ept)
+        /*
         // Enable EPT kernel hook for NtCreateFile
         if hypervisor.enable_ept_kernel_hook("NtCreateFile").is_some() {
             log::debug!("Successfully enabled EPT kernel hook for NtCreateFile");
@@ -49,6 +51,8 @@ fn main() {
         } else {
             log::debug!("Failed to disable EPT kernel hook for NtCreateFile");
         }
+
+         */
     } else {
         log::debug!("Failed to open process");
     }
