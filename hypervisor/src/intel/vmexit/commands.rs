@@ -77,7 +77,7 @@ pub fn handle_guest_commands(vm: &mut Vm) -> Option<()> {
 /// Handles the `OpenProcess` command.
 ///
 /// This function retrieves the guest CR3 (directory table base) of the specified process
-/// and stores it in the buffer provided by the user mode.
+/// and writes it to the buffer provided by the user mode client.
 ///
 /// # Arguments
 ///
@@ -94,7 +94,7 @@ fn handle_open_process(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<(
     let target_process_cr3 = ProcessInformation::get_directory_table_base_by_process_id(memory.process_id?)?;
     debug!("Obtained process CR3: {:#x}", target_process_cr3);
 
-    // Return the CR3 to the guest by writing it to the buffer provided by the user mode
+    // Write the CR3 to the buffer provided by the user mode client
     PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, target_process_cr3)?;
 
     Some(())
@@ -102,13 +102,13 @@ fn handle_open_process(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<(
 
 /// Handles the `ReadProcessMemory` command.
 ///
-/// This function reads memory from the guest target process identified by the stored CR3 and returns
-/// the read value to the guest.
+/// This function reads a block of memory from the guest target process identified by the stored CR3
+/// and writes the read data to the buffer provided by the user mode client.
 ///
 /// # Arguments
 ///
 /// * `vm` - A mutable reference to the virtual machine (VM) instance.
-/// * `memory` - The `ProcessMemoryOperation` containing details about the memory read operation.
+/// * `memory` - The `ProcessMemoryOperation` containing details about the memory read operation, including the target address and the buffer to store the read data.
 ///
 /// # Returns
 ///
@@ -117,21 +117,24 @@ fn handle_read_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()
     debug!("Reading memory from process, address: {:#x} with CR3: {:#x}", memory.address?, memory.guest_cr3?);
 
     // Read the memory from the specified address in the target process
-    let value = PhysicalAddress::read_guest_virt_with_explicit_cr3(memory.address? as *const u64, memory.guest_cr3?)?;
+    let data =
+        PhysicalAddress::read_guest_virt_slice_with_explicit_cr3(memory.address? as *const u8, memory.buffer_size as usize, memory.guest_cr3?)?;
 
-    // Return the read value to the guest by writing it to the buffer provided by the user mode client
-    PhysicalAddress::write_guest_virt_with_current_cr3(memory.buffer as *mut u64, value)?;
+    // Write the read data to the buffer provided by the user mode client
+    PhysicalAddress::write_guest_virt_slice_with_current_cr3(memory.buffer as *mut u8, data)?;
+
     Some(())
 }
 
 /// Handles the `WriteProcessMemory` command.
 ///
-/// This function writes memory to the guest target process identified by the stored CR3 using the provided buffer.
+/// This function writes a block of memory to the guest target process identified by the stored CR3
+/// using the data provided in the user mode client's buffer.
 ///
 /// # Arguments
 ///
 /// * `vm` - A mutable reference to the virtual machine (VM) instance.
-/// * `memory` - The `ProcessMemoryOperation` containing details about the memory write operation.
+/// * `memory` - The `ProcessMemoryOperation` containing details about the memory write operation, including the target address and the buffer containing the data to be written.
 ///
 /// # Returns
 ///
@@ -139,23 +142,23 @@ fn handle_read_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()
 fn handle_write_memory(_vm: &mut Vm, memory: ProcessMemoryOperation) -> Option<()> {
     debug!("Writing memory to process, address: {:#x} with CR3: {:#x}", memory.address?, memory.guest_cr3?);
 
-    // Read the value to be written from the guest buffer provided by the user mode client
-    let value = PhysicalAddress::read_guest_virt_with_current_cr3(memory.buffer as *const u64)?;
+    // Write the data from the buffer provided by the user mode client to the specified address in the target process
+    let data = PhysicalAddress::read_guest_virt_slice_with_current_cr3(memory.buffer as *const u8, memory.buffer_size as usize)?;
+    PhysicalAddress::write_guest_virt_slice_with_explicit_cr3(memory.address? as *mut u8, data, memory.guest_cr3?)?;
 
-    // Write the value to the specified address in the target process
-    PhysicalAddress::write_guest_virt_with_explicit_cr3(memory.address? as *mut u64, value, memory.guest_cr3?)?;
     Some(())
 }
 
 /// Handles commands related to enabling or disabling kernel EPT hooks.
 ///
 /// This function manages the setup or removal of kernel EPT hooks based on the provided command.
+/// It enables or disables the hooks for specific functions based on the function hash and syscall number provided.
 ///
 /// # Arguments
 ///
 /// * `vm` - A mutable reference to the virtual machine (VM) instance.
 /// * `command` - The command indicating whether to enable or disable the hook.
-/// * `hook` - The `HookData` containing details about the hook.
+/// * `hook` - The `HookData` containing details about the hook, including the function hash and syscall number.
 ///
 /// # Returns
 ///

@@ -170,7 +170,7 @@ impl PhysicalAddress {
     /// # Returns
     ///
     /// A `Result<&[T], HypervisorError>` containing the borrowed slice on success, or an error if the read fails.
-    pub fn read_guest_slice_with_current_cr3<'a, T: Sized>(ptr: *const T, len: usize) -> Option<&'a [T]> {
+    pub fn read_guest_virt_slice_with_current_cr3<'a, T: Sized>(ptr: *const T, len: usize) -> Option<&'a [T]> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *const T;
         Some(unsafe { core::slice::from_raw_parts(phys_addr, len) })
     }
@@ -192,7 +192,7 @@ impl PhysicalAddress {
     /// # Returns
     ///
     /// A `Result<&[T], HypervisorError>` containing the borrowed slice on success, or an error if the read fails.
-    pub fn read_guest_slice_with_explicit_cr3<'a, T: Sized>(ptr: *const T, len: usize, guest_cr3: u64) -> Option<&'a [T]> {
+    pub fn read_guest_virt_slice_with_explicit_cr3<'a, T: Sized>(ptr: *const T, len: usize, guest_cr3: u64) -> Option<&'a [T]> {
         let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *const T;
         Some(unsafe { core::slice::from_raw_parts(phys_addr, len) })
     }
@@ -262,7 +262,7 @@ impl PhysicalAddress {
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating success or failure.
-    pub fn write_guest_slice_with_current_cr3<T: Sized>(ptr: *mut T, data: &[T]) -> Option<()> {
+    pub fn write_guest_virt_slice_with_current_cr3<T: Sized>(ptr: *mut T, data: &[T]) -> Option<()> {
         let phys_addr = PhysicalAddress::pa_from_va_with_current_cr3(ptr as u64).ok()? as *mut T;
         unsafe {
             core::ptr::copy_nonoverlapping(data.as_ptr(), phys_addr, data.len());
@@ -287,7 +287,7 @@ impl PhysicalAddress {
     /// # Returns
     ///
     /// A `Result<(), HypervisorError>` indicating success or failure.
-    pub fn write_guest_slice_with_explicit_cr3<T: Sized>(ptr: *mut T, data: &[T], guest_cr3: u64) -> Option<()> {
+    pub fn write_guest_virt_slice_with_explicit_cr3<T: Sized>(ptr: *mut T, data: &[T], guest_cr3: u64) -> Option<()> {
         let phys_addr = PhysicalAddress::pa_from_va_with_explicit_cr3(ptr as u64, guest_cr3).ok()? as *mut T;
         unsafe {
             core::ptr::copy_nonoverlapping(data.as_ptr(), phys_addr, data.len());

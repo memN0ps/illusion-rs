@@ -81,6 +81,7 @@ pub struct ProcessMemoryOperation {
     pub guest_cr3: Option<u64>,
     pub address: Option<u64>,
     pub buffer: u64,
+    pub buffer_size: u64,
 }
 
 /// Enum representing the data that can be sent by the client to the hypervisor.

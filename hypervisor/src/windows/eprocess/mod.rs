@@ -82,7 +82,7 @@ impl ProcessInformation {
 
         // Read the image file name bytes from the UNICODE_STRING structure.
         let image_file_name_buffer =
-            PhysicalAddress::read_guest_slice_with_current_cr3(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;
+            PhysicalAddress::read_guest_virt_slice_with_current_cr3(image_file_name.Buffer, image_file_name.MaximumLength as usize / 2)?;
 
         // Convert the image file name bytes to a string.
         let file_name = U16CStr::from_slice_truncate(image_file_name_buffer).ok()?.to_string().ok()?;

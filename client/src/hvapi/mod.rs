@@ -77,6 +77,7 @@ impl HypervisorCommunicator {
             guest_cr3: None,
             address: None,
             buffer: &mut communicator.process_cr3 as *mut u64 as u64,
+            buffer_size: size_of::<u64>() as u64,
         });
 
         let client_command = ClientCommand {
@@ -132,6 +133,7 @@ impl HypervisorCommunicator {
             guest_cr3: Some(self.process_cr3),
             address: Some(address),
             buffer: buffer.as_ptr() as u64,
+            buffer_size: buffer.len() as u64,
         };
 
         let client_command = ClientCommand {
@@ -159,6 +161,7 @@ impl HypervisorCommunicator {
             guest_cr3: Some(self.process_cr3),
             address: Some(address),
             buffer: buffer.as_ptr() as u64,
+            buffer_size: buffer.len() as u64,
         };
 
         let client_command = ClientCommand {
