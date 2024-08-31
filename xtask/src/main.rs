@@ -1,3 +1,5 @@
+#![feature(negative_impls, auto_traits, const_type_id)]
+
 use {
     crate::vmware::{
         vmrun::{VMRun, VmState},
@@ -11,11 +13,12 @@ use {
     },
 };
 
+pub mod anything;
 pub mod vmware;
 
 const ROOT: &'static str = "E:";
-// const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\Hv\Hv.vmx";
-const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\WinDev2404Eval.VMWare\Dev.vmx";
+const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\Hv\Hv.vmx";
+// const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\WinDev2404Eval.VMWare\Dev.vmx";
 const LOG_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt";
 const BOOT_PATH: &'static str = r"\EFI\Boot";
 const LOADER_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\illusion-rs\target\x86_64-unknown-uefi\debug\loader.efi";

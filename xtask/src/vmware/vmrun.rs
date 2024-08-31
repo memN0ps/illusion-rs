@@ -1,3 +1,5 @@
+use crate::anything;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmState {
     Running,

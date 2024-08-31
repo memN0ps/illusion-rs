@@ -1,0 +1,65 @@
+vcpu-0 INFO: The Matrix is an illusion
+vcpu-0 DEBUG: Setting up the hypervisor
+vcpu-0 DEBUG: Loaded image base: 0xa062000..0xe0f1000
+vcpu-0 DEBUG: Starting hypervisor on all processors
+vcpu-0 INFO: Total processors: 1
+vcpu-0 INFO: Enabled processors: 1
+vcpu-0 INFO: Found only one processor, virtualizing it
+vcpu-0 DEBUG: Is virtualized: false
+vcpu-0 DEBUG: Virtualizing the system
+vcpu-0 DEBUG: Allocating stack space for host
+vcpu-0 DEBUG: Zeroing stack space for host
+vcpu-0 DEBUG: Starting hypervisor
+vcpu-0 INFO: CPU is Intel
+vcpu-0 INFO: Virtual Machine Extension (VMX) technology is supported
+vcpu-0 INFO: Memory Type Range Registers (MTRRs) are supported
+vcpu-0 INFO: Extended Page Tables (EPT) are supported
+vcpu-0 DEBUG: CPU is supported
+vcpu-0 DEBUG: Building identity map for page tables
+vcpu-0 DEBUG: Identity map built successfully
+vcpu-0 DEBUG: VM initialized
+vcpu-0 DEBUG: VMX enabled
+vcpu-0 DEBUG: Creating a new GDT with TSS for guest
+vcpu-0 DEBUG: New GDT with TSS created for guest successfully!
+vcpu-0 DEBUG: Creating a new GDT with TSS for host
+vcpu-0 DEBUG: New GDT with TSS and IDT created for host successfully!
+vcpu-0 DEBUG: Setting up Guest Registers State
+vcpu-0 DEBUG: Guest Registers State setup successfully!
+vcpu-0 DEBUG: Setting up Host Registers State
+vcpu-0 DEBUG: Host Registers State setup successfully!
+vcpu-0 DEBUG: Setting up VMCS Control Fields
+vcpu-0 DEBUG: VMCS Control Fields setup successfully!
+vcpu-0 DEBUG: VMCS activated
+vcpu-0 DEBUG: Hiding hypervisor memory... (NOTE: EPT HOOKS WON'T WORK IF THIS IS ENABLED UNLESS SHADOW PAGES ARE EXCLUDED)
+vcpu-0 DEBUG: Memory Range: Start = 0xa062000, Size = 0x408f000
+vcpu-0 DEBUG: Memory Range: Start = 0x8c59000, Size = 0x1408000
+vcpu-0 DEBUG: Hypervisor memory hidden
+vcpu-0 INFO: Launching the VM until a vmexit occurs...
+vcpu-0 DEBUG: Is virtualized: true
+vcpu-0 INFO: The hypervisor has been installed successfully!
+vcpu-0 DEBUG: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 DEBUG: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 DEBUG: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 DEBUG: VM exit reason: Rdmsr
+vcpu-0 DEBUG: Handling MSR VM exit...
+vcpu-0 DEBUG: MSR VMEXIT handled successfully.
+vcpu-0 DEBUG: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 DEBUG: VM exit reason: Rdmsr
+vcpu-0 DEBUG: Handling MSR VM exit...
+vcpu-0 DEBUG: MSR VMEXIT handled successfully.
+vcpu-0 DEBUG: VM exit reason: Wrmsr
+vcpu-0 DEBUG: Handling MSR VM exit...
+vcpu-0 DEBUG: MSR VMEXIT handled successfully.
+vcpu-0 DEBUG: VM exit reason: Xsetbv
+vcpu-0 DEBUG: Handling XSETBV VM VM exit...
+vcpu-0 DEBUG: XSETBV VM exit handled successfully!
+vcpu-0 DEBUG: VM exit reason: ControlRegisterAccesses
+vcpu-0 DEBUG: VM exit reason: ControlRegisterAccesses
