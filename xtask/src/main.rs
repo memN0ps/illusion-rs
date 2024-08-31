@@ -16,10 +16,10 @@ pub mod vmware;
 const ROOT: &'static str = "E:";
 // const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\Hv\Hv.vmx";
 const VMX_PATH: &'static str = r"C:\Users\memN0ps\Documents\Virtual Machines\WinDev2404Eval.VMWare\Dev.vmx";
-const LOG_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\logs.txt";
+const LOG_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\illusion-rs\logs.txt";
 const BOOT_PATH: &'static str = r"\EFI\Boot";
-const LOADER_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\target\x86_64-unknown-uefi\debug\loader.efi";
-const HYPERVISOR_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\inception-rs\target\x86_64-unknown-uefi\debug\illusion.efi";
+const LOADER_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\illusion-rs\target\x86_64-unknown-uefi\debug\loader.efi";
+const HYPERVISOR_PATH: &'static str = r"C:\Users\memN0ps\Documents\GitHub\illusion-rs\target\x86_64-unknown-uefi\debug\illusion.efi";
 const BOOTX64_NAME: &'static str = "bootx64.efi";
 const HYPERVISOR_NAME: &'static str = "illusion.efi";
 
