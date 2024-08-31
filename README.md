@@ -1,5 +1,11 @@
 # Windows UEFI Blue Pill Type-1 Hypervisor in Rust (Codename: Illusion)
 
+![Build Status](https://github.com/memN0ps/illusion-rs/actions/workflows/rust.yml/badge.svg)
+![License](https://img.shields.io/github/license/memN0ps/illusion-rs)
+![Issues](https://img.shields.io/github/issues/memN0ps/illusion-rs)
+![Forks](https://img.shields.io/github/forks/memN0ps/illusion-rs)
+![Stars](https://img.shields.io/github/stars/memN0ps/illusion-rs)
+
 A lightweight, memory-safe, and blazingly fast Rust-based type-1 research hypervisor with hooks for Intel VT-x, focused on studying the core concepts of virtualization.
 
 **Note:** The [**Illusion** hypervisor](https://github.com/memN0ps/illusion-rs) (Windows UEFI Blue Pill Type-1 Hypervisor in Rust) is more stable, supports more features, and is overall better designed. The [**Matrix** hypervisor](https://github.com/memN0ps/matrix-rs) (Windows Kernel Blue Pill Type-2 Hypervisor in Rust) is an older, experimental version and is not intended for production use. Both projects serve as templates to help people get started with hypervisor development in Rust.
