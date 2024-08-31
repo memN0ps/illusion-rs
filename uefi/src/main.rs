@@ -2,7 +2,6 @@
 // within a UEFI application. It demonstrates advanced features such as custom panic handlers,
 // early logging, and direct manipulation of loaded image properties for hypervisor initialization.
 
-#![feature(new_uninit)]
 #![no_main]
 #![no_std]
 
